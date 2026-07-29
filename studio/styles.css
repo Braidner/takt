@@ -1113,3 +1113,52 @@ button, input, textarea, select { font: inherit; color: inherit; }
   border-top: 1px solid var(--line);
 }
 .narration-actions .primary { margin-left: auto; }
+
+/* ── Форма подключения ─────────────────────────────────────────────────────
+   Открывается кликом по состоянию стенда в шапке: там же, где видно проблему,
+   находится и её решение — искать настройки в другом месте незачем.          */
+
+.stend { cursor: pointer; font: inherit; }
+.stend:hover { border-color: var(--line-strong); }
+
+.connect {
+  width: min(460px, 92vw);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--ink);
+}
+.connect::backdrop { background: color-mix(in oklch, #000 62%, transparent); }
+
+.connect-form { padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-3); }
+.connect-head { font-size: var(--t-md); font-weight: 560; }
+
+.connect-row { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: var(--sp-3); align-items: center; }
+.connect-row span { font-size: var(--t-sm); color: var(--ink-muted); }
+
+.connect-row input {
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--bg);
+  font-size: var(--t-md);
+}
+.connect-row input:focus { border-color: var(--brand-blue); outline: none; }
+
+.connect-note {
+  margin: 0;
+  font-size: var(--t-xs);
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+.connect-note code {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--surface-raised);
+}
+
+.connect-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; }

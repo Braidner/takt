@@ -141,7 +141,22 @@ const readMovie = () => {
   try { return JSON.parse(fs.readFileSync(movieFile(), 'utf8')); } catch { return null; }
 };
 
-const stendFile = path.join(ROOT, 'stend.json');   // стенд общий: он про окружение, а не про ролик
+const stendFile = path.join(ROOT, 'stend.json');
+
+// Настройки подключения лежат рядом со студией и не попадают в репозиторий: там адрес
+// внутреннего окружения и учётные данные.
+const taktConfigFile = path.join(DIR, 'takt.json');
+const readTaktConfig = () => {
+  try { return JSON.parse(fs.readFileSync(taktConfigFile, 'utf8')); } catch { return {}; }
+};
+
+/** Готовые цели из пресета — чтобы форма предлагала их, а не заставляла вспоминать. */
+function presetTargets() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(path.join(DIR, 'takt.preset.json'), 'utf8'));
+    return Object.entries(raw.targets || {}).map(([name, url]) => ({ name, url }));
+  } catch { return []; }
+}   // стенд общий: он про окружение, а не про ролик
 const scenarioFile = () => inProject('scenario.json');
 /** Таймкоды — производные от длительностей, а не самостоятельные данные. */
 const withTimeline = (steps) => {
@@ -528,6 +543,56 @@ const server = http.createServer(async (req, res) => {
     writeScenario(scenario);
     broadcast({ type: 'scenario', scenario });
     return send(res, 200, { ok: true });
+  }
+
+  // ── Настройки подключения: адрес и учётные данные из формы
+  if (p === '/api/connection' && req.method === 'GET') {
+    const cfg = readTaktConfig();
+    // Пароль наружу не отдаётся никогда — ни в ответе, ни в потоке событий. Форме
+    // достаточно знать, задан он или нет: показывать его обратно незачем, а утечь
+    // через историю браузера или скриншот он может запросто.
+    return send(res, 200, {
+      stend: cfg.stend || null,
+      user: cfg.creds?.user || null,
+      hasPassword: Boolean(cfg.creds?.password),
+      targets: presetTargets(),
+    });
+  }
+
+  if (p === '/api/connection' && req.method === 'POST') {
+    if (!authed) return send(res, 401, { error: 'unauthorized' });
+    const msg = await body(req);
+    const cfg = readTaktConfig();
+
+    if (msg?.stend) cfg.stend = String(msg.stend).trim();
+    cfg.creds = cfg.creds || {};
+    if (msg?.user !== undefined) cfg.creds.user = String(msg.user || '').trim();
+    // Пустой пароль в форме означает «оставить прежний», а не «стереть»: иначе правка
+    // адреса вслепую сбрасывала бы уже сохранённые учётные данные.
+    if (msg?.password) cfg.creds.password = String(msg.password);
+    if (msg?.clearPassword) delete cfg.creds.password;
+
+    fs.writeFileSync(taktConfigFile, JSON.stringify(cfg, null, 2) + '\n');
+    // В журнал пишем факт, но не значения: журнал читают глазами и передают дальше.
+    logEvent({ type: 'connection_saved', stend: cfg.stend, user: cfg.creds.user || null });
+
+    // Чип в шапке обязан сразу перестать показывать прежний адрес. Иначе форма врёт:
+    // снимать будем с нового стенда, а зелёная отметка остаётся от старого — и это
+    // ровно та ошибка, которую замечают уже на смонтированном ролике.
+    if (cfg.stend && cfg.stend !== state.stend.url) {
+      Object.assign(state.stend, {
+        url: cfg.stend, from: 'форма', state: msg?.check ? 'checking' : 'unknown',
+        text: msg?.check ? 'Проверяю стенд' : 'Стенд не проверен',
+      });
+      fs.writeFileSync(stendFile, JSON.stringify(state.stend, null, 2));
+      broadcast({ type: 'stend', stend: state.stend });
+    }
+
+    if (msg?.check) {
+      enqueue({ type: 'check_stend', url: cfg.stend });
+      broadcast({ type: 'status', status: state.status, agent: agentAlive(), inFlight: inFlight() });
+    }
+    return send(res, 200, { ok: true, stend: cfg.stend, hasPassword: Boolean(cfg.creds.password) });
   }
 
   // ── Состояние стенда: проверяется отдельным шагом до всякой съёмки

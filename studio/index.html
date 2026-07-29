@@ -20,10 +20,10 @@
     <div class="head-spacer"></div>
 
     <!-- Стенд и агент — разные поломки с разным лечением, поэтому и показаны отдельно. -->
-    <div class="agent stend" data-state="unknown" role="status" aria-live="polite" title="">
+    <button class="agent stend" data-state="unknown" type="button" title="Настроить подключение">
       <span class="agent-dot" aria-hidden="true"></span>
       <span class="stend-text">Стенд не проверен</span>
-    </div>
+    </button>
 
     <!-- Состояние агента: текст плюс форма точки, не только цвет. -->
     <div class="agent" data-state="busy" role="status" aria-live="polite">
@@ -187,6 +187,41 @@
       <button class="ghost" type="button" data-i="upload">Загрузить файл</button>
     </div>
   </section>
+
+  <!-- Подключение: адрес и учётные данные. Пароль уходит на сервер и обратно не
+       возвращается — форма знает только, задан он или нет. -->
+  <dialog class="connect">
+    <form method="dialog" class="connect-form">
+      <div class="connect-head">Куда снимаем</div>
+
+      <label class="connect-row">
+        <span>Адрес</span>
+        <input class="connect-url" type="url" required placeholder="https://example.com/app"
+               list="connect-targets">
+      </label>
+      <datalist id="connect-targets"></datalist>
+
+      <label class="connect-row">
+        <span>Логин</span>
+        <input class="connect-user" type="text" autocomplete="off" placeholder="если нужен вход">
+      </label>
+
+      <label class="connect-row">
+        <span>Пароль</span>
+        <input class="connect-password" type="password" autocomplete="off" placeholder="">
+      </label>
+
+      <p class="connect-note">
+        Пароль хранится на этой машине в <code>studio/takt.json</code> и не попадает
+        ни в репозиторий, ни обратно в браузер. Оставьте поле пустым, чтобы сохранить прежний.
+      </p>
+
+      <div class="connect-actions">
+        <button class="ghost connect-cancel" type="button">Отмена</button>
+        <button class="primary connect-save" type="button">Сохранить и проверить</button>
+      </div>
+    </form>
+  </dialog>
 
   <!-- Дикторский текст: показывается ДО синтеза и правится здесь же. Озвучка пяти минут
        стоит времени, а опечатка видна сразу. -->

@@ -45,6 +45,13 @@ const el = {
   inflightNotes: document.querySelector('.inflight-notes'),
   projectSelect: document.querySelector('.project-select'),
   projectNew: document.querySelector('.project-new'),
+  connect: document.querySelector('.connect'),
+  connectUrl: document.querySelector('.connect-url'),
+  connectUser: document.querySelector('.connect-user'),
+  connectPassword: document.querySelector('.connect-password'),
+  connectSave: document.querySelector('.connect-save'),
+  connectCancel: document.querySelector('.connect-cancel'),
+  connectTargets: document.querySelector('#connect-targets'),
 };
 
 let DURATION = 287;                   // длительность, пока сценарий не пришёл
@@ -542,6 +549,32 @@ async function renderPlan() {
   el.planApply.disabled = el.agent?.dataset.state === 'offline';
 }
 
+/**
+ * Форма подключения.
+ *
+ * Пароль в форму не подставляется никогда: сервер его не отдаёт, а пустое поле означает
+ * «оставить прежний». Иначе правка адреса вслепую сбрасывала бы сохранённые данные, а сам
+ * пароль оседал бы в истории браузера и на скриншотах.
+ */
+async function openConnect() {
+  const cfg = await fetch('/api/connection').then((r) => r.json()).catch(() => null);
+  if (!cfg) return;
+
+  el.connectUrl.value = cfg.stend || '';
+  el.connectUser.value = cfg.user || '';
+  el.connectPassword.value = '';
+  el.connectPassword.placeholder = cfg.hasPassword ? 'сохранён — оставьте пустым' : '';
+
+  el.connectTargets.innerHTML = '';
+  for (const t of cfg.targets || []) {
+    const o = document.createElement('option');
+    o.value = t.url;
+    o.label = t.name;
+    el.connectTargets.append(o);
+  }
+  el.connect.showModal();
+}
+
 /** Список проектов в шапке: переключение меняет корень всего состояния. */
 function renderProjects(current, projects = []) {
   if (!el.projectSelect) return;
@@ -676,6 +709,23 @@ async function boot() {
   el.shoot?.addEventListener('click', async () => {
     await pushScenario({ status: 'ready' });
     await post('/api/event', { type: 'shoot' });
+  });
+
+  el.stend?.addEventListener('click', openConnect);
+  el.connectCancel?.addEventListener('click', () => el.connect.close());
+  el.connectSave?.addEventListener('click', async () => {
+    const url = el.connectUrl.value.trim();
+    if (!url) return;
+    el.connectSave.disabled = true;
+    await post('/api/connection', {
+      stend: url,
+      user: el.connectUser.value.trim(),
+      password: el.connectPassword.value,   // пусто — сервер оставит прежний
+      check: true,
+    });
+    el.connectPassword.value = '';
+    el.connectSave.disabled = false;
+    el.connect.close();
   });
 
   el.projectSelect?.addEventListener('change', async () => {
