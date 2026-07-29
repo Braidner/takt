@@ -22,3 +22,4 @@ fesb-preset/
 # Скриншоты и кадры с интерфейсом снимаемой системы.
 studio/shot-*.png
 studio/frame.jpg
+exports/

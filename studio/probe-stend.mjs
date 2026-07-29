@@ -14,6 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { inProject } from './project.mjs';
 import { chromium } from 'playwright';
 import { login } from '../capture/lib/stend.mjs';
 import { readConfig } from './resolve-stend.mjs';
@@ -75,7 +76,7 @@ const facts = await page.evaluate(() => {
 
 // Скриншот обязателен: текстовые факты не показывают, ЧТО из этого крупное и заметное в
 // кадре, а сценарий пишется для зрителя, а не для парсера.
-const shot = path.join(DIR, 'journal', 'probe.png');
+const shot = inProject('probe.png');
 await page.screenshot({ path: shot });
 await browser.close();
 

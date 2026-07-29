@@ -43,6 +43,8 @@ const el = {
   planApply: document.querySelector('.plan-apply'),
   inflight: document.querySelector('.script-actions .inflight'),
   inflightNotes: document.querySelector('.inflight-notes'),
+  projectSelect: document.querySelector('.project-select'),
+  projectNew: document.querySelector('.project-new'),
 };
 
 let DURATION = 287;                   // длительность, пока сценарий не пришёл
@@ -540,6 +542,19 @@ async function renderPlan() {
   el.planApply.disabled = el.agent?.dataset.state === 'offline';
 }
 
+/** Список проектов в шапке: переключение меняет корень всего состояния. */
+function renderProjects(current, projects = []) {
+  if (!el.projectSelect) return;
+  el.projectSelect.innerHTML = '';
+  for (const p of projects) {
+    const o = document.createElement('option');
+    o.value = p.id;
+    o.textContent = p.title;
+    o.selected = p.id === current;
+    el.projectSelect.append(o);
+  }
+}
+
 function renderNotes(notes) {
   notesData = notes || [];
   renderTracks();
@@ -582,6 +597,7 @@ function connect() {
     const msg = JSON.parse(m.data);
     if (msg.type === 'status') { setAgent(msg.status, msg.agent); renderInFlight(msg.inFlight); }
     if (msg.type === 'stend') setStend(msg.stend);
+    if (msg.type === 'project') renderProjects(msg.current, msg.projects);
     if (msg.type === 'scenario') renderScenario(msg.scenario);
     if (msg.type === 'movie') renderMovie(msg.movie);
     if (msg.type === 'voices') voicePanel?.render(msg.voices);
@@ -618,6 +634,7 @@ async function boot() {
   setAgent(hello.status, hello.agent);
   renderInFlight(hello.inFlight);
   setStend(hello.stend);
+  renderProjects(hello.project, hello.projects);
   setupDragAndDrop(el.steps);
   renderScenario(hello.scenario);
   renderMovie(hello.movie);
@@ -659,6 +676,20 @@ async function boot() {
   el.shoot?.addEventListener('click', async () => {
     await pushScenario({ status: 'ready' });
     await post('/api/event', { type: 'shoot' });
+  });
+
+  el.projectSelect?.addEventListener('change', async () => {
+    await post('/api/projects', { open: el.projectSelect.value });
+    // Перезагружаем страницу: смена проекта меняет всё состояние разом, и половина
+    // старого рядом с половиной нового хуже короткой паузы.
+    location.reload();
+  });
+
+  el.projectNew?.addEventListener('click', async () => {
+    const title = prompt('Название ролика');
+    if (!title) return;
+    await post('/api/projects', { title });
+    location.reload();
   });
 
   el.planApply?.addEventListener('click', async () => {

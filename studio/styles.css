@@ -156,11 +156,27 @@ button, input, textarea, select { font: inherit; color: inherit; }
 }
 
 .head-project {
-  color: var(--ink-muted);
-  font-size: var(--t-md);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
   padding-left: var(--sp-4);
   border-left: 1px solid var(--line);
 }
+
+.project-select {
+  max-width: 28ch;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--ink);
+  font-size: var(--t-md);
+  cursor: pointer;
+}
+.project-select:hover { border-color: var(--line); }
+.project-select:focus { border-color: var(--brand-blue); outline: none; }
+
+.project-new { padding: var(--sp-1) var(--sp-2); line-height: 1; }
 
 .head-spacer { flex: 1; }
 

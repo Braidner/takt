@@ -11,7 +11,12 @@
 
   <header class="head">
     <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Takt</div>
-    <div class="head-project" data-i="project">Ассистент: от задачи до интеграции</div>
+    <!-- Проект — единица работы: свой сценарий, дубли, ролик, замечания и озвучка.
+         Голоса общие, они не про конкретный ролик. -->
+    <div class="head-project">
+      <select class="project-select" aria-label="Проект"></select>
+      <button class="ghost project-new" type="button" title="Новый ролик">+</button>
+    </div>
     <div class="head-spacer"></div>
 
     <!-- Стенд и агент — разные поломки с разным лечением, поэтому и показаны отдельно. -->

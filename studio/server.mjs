@@ -38,6 +38,62 @@ const POLL_MAX_MS = 270_000;
 const LEASE_MS = 600_000;
 const HEARTBEAT_MS = 30_000;
 
+/**
+ * Проекты.
+ *
+ * Раньше всё лежало в одном безымянном journal/: сценарий, дубли, ролик, замечания,
+ * озвучка. Второй ролик молча затирал первый вместе со всей работой по нему — пока
+ * ролик был один, это не мешало.
+ *
+ * Голоса живут ВНЕ проектов: голос диктора один на все ролики, и записывать его заново
+ * под каждый бессмысленно.
+ */
+const ROOT = path.join(DIR, 'journal');
+const PROJECTS = path.join(ROOT, 'projects');
+fs.mkdirSync(PROJECTS, { recursive: true });
+
+const slugify = (name) => String(name).trim().toLowerCase()
+  .replace(/[^a-zа-яё0-9]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'project';
+
+const currentFile = path.join(ROOT, 'current.json');
+const readCurrent = () => {
+  try { return JSON.parse(fs.readFileSync(currentFile, 'utf8')).id; } catch { return null; }
+};
+
+const listProjects = () => {
+  try {
+    return fs.readdirSync(PROJECTS)
+      .filter((d) => fs.existsSync(path.join(PROJECTS, d, 'project.json')))
+      .map((d) => JSON.parse(fs.readFileSync(path.join(PROJECTS, d, 'project.json'), 'utf8')))
+      .sort((a, b) => (b.openedAt || '').localeCompare(a.openedAt || ''));
+  } catch { return []; }
+};
+
+function ensureProject(id, title) {
+  const dir = path.join(PROJECTS, id);
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'project.json');
+  if (!fs.existsSync(file)) {
+    fs.writeFileSync(file, JSON.stringify(
+      { id, title: title || id, createdAt: new Date().toISOString() }, null, 2));
+  }
+  return dir;
+}
+
+// Первый запуск: если проектов нет, заводим один — иначе студия открывается в пустоту
+// и человеку нужно сделать лишний шаг до того, как он вообще что-то увидел.
+let currentId = readCurrent();
+if (!currentId || !fs.existsSync(path.join(PROJECTS, currentId, 'project.json'))) {
+  currentId = listProjects()[0]?.id || slugify('Первый ролик');
+  ensureProject(currentId, 'Первый ролик');
+  fs.writeFileSync(currentFile, JSON.stringify({ id: currentId }, null, 2));
+}
+
+/** Путь внутри текущего проекта. Всё состояние ролика адресуется только так. */
+const inProject = (...parts) => path.join(PROJECTS, currentId, ...parts);
+
+const JOURNAL = ROOT;
+
 const state = {
   token: crypto.randomBytes(16).toString('hex'),
   queue: [],            // события, ждущие агента
@@ -75,18 +131,18 @@ const readVoices = () => {
   } catch { return []; }
 };
 
-const narrationFile = path.join(DIR, 'journal', 'narration.json');
+const narrationFile = () => inProject('narration.json');
 const readNarration = () => {
-  try { return JSON.parse(fs.readFileSync(narrationFile, 'utf8')); } catch { return null; }
+  try { return JSON.parse(fs.readFileSync(narrationFile(), 'utf8')); } catch { return null; }
 };
 
-const movieFile = path.join(DIR, 'journal', 'movie.json');
+const movieFile = () => inProject('movie.json');
 const readMovie = () => {
-  try { return JSON.parse(fs.readFileSync(movieFile, 'utf8')); } catch { return null; }
+  try { return JSON.parse(fs.readFileSync(movieFile(), 'utf8')); } catch { return null; }
 };
 
-const stendFile = path.join(DIR, 'journal', 'stend.json');
-const scenarioFile = path.join(DIR, 'journal', 'scenario.json');
+const stendFile = path.join(ROOT, 'stend.json');   // стенд общий: он про окружение, а не про ролик
+const scenarioFile = () => inProject('scenario.json');
 /** Таймкоды — производные от длительностей, а не самостоятельные данные. */
 const withTimeline = (steps) => {
   let at = 0;
@@ -99,21 +155,19 @@ const withTimeline = (steps) => {
 };
 
 const readScenario = () => {
-  try { return JSON.parse(fs.readFileSync(scenarioFile, 'utf8')); } catch { return null; }
+  try { return JSON.parse(fs.readFileSync(scenarioFile(), 'utf8')); } catch { return null; }
 };
-const writeScenario = (s) => fs.writeFileSync(scenarioFile, JSON.stringify(s, null, 2));
+const writeScenario = (s) => fs.writeFileSync(scenarioFile(), JSON.stringify(s, null, 2));
 
-const JOURNAL = path.join(DIR, 'journal');
-fs.mkdirSync(JOURNAL, { recursive: true });
-const notesFile = path.join(JOURNAL, 'notes.json');
-const eventsFile = path.join(JOURNAL, 'events.jsonl');
+const notesFile = () => inProject('notes.json');
+const eventsFile = () => inProject('events.jsonl');
 
 const readNotes = () => {
-  try { return JSON.parse(fs.readFileSync(notesFile, 'utf8')); } catch { return []; }
+  try { return JSON.parse(fs.readFileSync(notesFile(), 'utf8')); } catch { return []; }
 };
-const writeNotes = (notes) => fs.writeFileSync(notesFile, JSON.stringify(notes, null, 2));
+const writeNotes = (notes) => fs.writeFileSync(notesFile(), JSON.stringify(notes, null, 2));
 const logEvent = (e) =>
-  fs.appendFileSync(eventsFile, JSON.stringify({ ...e, at: new Date().toISOString() }) + '\n');
+  fs.appendFileSync(eventsFile(), JSON.stringify({ ...e, at: new Date().toISOString() }) + '\n');
 
 const send = (res, code, body, type = 'application/json') => {
   res.writeHead(code, { 'Content-Type': type, 'Cache-Control': 'no-store' });
@@ -181,6 +235,43 @@ const body = (req) => new Promise((resolve) => {
   req.on('end', () => { try { resolve(JSON.parse(b || '{}')); } catch { resolve(null); } });
 });
 
+/**
+ * Отдача файла с поддержкой диапазонов.
+ *
+ * Range-запросы обязательны для перемотки: без них браузер качает видео целиком при
+ * каждом прыжке по таймкоду и не даёт мотать до полной загрузки. А перемотка здесь —
+ * основное действие: по ролику работают прыжками по моментам замечаний.
+ */
+function serveFile(req, res, file) {
+  const type = MIME[path.extname(file)] || 'application/octet-stream';
+  if (path.extname(file) !== '.mp4') {
+    return fs.readFile(file, (err, data) => {
+      if (err) return send(res, 404, 'not found', 'text/plain');
+      res.writeHead(200, { 'Content-Type': type });
+      res.end(data);
+    });
+  }
+
+  fs.stat(file, (err, st) => {
+    if (err) return send(res, 404, 'not found', 'text/plain');
+    const range = req.headers.range;
+    if (!range) {
+      res.writeHead(200, { 'Content-Type': type, 'Content-Length': st.size, 'Accept-Ranges': 'bytes' });
+      return fs.createReadStream(file).pipe(res);
+    }
+    const [s0, s1] = range.replace(/bytes=/, '').split('-');
+    const start = Number(s0);
+    const end = s1 ? Number(s1) : st.size - 1;
+    res.writeHead(206, {
+      'Content-Type': type,
+      'Content-Range': `bytes ${start}-${end}/${st.size}`,
+      'Accept-Ranges': 'bytes',
+      'Content-Length': end - start + 1,
+    });
+    fs.createReadStream(file, { start, end }).pipe(res);
+  });
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const p = url.pathname;
@@ -190,7 +281,8 @@ const server = http.createServer(async (req, res) => {
   // ── Страница узнаёт свой токен из этого маршрута: он открыт, но отдаёт токен только
   // локальному запросу — сервер и так слушает только петлевой интерфейс.
   if (p === '/api/hello') {
-    return send(res, 200, { token: state.token, status: state.status, agent: agentAlive(),
+    return send(res, 200, { token: state.token, project: currentId, projects: listProjects(),
+                            status: state.status, agent: agentAlive(),
                             stend: state.stend, notes: readNotes(), scenario: readScenario(),
                             movie: readMovie(), voices: readVoices(),
                             narration: readNarration(), inFlight: inFlight() });
@@ -203,6 +295,7 @@ const server = http.createServer(async (req, res) => {
                          Connection: 'keep-alive' });
     res.write(`data: ${JSON.stringify({ type: 'status', status: state.status, agent: agentAlive(), inFlight: inFlight() })}\n\n`);
     res.write(`data: ${JSON.stringify({ type: 'stend', stend: state.stend })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'project', current: currentId, projects: listProjects() })}\n\n`);
     const sc = readScenario();
     if (sc) res.write(`data: ${JSON.stringify({ type: 'scenario', scenario: sc })}\n\n`);
     const mv = readMovie();
@@ -296,7 +389,7 @@ const server = http.createServer(async (req, res) => {
       })),
       updatedAt: new Date().toISOString(),
     };
-    fs.writeFileSync(narrationFile, JSON.stringify(narration, null, 2));
+    fs.writeFileSync(narrationFile(), JSON.stringify(narration, null, 2));
     broadcast({ type: 'narration', narration });
     return send(res, 200, { ok: true });
   }
@@ -349,6 +442,51 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { ok: true });
   }
 
+  // ── Проекты: список, переключение, создание
+  if (p === '/api/projects' && req.method === 'GET') {
+    return send(res, 200, { current: currentId, projects: listProjects() });
+  }
+
+  if (p === '/api/projects' && req.method === 'POST') {
+    if (!authed) return send(res, 401, { error: 'unauthorized' });
+    const msg = await body(req);
+
+    if (msg?.open) {
+      // Переключение — это смена корня для всего состояния, поэтому страницу
+      // перерисовываем целиком: половина старого проекта рядом с половиной нового
+      // хуже, чем короткая пауза.
+      if (!fs.existsSync(path.join(PROJECTS, msg.open, 'project.json'))) {
+        return send(res, 404, { error: 'no_project' });
+      }
+      currentId = msg.open;
+      fs.writeFileSync(currentFile, JSON.stringify({ id: currentId }, null, 2));
+      logEvent({ type: 'project_open', id: currentId });
+      broadcast({ type: 'project', current: currentId, projects: listProjects() });
+      broadcast({ type: 'scenario', scenario: readScenario() });
+      broadcast({ type: 'notes', notes: readNotes() });
+      broadcast({ type: 'movie', movie: readMovie() });
+      broadcast({ type: 'narration', narration: readNarration() });
+      return send(res, 200, { ok: true, current: currentId });
+    }
+
+    const title = String(msg?.title || 'Новый ролик').slice(0, 80);
+    let id = slugify(title);
+    // Одноимённые ролики — обычное дело («Обзор», «Обзор» второй попыткой), поэтому
+    // при совпадении добавляем номер, а не отказываем.
+    let n = 2;
+    while (fs.existsSync(path.join(PROJECTS, id, 'project.json'))) id = `${slugify(title)}-${n++}`;
+    ensureProject(id, title);
+    currentId = id;
+    fs.writeFileSync(currentFile, JSON.stringify({ id: currentId }, null, 2));
+    logEvent({ type: 'project_create', id, title });
+    broadcast({ type: 'project', current: currentId, projects: listProjects() });
+    broadcast({ type: 'scenario', scenario: null });
+    broadcast({ type: 'notes', notes: [] });
+    broadcast({ type: 'movie', movie: null });
+    broadcast({ type: 'narration', narration: null });
+    return send(res, 200, { ok: true, id });
+  }
+
   // ── План работ по накопленным замечаниям: что и сколько займёт
   if (p === '/api/plan') {
     const plan = planFor(readNotes());
@@ -359,7 +497,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/movie' && req.method === 'POST') {
     if (!authed) return send(res, 401, { error: 'unauthorized' });
     const msg = await body(req);
-    fs.writeFileSync(movieFile, JSON.stringify(msg, null, 2));
+    fs.writeFileSync(movieFile(), JSON.stringify(msg, null, 2));
     logEvent({ type: 'movie', duration: msg?.duration });
     broadcast({ type: 'movie', movie: msg });
     return send(res, 200, { ok: true });
@@ -451,41 +589,18 @@ const server = http.createServer(async (req, res) => {
 
   if (p === '/api/notes') return send(res, 200, readNotes());
 
+  // ── Файлы текущего проекта
+  if (p.startsWith('/project/')) {
+    const rel = decodeURIComponent(p.slice('/project/'.length));
+    const file = inProject(rel);
+    if (!file.startsWith(path.join(PROJECTS, currentId))) return send(res, 403, 'forbidden', 'text/plain');
+    return serveFile(req, res, file);
+  }
+
   // ── Статика студии
   const file = path.join(DIR, p === '/' ? 'index.html' : decodeURIComponent(p).replace(/^\/+/, ''));
   if (!file.startsWith(DIR)) return send(res, 403, 'forbidden', 'text/plain');
-
-  const type = MIME[path.extname(file)] || 'application/octet-stream';
-  if (path.extname(file) === '.mp4') {
-    // Range-запросы обязательны для перемотки: без них браузер качает файл целиком
-    // при каждом прыжке по таймкоду и не даёт мотать до полной загрузки.
-    fs.stat(file, (err, st) => {
-      if (err) return send(res, 404, 'not found', 'text/plain');
-      const range = req.headers.range;
-      if (!range) {
-        res.writeHead(200, { 'Content-Type': type, 'Content-Length': st.size,
-                             'Accept-Ranges': 'bytes' });
-        return fs.createReadStream(file).pipe(res);
-      }
-      const [s0, s1] = range.replace(/bytes=/, '').split('-');
-      const start = Number(s0);
-      const end = s1 ? Number(s1) : st.size - 1;
-      res.writeHead(206, {
-        'Content-Type': type,
-        'Content-Range': `bytes ${start}-${end}/${st.size}`,
-        'Accept-Ranges': 'bytes',
-        'Content-Length': end - start + 1,
-      });
-      fs.createReadStream(file, { start, end }).pipe(res);
-    });
-    return;
-  }
-
-  fs.readFile(file, (err, data) => {
-    if (err) return send(res, 404, 'not found', 'text/plain');
-    res.writeHead(200, { 'Content-Type': type });
-    res.end(data);
-  });
+  return serveFile(req, res, file);
 });
 
 server.listen(PORT, '127.0.0.1', () => {

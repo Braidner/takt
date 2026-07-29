@@ -18,6 +18,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { inProject } from './project.mjs';
 import { chromium } from 'playwright';
 import { login } from '../capture/lib/stend.mjs';
 import { readConfig } from './resolve-stend.mjs';
@@ -56,7 +57,7 @@ const fromArg = process.argv.indexOf('--from');
 const from = fromArg !== -1 ? Number(process.argv[fromArg + 1]) : 1;
 
 const cfg = readConfig();
-const OUT = path.join(DIR, 'journal', 'takes');
+const OUT = inProject('takes');
 fs.mkdirSync(OUT, { recursive: true });
 
 const browser = await chromium.launch();
@@ -169,7 +170,7 @@ try {
   timeline.durationInSeconds = recordingFrom ? (Date.now() - recordingFrom) / 1000 : 0;
   timeline.frames = Math.round(timeline.durationInSeconds * timeline.fps);
   timeline.video = file;
-  fs.writeFileSync(path.join(DIR, 'journal', 'timeline.json'), JSON.stringify(timeline, null, 2));
+  fs.writeFileSync(inProject('timeline.json'), JSON.stringify(timeline, null, 2));
 
   if (stopped) {
     await setStatus({ state: 'listening', text: 'Съёмка остановлена', step: null, of: null });

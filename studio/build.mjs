@@ -23,6 +23,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { inProject } from './project.mjs';
 
 const run = promisify(execFile);
 const DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -36,7 +37,7 @@ const api = (route, payload) =>
     body: JSON.stringify(payload),
   }).then((r) => r.json()).catch(() => null);
 
-const timelinePath = path.join(JOURNAL, 'timeline.json');
+const timelinePath = inProject('timeline.json');
 if (!fs.existsSync(timelinePath)) {
   console.error('Нет телеметрии: сначала снимите сценарий (node studio/shoot.mjs)');
   process.exit(1);
@@ -47,7 +48,7 @@ if (!timeline.video || !fs.existsSync(timeline.video)) {
   process.exit(1);
 }
 
-const OUT = path.join(JOURNAL, 'movie.mp4');
+const OUT = inProject('movie.mp4');
 
 const captions = timeline.events.filter((e) => e.kind === 'caption');
 
@@ -94,7 +95,7 @@ const { stdout } = await run('ffprobe', ['-v', 'error', '-show_entries', 'format
 const duration = Number(stdout.trim());
 
 await api('/api/movie', {
-  url: '/journal/movie.mp4',
+  url: '/project/movie.mp4',
   duration,
   // Титры едут данными: студия рисует их поверх видео, правка не требует пересборки.
   // Первый прижимается к нулю: телеметрия ставит его на 0.006 с — через мгновение после

@@ -22,6 +22,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { inProject } from './project.mjs';
 
 const run = promisify(execFile);
 const DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -36,10 +37,10 @@ const api = (route, payload) =>
   }).then((r) => r.json()).catch(() => null);
 
 const narration = await fetch(`${base}/api/narration`).then((r) => r.json());
-const movie = JSON.parse(fs.readFileSync(path.join(JOURNAL, 'movie.json'), 'utf8'));
+const movie = JSON.parse(fs.readFileSync(inProject('movie.json'), 'utf8'));
 if (!narration?.lines?.length) { console.error('Дикторский текст пуст'); process.exit(1); }
 
-const VOICED = path.join(JOURNAL, 'narration');
+const VOICED = inProject('narration');
 const TRIM = path.join(VOICED, 'trim');
 fs.mkdirSync(TRIM, { recursive: true });
 
@@ -82,7 +83,7 @@ if (!labels.length) { console.error('Нет озвученных реплик');
 
 await api('/api/status', { state: 'busy', text: 'Собираю дорожку', step: null, of: null });
 
-const track = path.join(JOURNAL, 'narration.wav');
+const track = inProject('narration.wav');
 // apad добивает дорожку до длины ролика — иначе amix обрежет её по самому короткому
 // входу. loudnorm в конце: сырой синтез гуляет по громкости от реплики к реплике, и в
 // смонтированном ролике это слышно сильнее, чем в отдельных файлах.
@@ -91,12 +92,12 @@ const graph = `${filters.join(';')};${labels.join('')}amix=inputs=${labels.lengt
 await run('ffmpeg', ['-v', 'error', '-y', ...inputs, '-filter_complex', graph, '-map', '[out]', track],
           { maxBuffer: 1 << 25 });
 
-const withVoice = path.join(JOURNAL, 'movie-vo.mp4');
-await run('ffmpeg', ['-v', 'error', '-y', '-i', path.join(JOURNAL, 'movie.mp4'), '-i', track,
+const withVoice = inProject('movie-vo.mp4');
+await run('ffmpeg', ['-v', 'error', '-y', '-i', inProject('movie.mp4'), '-i', track,
                      '-map', '0:v:0', '-map', '1:a:0',
                      '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', withVoice]);
 
-await api('/api/movie', { ...movie, url: '/journal/movie-vo.mp4', voiced: true });
+await api('/api/movie', { ...movie, url: '/project/movie-vo.mp4', voiced: true });
 await api('/api/status', { state: 'listening', text: 'Ролик озвучен', step: null, of: null });
 
 console.log(JSON.stringify({ ok: true, lines: labels.length, out: withVoice, warnings }));
