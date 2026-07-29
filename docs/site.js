@@ -51,10 +51,9 @@ const RU = {
   t3: "Установка",
   lead3: "Takt — скилл для Claude Code. Код живёт в репозитории, ваши ролики, голоса и "
     + "разведанные системы — отдельно, в ~/takt, и переживают любое обновление.",
-  termTitle: "четыре команды",
-  c1: "код студии",
+  termTitle: "три команды",
+  c1: "скилл целиком, одной командой",
   c2: "зависимости и браузер для съёмки",
-  c3: "теперь это скилл Claude Code",
   c4: "студия на localhost:4173",
   termAfter: "Дальше — скажите агенту «сними демо по …» и откройте студию. Озвучка "
     + "ставится отдельно и по желанию: takt install покажет, что и сколько весит, до загрузки.",
@@ -70,6 +69,8 @@ const RU = {
 
   m0: "Идея", m1: "Съёмка", m2: "Правки", m3: "Установка", m4: "Снято",
   copied: "Скопировано",
+  typed: "сними демо по mc.braidner.org",
+  reply: "сценарий готов · 7 шагов · 1:07 — правьте до съёмки",
 };
 
 const EN = {
@@ -115,10 +116,9 @@ const EN = {
   t3: "Install",
   lead3: "Takt is a Claude Code skill. The code lives in the repo; your takes, voices and "
     + "scouted systems live separately in ~/takt and survive any update.",
-  termTitle: "four commands",
-  c1: "the studio code",
+  termTitle: "three commands",
+  c1: "the whole skill, one command",
   c2: "dependencies and the shooting browser",
-  c3: "now it's a Claude Code skill",
   c4: "the studio at localhost:4173",
   termAfter: "Then tell the agent “shoot a demo of …” and open the studio. Voice-over is "
     + "optional and installs separately: takt install shows what it weighs before downloading.",
@@ -134,6 +134,8 @@ const EN = {
 
   m0: "Idea", m1: "Shoot", m2: "Edits", m3: "Install", m4: "Cut",
   copied: "Copied",
+  typed: "shoot a demo of mc.braidner.org",
+  reply: "script ready · 7 steps · 1:07 — edit before the shoot",
 };
 
 const DICTS = { ru: RU, en: EN };
@@ -237,3 +239,85 @@ for (const btn of document.querySelectorAll(".copy")) {
     } catch { /* буфер недоступен — например, file:// */ }
   });
 }
+
+/* ── Диалог с агентом: строка печатается, ответ приходит ─────────────────
+   Смена языка перезапускает печать: замерший хвост чужого языка выглядел бы
+   как поломка. При reduced-motion текст появляется целиком и сразу. */
+
+let typeTimer = null;
+function playDialog() {
+  const target = document.getElementById("typed");
+  const reply = document.getElementById("reply");
+  const caret = document.querySelector(".caret");
+  if (!target) return;
+  clearTimeout(typeTimer);
+  reply.classList.remove("in");
+  caret.classList.remove("off");
+  const text = t("typed");
+
+  if (!motionOk) {
+    target.textContent = text;
+    caret.classList.add("off");
+    reply.classList.add("in");
+    return;
+  }
+
+  target.textContent = "";
+  let i = 0;
+  const tick = () => {
+    target.textContent = text.slice(0, ++i);
+    if (i < text.length) {
+      typeTimer = setTimeout(tick, 34 + Math.random() * 46);
+    } else {
+      typeTimer = setTimeout(() => { caret.classList.add("off"); reply.classList.add("in"); }, 420);
+    }
+  };
+  typeTimer = setTimeout(tick, 1100);   // после того, как титр героя встал
+}
+playDialog();
+document.getElementById("lang").addEventListener("click", playDialog);
+
+/* ── Аврора: свет проектора в аппаратной ─────────────────────────────────
+   Крошечный буфер (64×40) растягивается на весь герой — размытие достаётся
+   бесплатно от масштабирования, и телефон не греется. Пятна дрейфуют по
+   синусам с несоизмеримыми периодами: рисунок не зацикливается заметно.
+   При reduced-motion рисуется один кадр и всё замирает. */
+
+(() => {
+  const cv = document.getElementById("aurora");
+  if (!cv) return;
+  const ctx = cv.getContext("2d");
+  const W = cv.width = 64;
+  const H = cv.height = 40;
+
+  const blobs = [
+    { c: [1, 98, 228],  r: 26, x: 0.22, y: 0.30, ax: 0.13, ay: 0.09,  px: 0.00011, py: 0.00007 },
+    { c: [8, 158, 251], r: 21, x: 0.62, y: 0.18, ax: 0.16, ay: 0.11,  px: 0.00008, py: 0.00013 },
+    { c: [3, 198, 212], r: 18, x: 0.82, y: 0.52, ax: 0.10, ay: 0.14,  px: 0.00014, py: 0.00006 },
+    { c: [0, 224, 184], r: 14, x: 0.42, y: 0.62, ax: 0.12, ay: 0.08,  px: 0.00006, py: 0.00012 },
+  ];
+
+  function frame(now) {
+    ctx.clearRect(0, 0, W, H);
+    ctx.globalCompositeOperation = "lighter";
+    for (const b of blobs) {
+      const x = (b.x + Math.sin(now * b.px) * b.ax) * W;
+      const y = (b.y + Math.cos(now * b.py) * b.ay) * H;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, b.r);
+      g.addColorStop(0, `rgb(${b.c[0]} ${b.c[1]} ${b.c[2]} / 0.55)`);
+      g.addColorStop(1, "rgb(0 0 0 / 0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
+    }
+  }
+
+  frame(0);
+  if (motionOk) {
+    let visible = true;
+    new IntersectionObserver((e) => { visible = e[0].isIntersecting; }).observe(cv);
+    (function loop(now) {
+      if (visible) frame(now);
+      requestAnimationFrame(loop);
+    })(0);
+  }
+})();

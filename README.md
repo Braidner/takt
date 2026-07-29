@@ -52,11 +52,14 @@ Windows и Linux — через PyTorch (с CUDA, если есть карта N
 ## Быстрый старт
 
 ```bash
-npm install && npx playwright install chromium
-
-takt serve   # студия на http://localhost:4173
-takt check   # проверить доступ и снять первый кадр
+npx skills add Braidner/takt
+cd ~/.claude/skills/takt && npm install && npx playwright install chromium
+node cli.mjs serve      # студия на http://localhost:4173
 ```
+
+Первая команда ставит скилл целиком ([skills CLI](https://github.com/vercel-labs/skills)
+спросит, куда — в проект или глобально). Клонировали репозиторий руками — тогда просто
+`npm install && npx playwright install chromium` и симлинк в `~/.claude/skills/takt`.
 
 Адрес системы и учётные данные вписываются **в самой студии** — клик по чипу стенда в
 шапке. Пароль остаётся на вашей машине: в репозиторий он не попадает и обратно в браузер
@@ -71,8 +74,8 @@ Takt рассчитан на работу агентом. `SKILL.md` в корн
 смонтировать, озвучить, применить правки. Подробности по каждому событию — в
 `references/`.
 
-Установка сводится к тому, чтобы каталог был виден вашему агенту как скилл (для Claude
-Code — симлинк в `~/.claude/skills/takt`).
+Установка — `npx skills add Braidner/takt`; CLI раскладывает скилл по агентам сам
+(Claude Code, Codex, Cursor и другие). Руками — симлинк каталога в `~/.claude/skills/takt`.
 
 ## Где что лежит
 

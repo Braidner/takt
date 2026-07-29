@@ -28,6 +28,8 @@
 
   <!-- ══ Сцена 0 · титр ══ -->
   <section class="scene hero" id="s-idea">
+    <canvas class="aurora" id="aurora" aria-hidden="true"></canvas>
+    <div class="grain" aria-hidden="true"></div>
     <p class="rec" aria-hidden="true"><span class="rec-dot"></span><span data-i="rec">Идёт съёмка</span></p>
     <h1 class="hero-title">
       <span class="line" data-i="h1a">Опишите ролик словами.</span>
@@ -38,6 +40,13 @@
     <div class="hero-cta">
       <a class="btn primary" href="#s-install" data-i="ctaInstall">Поставить скилл</a>
       <a class="btn" href="https://github.com/Braidner/takt" rel="noopener" data-i="ctaSource">Исходники</a>
+    </div>
+
+    <!-- Диалог с агентом: строка задачи печатается, ответ приходит. Это не украшение,
+         а продукт в одну реплику: ровно так выглядит начало работы. -->
+    <div class="dialog" aria-hidden="true">
+      <p class="dialog-line"><span class="ps">›</span> <span id="typed"></span><span class="caret"></span></p>
+      <p class="dialog-reply" id="reply"><span class="ok-mark">✓</span> <span data-i="reply">сценарий готов · 7 шагов · 1:07 — правьте до съёмки</span></p>
     </div>
 
     <figure class="frame" data-reveal>
@@ -130,11 +139,10 @@
     <div class="install">
       <div class="term" data-reveal>
         <div class="term-bar"><span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span>
-          <span class="term-title" data-i="termTitle">четыре команды</span></div>
+          <span class="term-title" data-i="termTitle">три команды</span></div>
         <ol class="term-body">
-          <li><button class="copy" type="button" data-cmd="git clone https://github.com/Braidner/takt ~/takt-studio" aria-label="Copy"></button><code><span class="ps">$</span> git clone https://github.com/Braidner/takt ~/takt-studio</code><span class="term-note" data-i="c1">код студии</span></li>
-          <li><button class="copy" type="button" data-cmd="cd ~/takt-studio && npm install && npx playwright install chromium" aria-label="Copy"></button><code><span class="ps">$</span> cd ~/takt-studio && npm install && npx playwright install chromium</code><span class="term-note" data-i="c2">зависимости и браузер для съёмки</span></li>
-          <li><button class="copy" type="button" data-cmd="ln -s ~/takt-studio ~/.claude/skills/takt" aria-label="Copy"></button><code><span class="ps">$</span> ln -s ~/takt-studio ~/.claude/skills/takt</code><span class="term-note" data-i="c3">теперь это скилл Claude Code</span></li>
+          <li><button class="copy" type="button" data-cmd="npx skills add Braidner/takt" aria-label="Copy"></button><code><span class="ps">$</span> npx skills add Braidner/takt</code><span class="term-note" data-i="c1">скилл целиком, одной командой</span></li>
+          <li><button class="copy" type="button" data-cmd="cd ~/.claude/skills/takt && npm install && npx playwright install chromium" aria-label="Copy"></button><code><span class="ps">$</span> cd ~/.claude/skills/takt && npm install && npx playwright install chromium</code><span class="term-note" data-i="c2">зависимости и браузер для съёмки</span></li>
           <li><button class="copy" type="button" data-cmd="node cli.mjs serve" aria-label="Copy"></button><code><span class="ps">$</span> node cli.mjs serve</code><span class="term-note" data-i="c4">студия на localhost:4173</span></li>
         </ol>
         <p class="term-after" data-i="termAfter">Дальше — скажите агенту «сними демо по …» и откройте студию.

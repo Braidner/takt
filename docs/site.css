@@ -38,9 +38,10 @@
 
 * { box-sizing: border-box; margin: 0; }
 
-html { scroll-behavior: smooth; scroll-padding-top: 84px; }
+html { scroll-behavior: smooth; scroll-padding-top: 84px; overflow-x: clip; }
 
 body {
+  overflow-x: clip;
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-body);
@@ -119,7 +120,46 @@ a { color: inherit; }
 
 /* ── Герой ─────────────────────────────────────────────────────────────── */
 
-.hero { padding-top: clamp(120px, 18vh, 190px); text-align: left; }
+.hero {
+  position: relative;
+  padding-top: clamp(120px, 18vh, 190px);
+  text-align: left;
+  /* Аврора живёт за содержимым и не должна вылезать за сцену. */
+  overflow: visible;
+}
+.hero > :not(.aurora):not(.grain) { position: relative; z-index: 1; }
+
+/* Генеративный фон: пятна брендового градиента дрейфуют, как свет проектора в
+   тёмной аппаратной. Рисуется в крошечный канвас и растягивается — блюр бесплатно,
+   на телефоне не греет. Скрыт от чтения и остановлен при reduced-motion. */
+.aurora {
+  position: absolute;
+  inset: -14vh -24vw auto;
+  height: min(96vh, 940px);
+  width: calc(100% + 48vw);
+  z-index: 0;
+  opacity: 0.5;
+  filter: saturate(1.1);
+  /* Двухосная маска: пятна растворяются до того, как дойдут до краёв блока,
+     иначе фон обрезается видимой вертикалью. */
+  -webkit-mask-image: radial-gradient(120% 90% at 42% 26%, oklch(0 0 0) 42%, transparent 78%);
+  mask-image: radial-gradient(120% 90% at 42% 26%, oklch(0 0 0) 42%, transparent 78%);
+  pointer-events: none;
+}
+
+/* Плёночное зерно поверх авроры: без него градиентные пятна на тёмном полосуют.
+   SVG-шум, статичный, почти невидимый — работает как дизер. */
+.grain {
+  position: absolute; inset: -14vh -24vw auto;
+  width: calc(100% + 48vw);
+  height: min(96vh, 940px);
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.14;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  -webkit-mask-image: radial-gradient(120% 90% at 42% 26%, oklch(0 0 0) 42%, transparent 78%);
+  mask-image: radial-gradient(120% 90% at 42% 26%, oklch(0 0 0) 42%, transparent 78%);
+}
 
 .rec {
   display: inline-flex; align-items: center; gap: 9px;
@@ -173,6 +213,34 @@ a { color: inherit; }
   color: oklch(0.99 0 0);
 }
 .btn.primary:hover { background: oklch(0.58 0.21 259.6); }
+
+/* ── Диалог с агентом ──────────────────────────────────────────────────── */
+
+.dialog {
+  margin-top: 34px;
+  font: 500 0.9375rem/1.9 var(--font-mono);
+  min-height: 3.8em;   /* обе строки резервируются: печать не дёргает раскладку */
+}
+.dialog .ps { color: var(--brand-teal); }
+.caret {
+  display: inline-block;
+  width: 9px; height: 1.05em;
+  vertical-align: text-bottom;
+  margin-left: 2px;
+  background: var(--ink-muted);
+  animation: caret-blink 1.05s steps(1) infinite;
+}
+@keyframes caret-blink { 50% { opacity: 0; } }
+.caret.off { animation: none; opacity: 0; }
+
+.dialog-reply { color: var(--ink-muted); opacity: 0; transition: opacity 0.6s var(--ease-out); }
+.dialog-reply.in { opacity: 1; }
+.ok-mark { color: var(--brand-teal); }
+
+@media (prefers-reduced-motion: reduce) {
+  .caret { animation: none; }
+  .dialog-reply { opacity: 1; transition: none; }
+}
 
 /* ── Кадр: скриншоты в рамке просмотра ─────────────────────────────────── */
 
