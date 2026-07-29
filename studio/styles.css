@@ -1194,3 +1194,27 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .env-name { font-size: 13px; }
 .env-note { font-size: 11px; color: var(--muted); text-align: right; max-width: 220px; }
 .env-install { font-size: 12px; padding: 4px 12px; }
+
+/* Подсветка адресата: клик по метке на дорожке ведёт к шагу, замечанию или реплике,
+   и цель обязана себя обозначить — иначе прокрутка выглядит как случайный сдвиг. */
+@keyframes lit-fade {
+  from { background: color-mix(in oklch, var(--brand-sky) 22%, transparent); }
+  to   { background: transparent; }
+}
+.step-row.lit, .note.lit, .narration-line.lit {
+  animation: lit-fade 1.4s var(--ease) forwards;
+  border-radius: 8px;
+}
+
+/* Метку, которую тащат, поднимаем над соседями и убираем плавность: она должна
+   идти ровно за курсором, а не догонять его. */
+.marker.dragging, .clip.dragging {
+  z-index: 3;
+  transition: none;
+  box-shadow: 0 0 0 2px var(--brand-sky);
+}
+.marker, .clip { touch-action: none; }   /* иначе жест уводит прокрутку страницы */
+
+@media (prefers-reduced-motion: reduce) {
+  .step-row.lit, .note.lit, .narration-line.lit { animation-duration: 0.01s; }
+}

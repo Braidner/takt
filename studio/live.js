@@ -277,6 +277,7 @@ function renderScenario(next) {
   scenario.steps.forEach((s, i) => {
     const li = document.createElement('li');
     li.className = 'step-row';
+    li.dataset.n = String(s.n);
     const b = document.createElement('button');
     b.className = 'step';
     b.type = 'button';
@@ -460,7 +461,22 @@ function renderTracks() {
       clip.style.left = pct(s.at);
       clip.style.width = pct(s.seconds);
       clip.textContent = s.diagram;
+      clip.dataset.step = String(s.n);
       trTitle(clip, 'clipDiagram', { name: s.diagram, sec: s.seconds });
+      // Клик ведёт к шагу, на котором схема показывается: врезка живёт не сама по
+      // себе, а поверх конкретной паузы, и смотреть её нужно там же.
+      clip.addEventListener('click', (e) => {
+        e.stopPropagation();
+        seek(s.at);
+        litStep(s.n);
+      });
+      dragMark(clip, {
+        onDrop: async (t) => {
+          const to = (scenario?.steps || []).find((x) => t >= x.at && t < x.at + x.seconds);
+          if (to && to.n !== s.n) await post('/api/diagram-move', { from: s.n, to: to.n });
+          else renderTracks();      // не попали в шаг — вернуть метку на место
+        },
+      });
       diagrams.append(clip);
     }
   }
@@ -475,7 +491,13 @@ function renderTracks() {
       if (n.kind) m.dataset.kind = n.kind;
       m.style.left = pct(n.t);
       m.title = n.text;
-      m.addEventListener('click', (e) => { e.stopPropagation(); seek(n.t); });
+      m.dataset.id = n.id;
+      m.addEventListener('click', (e) => {
+        e.stopPropagation();
+        seek(n.t);
+        litNote(n.id);
+      });
+      dragMark(m, { onDrop: (t) => post('/api/note-move', { id: n.id, t }) });
       notesTrack.append(m);
     }
   }
@@ -494,6 +516,26 @@ function renderTracks() {
       clip.style.opacity = l.seconds ? '1' : '0.5';
       clip.textContent = l.text.slice(0, 40);
       clip.title = l.text;
+      clip.dataset.n = String(l.n);
+      clip.addEventListener('click', (e) => {
+        e.stopPropagation();
+        seek(l.at);
+        narrationPanel?.open(l.n);
+      });
+      dragMark(clip, {
+        onDrop: async (t) => {
+          // Реплика переезжает — окна пересчитываются: у каждой оно до следующей
+          // метки, и без пересчёта проверка укладки врала бы про соседей.
+          const lines = narrationData.lines
+            .map((x) => (x.n === l.n ? { ...x, at: t } : x))
+            .sort((a, b) => a.at - b.at)
+            // Округляем: разность плавающих даёт 3.8000000000000007, и это число
+            // потом видно человеку в проверке укладки.
+            .map((x, i, arr) => ({ ...x, n: i + 1,
+                                   hold: arr[i + 1] ? Math.round((arr[i + 1].at - x.at) * 10) / 10 : null }));
+          await post('/api/narration', { ...narrationData, lines });
+        },
+      });
       voiceTrack.append(clip);
     }
   }
@@ -768,6 +810,7 @@ function renderNotes(notes) {
   for (const n of notes) {
     const art = document.createElement('article');
     art.className = 'note';
+    art.dataset.id = n.id;
     if (n.status === 'applied') art.dataset.status = 'applied';
     art.innerHTML = `<div class="note-head">
         <button class="time-chip" type="button">${mmss(n.t)}</button>
@@ -781,6 +824,73 @@ function renderNotes(notes) {
   }
   if (el.notesCount) el.notesCount.textContent = String(notes.length);
   renderPlan();
+}
+
+/** Подсветить шаг сценария: клик по схеме должен показать, где она играет. */
+function litStep(n) {
+  const row = el.steps?.querySelector(`.step-row[data-n="${n}"]`);
+  if (!row) return;
+  row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  row.classList.add('lit');
+  setTimeout(() => row.classList.remove('lit'), 1400);
+}
+
+/** То же для замечания: метка на дорожке и карточка справа — одно и то же. */
+function litNote(id) {
+  const card = el.notes?.querySelector(`.note[data-id="${id}"]`);
+  if (!card) return;
+  card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  card.classList.add('lit');
+  setTimeout(() => card.classList.remove('lit'), 1400);
+}
+
+/**
+ * Перетаскивание метки по времени.
+ *
+ * Метки правок, схем и реплик — это НАМЕРЕНИЯ: где показать схему, к какому моменту
+ * относится замечание, когда вступает реплика. Их человек двигает. Дорожка шагов
+ * сюда не подключена намеренно: шаги — факт состоявшейся съёмки, и таскать их
+ * значило бы предлагать управление, которого нет.
+ *
+ * Позиция считается от дорожки, а не от экрана: дорожка и есть шкала времени.
+ * Пока тащим, метка едет за курсором, но данные не трогаются — запись один раз,
+ * на отпускании, иначе сервер получал бы десятки записей на одно движение.
+ */
+function dragMark(node, { onDrop }) {
+  node.style.cursor = 'grab';
+  node.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const lane = node.parentElement;
+    const rect = lane.getBoundingClientRect();
+    const startX = e.clientX;
+    let moved = false;
+    let t = null;
+
+    node.setPointerCapture(e.pointerId);
+    node.style.cursor = 'grabbing';
+    node.classList.add('dragging');
+
+    const move = (ev) => {
+      if (!moved && Math.abs(ev.clientX - startX) < 3) return;   // клик, а не перенос
+      moved = true;
+      const x = Math.max(0, Math.min(rect.width, ev.clientX - rect.left));
+      t = (x / rect.width) * DURATION;
+      node.style.left = `${(t / DURATION) * 100}%`;
+      syncCursor(t);
+    };
+
+    const up = () => {
+      node.removeEventListener('pointermove', move);
+      node.removeEventListener('pointerup', up);
+      node.style.cursor = 'grab';
+      node.classList.remove('dragging');
+      if (moved && t !== null) onDrop(Math.round(t * 10) / 10);
+    };
+
+    node.addEventListener('pointermove', move);
+    node.addEventListener('pointerup', up);
+  });
 }
 
 function seek(t) {

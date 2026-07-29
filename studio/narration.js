@@ -99,6 +99,7 @@ export function setupNarration({ post }) {
       area.addEventListener('change', save);
 
       speech += line.text.trim().length / RATE;
+      li.dataset.n = String(i + 1);
       li.append(at, area, fit);
       el.list.append(li);
     });
@@ -112,6 +113,26 @@ export function setupNarration({ post }) {
     if (voiced) put(el.total.lastElementChild, 'narrationVoiced', { n: voiced });
   };
 
+  /**
+   * Открыть текст, при необходимости — сразу на нужной реплике.
+   *
+   * Клик по реплике на дорожке ведёт именно в неё, а не «куда-то в список»: у ролика
+   * на десяток фраз глазами искать нужную дольше, чем прослушать её заново. Курсор
+   * ставится в конец текста — человек пришёл сюда править, а не любоваться.
+   */
+  const open = (n) => {
+    el.dialog.showModal();
+    if (!n) return;
+    const li = el.list.querySelector(`.narration-line[data-n="${n}"]`);
+    if (!li) return;
+    li.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    li.classList.add('lit');
+    setTimeout(() => li.classList.remove('lit'), 1400);
+    const area = li.querySelector('textarea');
+    area.focus();
+    area.setSelectionRange(area.value.length, area.value.length);
+  };
+
   el.toggle?.addEventListener('click', () => el.dialog.showModal());
   el.close?.addEventListener('click', () => el.dialog.close());
   el.voice?.addEventListener('click', async () => {
@@ -121,5 +142,5 @@ export function setupNarration({ post }) {
     el.dialog.close();
   });
 
-  return { render };
+  return { render, open };
 }

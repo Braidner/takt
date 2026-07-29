@@ -848,6 +848,46 @@ const server = http.createServer(async (req, res) => {
 
   if (p === '/api/notes') return send(res, 200, readNotes());
 
+  /**
+   * Перенос метки замечания по времени.
+   *
+   * Отдельный маршрут, а не событие агенту: замечание относится к моменту ролика,
+   * и поправить этот момент — работа человека с данными, а не задача, ради которой
+   * стоит будить агента. Текст при этом не трогается.
+   */
+  if (p === '/api/note-move' && req.method === 'POST') {
+    if (!authed) return send(res, 401, { error: 'unauthorized' });
+    const msg = await body(req);
+    const notes = readNotes();
+    const note = notes.find((n) => n.id === msg?.id);
+    if (!note) return send(res, 404, { error: 'no_note' });
+    note.t = Math.max(0, Number(msg.t) || 0);
+    writeNotes(notes);
+    broadcast({ type: 'notes', notes });
+    return send(res, 200, { ok: true, t: note.t });
+  }
+
+  /**
+   * Перенос врезки-схемы на другой шаг.
+   *
+   * Схема живёт не сама по себе, а на шаге сценария: она показывается поверх паузы,
+   * и «перенести схему» означает выбрать другую паузу. Поэтому таскание меняет
+   * привязку, а не абстрактное время — иначе схема повисла бы между шагами.
+   */
+  if (p === '/api/diagram-move' && req.method === 'POST') {
+    if (!authed) return send(res, 401, { error: 'unauthorized' });
+    const msg = await body(req);
+    const scenario = readScenario();
+    const from = scenario?.steps?.find((x) => x.n === msg?.from);
+    const to = scenario?.steps?.find((x) => x.n === msg?.to);
+    if (!from || !to || !from.diagram) return send(res, 400, { error: 'no_diagram' });
+    to.diagram = from.diagram;
+    if (from.n !== to.n) from.diagram = null;
+    writeScenario(scenario);
+    broadcast({ type: 'scenario', scenario });
+    return send(res, 200, { ok: true, step: to.n });
+  }
+
   // ── Файлы текущего проекта
   if (p.startsWith('/project/')) {
     const rel = decodeURIComponent(p.slice('/project/'.length));
