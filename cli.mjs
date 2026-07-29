@@ -99,7 +99,13 @@ const python = file.endsWith('.py');
 const venv = path.join(DIR, 'studio', 'venv-tts', 'bin', 'python3');
 const runner = python ? (fs.existsSync(venv) ? venv : 'python3') : process.execPath;
 
-const child = spawn(runner, [file, ...args], { stdio: 'inherit', cwd: DIR });
+// Каталог данных выбирает home.mjs, но питоновской части он недоступен: импортировать
+// модуль Node оттуда нельзя. Передаём разрешённый путь окружением, чтобы обе половины
+// инструмента писали в одно место, а не каждая в своё представление о нём.
+const { HOME } = await import('./studio/home.mjs');
+const env = { ...process.env, TAKT_HOME: HOME };
+
+const child = spawn(runner, [file, ...args], { stdio: 'inherit', cwd: DIR, env });
 child.on('error', (e) => {
   console.error(e.code === 'ENOENT' && python
     ? 'Python не найден. Озвучка ставится отдельно: takt doctor покажет, чего не хватает.'

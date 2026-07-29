@@ -954,6 +954,20 @@ button, input, textarea, select { font: inherit; color: inherit; }
   flex: none;
 }
 
+/* Значок движка на карточке голоса: виден всегда, потому что отвечает на вопрос
+   «почему два голоса из одного образца звучат по-разному». */
+.voice-engine {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--hair);
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.voice-engine:hover { border-color: var(--brand-sky); color: var(--ink); }
+
 .voice-cards { display: flex; gap: var(--sp-2); }
 
 .voice-card {

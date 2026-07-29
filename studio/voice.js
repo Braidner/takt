@@ -127,11 +127,27 @@ export function setupVoice({ post, getToken }) {
       b.type = 'button';
       b.disabled = !v.ready;
       b.innerHTML = `<svg class="wave" viewBox="0 0 62 20" aria-hidden="true"></svg>
-        <span><span class="voice-name"></span><span class="voice-meta"></span></span>`;
+        <span><span class="voice-name"></span><span class="voice-meta"></span></span>
+        <span class="voice-engine"></span>`;
       b.querySelector('.voice-name').textContent = v.name;
-      b.querySelector('.voice-meta').textContent = v.ready
-        ? `${Math.round(v.seconds || 0)} с · ${v.source === 'record' ? 'чистая запись' : 'из файла'}`
-        : 'готовится…';
+      const meta = b.querySelector('.voice-meta');
+      if (!v.ready) put(meta, 'voicePreparing');
+      else put(meta, v.source === 'record' ? 'voiceReady' : 'voiceFromFile',
+               { sec: Math.round(v.seconds || 0) });
+
+      // Движок — свойство голоса, и он показан на карточке, а не спрятан в настройках:
+      // когда два голоса из одного образца звучат по-разному, ответ «почему» должен быть
+      // перед глазами. Клик переключает; переозвучка при этом не запускается — защита от
+      // смешения движков в дорожке стоит на приёме дикторского текста.
+      const eng = b.querySelector('.voice-engine');
+      const название = { qwen: 'Qwen', chatterbox: 'Chatterbox' };
+      eng.textContent = название[v.engine] || название.qwen;
+      eng.title = say('voiceEngineTitle');
+      eng.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const next = (v.engine || 'qwen') === 'qwen' ? 'chatterbox' : 'qwen';
+        await post('/api/voice-engine', { id: v.id, engine: next });
+      });
 
       // Форма волны рисуется от идентификатора: одинаковые полоски у всех голосов
       // выглядят как заглушка, а рисовать настоящую осциллограмму здесь незачем.

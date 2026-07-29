@@ -414,6 +414,35 @@ const server = http.createServer(async (req, res) => {
     if (!authed) return send(res, 401, { error: 'unauthorized' });
     const msg = await body(req);
     if (!Array.isArray(msg?.lines)) return send(res, 400, { error: 'no_lines' });
+
+    /**
+     * Дорожка не может быть собрана из разных голосов или движков.
+     *
+     * Разные модели дают разный голос из одного и того же образца, а разные голоса —
+     * тем более. Стоит переозвучить одну реплику другим движком, и посреди дорожки
+     * появляется слышимый шов — причём именно там, ради чего точечная переозвучка и
+     * делалась. Поймать это можно только на слух и только целиком прослушав ролик.
+     *
+     * Поэтому смена голоса или движка при уже озвученных репликах требует явного
+     * согласия: с ним вся дорожка возвращается в черновик и переозвучивается заново.
+     */
+    const прежняя = readNarration();
+    const озвученные = (прежняя?.lines || []).filter((l) => l.state === 'voiced');
+    const сменаГолоса = прежняя && msg.voiceId !== undefined && msg.voiceId !== прежняя.voiceId;
+    const сменаДвижка = прежняя && msg.engine !== undefined && msg.engine !== прежняя.engine;
+
+    if (озвученные.length && (сменаГолоса || сменаДвижка) && !msg.force) {
+      return send(res, 409, {
+        error: 'engine_mismatch',
+        voiced: озвученные.length,
+        was: { voiceId: прежняя.voiceId, engine: прежняя.engine },
+        now: { voiceId: msg.voiceId, engine: msg.engine },
+      });
+    }
+    // force означает «отправитель отвечает за согласованность дорожки» — и состояния
+    // реплик принимаются как присланы. Полная переозвучка присылает всё свежеозвученным,
+    // и сбрасывать её в черновик значило бы стереть только что сделанную работу.
+
     const narration = {
       voiceId: msg.voiceId ?? null,
       engine: msg.engine || 'qwen',
@@ -433,6 +462,27 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/narration' && req.method === 'GET') return send(res, 200, readNarration());
 
   // ── Голос: запись из браузера или загруженный файл
+  /**
+   * Смена движка у голоса. Отдельный маршрут, а не правка каталога с клиента: голос —
+   * это файлы на диске плюс согласие человека, и давать странице писать в него целиком
+   * значило бы доверить ей и то, и другое.
+   *
+   * Переозвучивать уже собранные дорожки при этом не нужно: защита от смешения стоит на
+   * приёме дикторского текста и сработает при следующей озвучке.
+   */
+  if (p === '/api/voice-engine' && req.method === 'POST') {
+    if (!authed) return send(res, 401, { error: 'unauthorized' });
+    const msg = await body(req);
+    const file = path.join(VOICES, `${msg?.id}.json`);
+    if (!msg?.id || !fs.existsSync(file)) return send(res, 404, { error: 'no_voice' });
+    if (!['qwen', 'chatterbox'].includes(msg.engine)) return send(res, 400, { error: 'bad_engine' });
+    const meta = { ...JSON.parse(fs.readFileSync(file, 'utf8')), engine: msg.engine };
+    fs.writeFileSync(file, JSON.stringify(meta, null, 2));
+    logEvent({ type: 'voice_engine', id: msg.id, engine: msg.engine });
+    broadcast({ type: 'voices', voices: readVoices() });
+    return send(res, 200, { ok: true, engine: msg.engine });
+  }
+
   if (p === '/api/voice' && req.method === 'POST') {
     if (!authed) return send(res, 401, { error: 'unauthorized' });
     const msg = await body(req);
@@ -450,6 +500,9 @@ const server = http.createServer(async (req, res) => {
     const meta = {
       id, name: String(msg.name).slice(0, 60), file: `${id}.${ext}`,
       source: msg.source || 'record', seconds: msg.seconds ?? null,
+      // Движок — свойство голоса, а не дорожки: один и тот же образец, заведённый под
+      // двумя движками, даёт два голоса в каталоге, и их можно сравнить на одной реплике.
+      engine: ['qwen', 'chatterbox'].includes(msg.engine) ? msg.engine : 'qwen',
       consent: true, consentBy: String(msg.consentBy || '').slice(0, 120),
       addedAt: new Date().toISOString(), ready: false,
     };
