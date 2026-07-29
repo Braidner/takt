@@ -3,11 +3,17 @@
  *
  * Строки вынесены с первого дня: продукт двуязычный, и захардкоженный текст в
  * разметке — то, что потом вычищается неделями. Перевод берётся по data-i.
+ *
+ * Строки живого клиента лежат здесь же. Разговор идёт об одном интерфейсе, и второй
+ * словарь на стороне live.js означал бы две правды об одной кнопке: переключение языка
+ * чинило бы половину экрана, а вторая оставалась бы на языке того, кто её писал.
  */
 
 const RU = {
+  pageTitle: "Takt — студия демонстрационных роликов",
   project: "Ассистент: от задачи до интеграции",
-  agentBusy: "Снимает сцену — 2 из 5",
+  agentBusy: "Снимает сцену",
+  agentProgress: " — {step} из {of}",
   agentListening: "Слушает",
   agentOffline: "Не подключён",
   themeLight: "Светлая",
@@ -24,11 +30,18 @@ const RU = {
   s8: "Маршрут создан и запущен",
   live: "Идёт съёмка",
   framePlaceholder: "Экран браузера, который ведёт агент. Видно каждое действие — и где оно застряло.",
+  frameAlt: "Экран браузера, который ведёт агент",
+  play: "Воспроизвести",
   stop: "Остановить",
   retake: "Переснять сцену",
   trackSteps: "Шаги",
+  trackDiagrams: "Схемы",
   trackNotes: "Правки",
   trackVoice: "Голос",
+  trackStepsTitle: "Границы шагов сценария",
+  trackDiagramsTitle: "Врезки-схемы",
+  trackNotesTitle: "Замечания",
+  trackVoiceTitle: "Дикторские реплики",
   notesTitle: "Замечания",
   kindDiagram: "Схема",
   kindEdit: "Монтаж",
@@ -38,8 +51,8 @@ const RU = {
   n2: "Пауза слишком длинная, подрезать до двух секунд.",
   n3: "Переозвучить: «маршрут создан и запущен» звучит скомканно.",
   n4: "Убрать наезд камеры на панель — она не влезает целиком.",
-  composerPh: "Что поправить в этот момент? Метка встанет на 0:47",
-  pin: "Метка на 0:47",
+  composerPh: "Что поправить в этот момент? Метка встанет на {t}",
+  pin: "Метка на {t}",
   send: "Отправить агенту",
   voiceTitle: "Голос диктора",
   v1meta: "28 с · чистая запись",
@@ -198,11 +211,18 @@ const EN = {
   s8: "Route created and started",
   live: "Recording",
   framePlaceholder: "The browser the agent drives. Every action is visible — including where it got stuck.",
+  frameAlt: "The browser the agent drives",
+  play: "Play",
   stop: "Stop",
   retake: "Retake scene",
   trackSteps: "Steps",
+  trackDiagrams: "Diagrams",
   trackNotes: "Notes",
   trackVoice: "Voice",
+  trackStepsTitle: "Boundaries between script steps",
+  trackDiagramsTitle: "Diagram insets",
+  trackNotesTitle: "Notes",
+  trackVoiceTitle: "Narrator lines",
   notesTitle: "Notes",
   kindDiagram: "Diagram",
   kindEdit: "Editing",
@@ -212,8 +232,8 @@ const EN = {
   n2: "Pause runs too long, trim to two seconds.",
   n3: "Re-record: “route created and started” sounds rushed.",
   n4: "Drop the zoom on the panel — it doesn't fit the frame.",
-  composerPh: "What should change at this moment? The marker lands at 0:47",
-  pin: "Marker at 0:47",
+  composerPh: "What should change at this moment? The marker lands at {t}",
+  pin: "Marker at {t}",
   send: "Send to agent",
   voiceTitle: "Narrator voice",
   v1meta: "28 s · clean take",
@@ -409,14 +429,4 @@ themeBtn.addEventListener("click", () => {
   const root = document.documentElement;
   root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark";
   syncThemeLabel();
-});
-
-// Шаг сценария ведёт по времени — в этом и смысл привязки к таймлайну.
-document.querySelectorAll(".step").forEach((step) => {
-  step.addEventListener("click", () => {
-    document.querySelectorAll(".step").forEach((s) => s.removeAttribute("aria-current"));
-    step.setAttribute("aria-current", "true");
-    const pct = (parseFloat(step.dataset.t) / 287) * 100;
-    document.querySelector(".playhead").style.left = `${pct}%`;
-  });
 });

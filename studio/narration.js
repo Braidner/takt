@@ -29,12 +29,25 @@ export function setupNarration({ post }) {
 
   let narration = null;
 
+  /** Строка собирается из ключа и чисел прямо на узле — тогда она пересобирается сама
+      при переключении языка, а не застывает на том, что стоял в момент правки. */
+  const put = (node, key, args) => {
+    node.dataset.i = key;
+    if (args) node.dataset.iArgs = JSON.stringify(args); else delete node.dataset.iArgs;
+    node.textContent = window.taktText?.(key, args) ?? node.textContent;
+  };
+
   const fitOf = (text, hold) => {
     const est = text.trim().length / RATE;
-    if (!hold || !Number.isFinite(hold)) return { est, state: 'ok', note: `≈ ${est.toFixed(1)} с` };
-    if (est > hold) return { est, state: 'over', note: `≈ ${est.toFixed(1)} с — не влезает в ${hold.toFixed(1)} с` };
-    if (est > hold * TIGHT) return { est, state: 'tight', note: `≈ ${est.toFixed(1)} с из ${hold.toFixed(1)} с — впритык` };
-    return { est, state: 'ok', note: `≈ ${est.toFixed(1)} с из ${hold.toFixed(1)} с` };
+    // Сравниваем полной точностью, а показываем округлённо: округлять до сравнения значит
+    // менять вердикт об укладке ради вида числа.
+    if (!hold || !Number.isFinite(hold)) {
+      return { est, state: 'ok', key: 'fitEst', args: { est: est.toFixed(1) } };
+    }
+    const args = { est: est.toFixed(1), hold: hold.toFixed(1) };
+    if (est > hold) return { est, state: 'over', key: 'fitOver', args };
+    if (est > hold * TIGHT) return { est, state: 'tight', key: 'fitTight', args };
+    return { est, state: 'ok', key: 'fitOk', args };
   };
 
   const save = async () => {
@@ -76,9 +89,10 @@ export function setupNarration({ post }) {
         fit.dataset.fit = f.state;
         // Уже озвученную реплику меряем по факту, а не по оценке: оценка может врать
         // на пару десятых, а записанная длительность — это то, что реально ляжет.
-        fit.textContent = line.seconds
-          ? `${line.seconds.toFixed(1)} с записано${line.hold ? ` из ${line.hold.toFixed(1)}` : ''}`
-          : f.note;
+        if (!line.seconds) put(fit, f.key, f.args);
+        else if (line.hold) put(fit, 'fitRecordedOf',
+                                { sec: line.seconds.toFixed(1), hold: line.hold.toFixed(1) });
+        else put(fit, 'fitRecorded', { sec: line.seconds.toFixed(1) });
       };
       refresh();
       area.addEventListener('input', refresh);
@@ -89,9 +103,13 @@ export function setupNarration({ post }) {
       el.list.append(li);
     });
 
+    // Итог — две строки в одном ряду: озвученных может не быть вовсе, а склеенные в
+    // одну они переводились бы только целиком, вместе с несуществующим хвостом.
     const voiced = narration.lines.filter((l) => l.state === 'voiced').length;
-    el.total.textContent = `${narration.lines.length} реплик · речи ≈ ${mmss(speech)}`
-      + (voiced ? ` · озвучено ${voiced}` : '');
+    el.total.innerHTML = '<span></span><span></span>';
+    put(el.total.firstElementChild, 'narrationTotal',
+        { n: narration.lines.length, time: mmss(speech) });
+    if (voiced) put(el.total.lastElementChild, 'narrationVoiced', { n: voiced });
   };
 
   el.toggle?.addEventListener('click', () => el.dialog.showModal());

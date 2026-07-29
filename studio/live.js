@@ -13,7 +13,8 @@ import { setupNarration } from './narration.js';
 
 const el = {
   agent: document.querySelector('.agent:not(.stend)'),
-  agentText: document.querySelector('.agent:not(.stend) span[data-i]'),
+  agentText: document.querySelector('.agent-text'),
+  agentProgress: document.querySelector('.agent-progress'),
   stend: document.querySelector('.stend'),
   stendText: document.querySelector('.stend-text'),
   frame: document.querySelector('.frame'),
@@ -65,16 +66,84 @@ let stream = null;
 
 const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
+/**
+ * Разметка узла для словаря.
+ *
+ * Ключ строки и подстановки к ней остаются на самом узле, а не растворяются в готовом
+ * тексте. Поэтому при переключении языка строка собирается заново — сама, без повторной
+ * отрисовки панели и без второго словаря на этой стороне. Иначе всё, что вставлено
+ * отсюда, застывало бы на языке, который стоял в момент вставки.
+ *
+ * Ключ null снимает разметку: там, где стоит имя стенда, подпись шага или текст
+ * замечания, переводить нечего — это данные, а не интерфейс.
+ *
+ * Подстановки на узле одни на все ключи, поэтому текст и подсказка одного узла не могут
+ * требовать разных значений. Пока и не требуют: где нужны оба, они без подстановок.
+ */
+function say(node, slot, key, args) {
+  if (!node) return node;
+  if (key) node.dataset[slot] = key; else delete node.dataset[slot];
+  if (args) node.dataset.iArgs = JSON.stringify(args); else delete node.dataset.iArgs;
+  return node;
+}
+
+/** Текст узла по ключу словаря. Без ключа — оставляем что было: это данные. */
+function tr(node, key, args = null) {
+  say(node, 'i', key, args);
+  const text = window.taktText?.(key, args);
+  if (node && text != null) node.textContent = text;
+  return node;
+}
+
+/** То же для подсказки: она такой же текст интерфейса, только читают её реже. */
+function trTitle(node, key, args = null) {
+  say(node, 'iTitle', key, args);
+  const text = window.taktText?.(key, args);
+  if (node && text != null) node.title = text;
+  return node;
+}
+
+/** И для приглашения в поле ввода. */
+function trPh(node, key, args = null) {
+  say(node, 'iPh', key, args);
+  const text = window.taktText?.(key, args);
+  if (node && text != null) node.placeholder = text;
+  return node;
+}
+
 function setAgent(status, alive) {
   if (!el.agent) return;
   const state = !alive ? 'offline' : (status?.state === 'busy' ? 'busy' : 'listening');
   el.agent.dataset.state = state;
-  let text = status?.text || (state === 'listening' ? 'Слушает' : 'Не подключён');
-  if (state === 'busy' && status?.step && status?.of) text += ` — ${status.step} из ${status.of}`;
-  if (el.agentText) el.agentText.textContent = text;
+
+  // Что показывает агент, знает только агент: часть его состояний — наши фразы (приходят
+  // ключом), часть — подписи шагов сценария, которые написал человек и переводить нельзя.
+  if (el.agentText) {
+    if (!alive) tr(el.agentText, 'agentOffline');
+    else if (status?.key) tr(el.agentText, status.key, status.args);
+    else if (status?.text) { tr(el.agentText, null); el.agentText.textContent = status.text; }
+    else tr(el.agentText, 'agentListening');
+  }
+  // «2 из 5» вынесено в отдельный узел: числа приходят из данных, а порядок слов вокруг
+  // них у каждого языка свой, и склеивать их в одну строку значит потерять перевод.
+  if (el.agentProgress) {
+    const counted = state === 'busy' && status?.step && status?.of;
+    el.agentProgress.hidden = !counted;
+    if (counted) tr(el.agentProgress, 'agentProgress', { step: status.step, of: status.of });
+  }
   // Отправлять некуда, пока никто не слушает: кнопка блокируется, а не молча глотает клик.
   if (el.send) el.send.disabled = !alive;
 }
+
+/** Откуда взялся адрес стенда — ключ на каждый источник: подстановка внутрь подстановки
+    не переводится, а собранная из двух строк подсказка застыла бы на языке сборки. */
+const STEND_SOURCES = {
+  form: 'stendSrcForm',
+  manual: 'stendSrcManual',
+  env: 'stendSrcEnv',
+  config: 'stendSrcConfig',
+  preset: 'stendSrcPreset',
+};
 
 /** Адрес показываем без схемы и хвоста: в шапке ценно место, а узнаётся стенд по имени. */
 function setStend(stend) {
@@ -83,10 +152,29 @@ function setStend(stend) {
   const host = stend.url
     ? stend.url.replace(/^https?:\/\//, '').replace(/\/manager\/?$/, '').replace(/\/$/, '')
     : null;
-  el.stendText.textContent = stend.state === 'ok' && host ? host : (stend.text || 'Стенд не проверен');
+  if (stend.state === 'ok' && host) {
+    tr(el.stendText, null);
+    el.stendText.textContent = host;
+  } else if (stend.key) {
+    tr(el.stendText, stend.key, stend.args);
+  } else if (stend.text) {
+    tr(el.stendText, null);
+    el.stendText.textContent = stend.text;
+  } else {
+    tr(el.stendText, 'stendUnchecked');
+  }
+
   // В подсказке — полный адрес и откуда он взялся: когда стенд не тот, первый вопрос
   // именно этот, и ответ должен быть под рукой, а не в конфиге.
-  el.stend.title = [stend.url, stend.from && `источник: ${stend.from}`].filter(Boolean).join('\n');
+  const source = STEND_SOURCES[stend.fromKey];
+  if (source) {
+    trTitle(el.stend, source, { url: stend.url, ...(stend.fromArgs || {}) });
+  } else {
+    // Запись без ключа осталась от журнала прежних съёмок: показываем как есть, а не
+    // прячем адрес совсем — устаревшая подсказка полезнее пустой.
+    trTitle(el.stend, null);
+    el.stend.title = [stend.url, stend.from && `источник: ${stend.from}`].filter(Boolean).join('\n');
+  }
 }
 
 /**
@@ -198,7 +286,9 @@ function renderScenario(next) {
       <span class="step-label"></span>${s.diagram || s.hint ? '<span class="step-note"></span>' : ''}`;
     b.querySelector('.step-label').textContent = s.label;
     const note = b.querySelector('.step-note');
-    if (note) note.textContent = s.diagram ? `Врезка-схема · ${s.seconds} с` : s.hint;
+    // Врезку описываем мы, подсказку к шагу — агент: первое переводится, второе нет.
+    if (note && s.diagram) tr(note, 'stepDiagram', { sec: s.seconds });
+    else if (note) note.textContent = s.hint;
     if (s.state === 'failed' && s.error) {
       const err = document.createElement('span');
       err.className = 'step-error';
@@ -223,7 +313,8 @@ function renderScenario(next) {
     if (!editable) {
       const retake = document.createElement('div');
       retake.className = 'step-tools';
-      retake.innerHTML = '<button type="button" class="step-tool" data-act="from">снять отсюда</button>';
+      retake.innerHTML = '<button type="button" class="step-tool" data-act="from"></button>';
+      tr(retake.firstElementChild, 'toolFrom');
       retake.addEventListener('click', (e) => {
         if (e.target.dataset?.act !== 'from') return;
         post('/api/event', { type: 'retake', from: s.n, label: s.label });
@@ -250,9 +341,14 @@ function renderScenario(next) {
       const tools = document.createElement('div');
       tools.className = 'step-tools';
       tools.innerHTML = `
-        <span class="step-tool" data-act="drag" title="Перетащите строку, чтобы переставить">⠿ переставить</span>
-        <button type="button" class="step-tool" data-act="edit">подпись</button>
-        <button type="button" class="step-tool" data-act="del">убрать</button>`;
+        <span class="step-tool" data-act="drag"></span>
+        <button type="button" class="step-tool" data-act="edit"></button>
+        <button type="button" class="step-tool" data-act="del"></button>`;
+      const drag = tools.querySelector('[data-act="drag"]');
+      tr(drag, 'toolDrag');
+      trTitle(drag, 'toolDragTitle');
+      tr(tools.querySelector('[data-act="edit"]'), 'toolEdit');
+      tr(tools.querySelector('[data-act="del"]'), 'toolDel');
       tools.addEventListener('click', async (e) => {
         const act = e.target.dataset?.act;
         if (!act || act === 'drag') return;
@@ -306,15 +402,16 @@ function renderScenario(next) {
     el.scriptHead.querySelector('span').after(badge);
   }
   badge.dataset.state = scenario.status;
-  badge.textContent = scenario.status === 'ready' ? 'утверждён' : 'черновик';
+  tr(badge, scenario.status === 'ready' ? 'statusReady' : 'statusDraft');
 
   if (el.shoot) {
     el.shoot.hidden = false;
     const ready = scenario.status === 'ready';
-    el.shoot.textContent = ready ? 'Снято по этому сценарию' : 'Снимать';
+    tr(el.shoot, ready ? 'shootDone' : 'shootRun');
     // Съёмку выполняет агент: без него кнопка обещала бы то, чего не произойдёт.
     el.shoot.disabled = ready || el.agent?.dataset.state === 'offline';
-    el.shoot.title = el.shoot.disabled && !ready ? 'Агент не подключён' : '';
+    if (el.shoot.disabled && !ready) trTitle(el.shoot, 'shootOffline');
+    else { trTitle(el.shoot, null); el.shoot.title = ''; }
   }
 }
 
@@ -363,7 +460,7 @@ function renderTracks() {
       clip.style.left = pct(s.at);
       clip.style.width = pct(s.seconds);
       clip.textContent = s.diagram;
-      clip.title = `Схема «${s.diagram}» · ${s.seconds} с`;
+      trTitle(clip, 'clipDiagram', { name: s.diagram, sec: s.seconds });
       diagrams.append(clip);
     }
   }
@@ -419,13 +516,16 @@ function renderRuler() {
 }
 
 const EVENT_TITLES = {
-  scenario_note: 'Правка сценария',
-  task: 'Сборка сценария',
-  note: 'Замечание',
-  apply: 'Применение замечаний',
-  retake: 'Пересъёмка',
-  shoot: 'Съёмка',
-  stop: 'Остановка',
+  scenario_note: 'evScenarioNote',
+  task: 'evTask',
+  note: 'evNote',
+  apply: 'evApply',
+  retake: 'evRetake',
+  shoot: 'evShoot',
+  stop: 'evStop',
+  narrate: 'evNarrate',
+  check_stend: 'evCheckStend',
+  voice_prepare: 'evVoicePrepare',
 };
 
 /**
@@ -443,12 +543,17 @@ function renderInFlight(list = []) {
     for (const e of items) {
       const li = document.createElement('li');
       li.dataset.state = e.state;
-      const title = EVENT_TITLES[e.type] || e.type;
       const span = document.createElement('span');
       span.className = 'inflight-text';
-      span.textContent = e.text ? `${title}: ${e.text}` : title;
+      // Название события переводится, текст замечания — нет, поэтому они разными узлами:
+      // склеенные в один, они переводились бы вместе с чужой строкой внутри.
+      const title = document.createElement('span');
+      title.textContent = e.type;
+      tr(title, EVENT_TITLES[e.type]);
+      span.append(title);
+      if (e.text) span.append(`: ${e.text}`);
       const state = document.createElement('span');
-      state.textContent = e.state === 'working' ? 'в работе' : 'ждёт';
+      tr(state, e.state === 'working' ? 'evWorking' : 'evWaiting');
       li.append(span, state);
       host.append(li);
     }
@@ -511,8 +616,8 @@ function syncCursor(t) {
   if (head) head.style.left = `${(cursor / DURATION) * 100}%`;
   const clock = document.querySelector('.clock');
   if (clock) clock.innerHTML = `<b>${mmss(cursor)}</b> / ${mmss(DURATION)}`;
-  if (el.pin) el.pin.textContent = `Метка на ${mmss(cursor)}`;
-  if (el.composer) el.composer.placeholder = `Что поправить в этот момент? Метка встанет на ${mmss(cursor)}`;
+  tr(el.pin, 'pin', { t: mmss(cursor) });
+  trPh(el.composer, 'composerPh', { t: mmss(cursor) });
   renderCaption(cursor);
 }
 
@@ -523,6 +628,14 @@ function syncCursor(t) {
  * одинаково — две строчки текста, — но стоят двух минут и двадцати. Человек должен
  * увидеть эту разницу прежде, чем согласится ждать.
  */
+const PLAN_KINDS = {
+  shoot: 'planShoot',
+  voice: 'planVoice',
+  diagram: 'planDiagram',
+  edit: 'planEdit',
+  unclear: 'planUnclear',
+};
+
 async function renderPlan() {
   if (!el.plan) return;
   const plan = await fetch('/api/plan').then((r) => r.json()).catch(() => null);
@@ -536,16 +649,21 @@ async function renderPlan() {
     li.dataset.kind = it.kind;
     const kind = document.createElement('span');
     kind.className = 'plan-kind';
+    // Разбор пришёл с сервера видом работы, а не только готовой строкой: вид — это
+    // те же пять значений, что и в дорожках, и назвать их — работа интерфейса.
     kind.textContent = it.title;
+    tr(kind, PLAN_KINDS[it.kind]);
     const why = document.createElement('span');
     why.textContent = it.why;
+    tr(why, PLAN_KINDS[it.kind] && `${PLAN_KINDS[it.kind]}Why`);
     li.append(kind, why);
     el.planList.append(li);
   }
 
-  el.planCost.textContent = plan.minutes ? `≈ ${plan.minutes} мин` : 'срок неясен';
+  if (plan.minutes) tr(el.planCost, 'planCost', { min: plan.minutes });
+  else tr(el.planCost, 'planCostUnknown');
   // Пересъёмка — единственное, что стоит десятки минут: об этом говорим прямо в кнопке.
-  el.planApply.textContent = plan.needsShooting ? 'Применить и переснять' : 'Применить';
+  tr(el.planApply, plan.needsShooting ? 'planApplyShoot' : 'planApply');
   el.planApply.disabled = el.agent?.dataset.state === 'offline';
 }
 
@@ -646,15 +764,17 @@ function renderNotes(notes) {
   renderTracks();
   if (!el.notes) return;
   el.notes.innerHTML = '';
-  const kinds = { diagram: 'Схема', edit: 'Монтаж', voice: 'Озвучка' };
+  const kinds = { diagram: 'kindDiagram', edit: 'kindEdit', voice: 'kindVoice' };
   for (const n of notes) {
     const art = document.createElement('article');
     art.className = 'note';
     if (n.status === 'applied') art.dataset.status = 'applied';
     art.innerHTML = `<div class="note-head">
         <button class="time-chip" type="button">${mmss(n.t)}</button>
-        <span class="note-kind">${n.status === 'applied' ? 'Применено' : (kinds[n.kind] || 'Монтаж')}</span>
+        <span class="note-kind"></span>
       </div><p class="note-body"></p>`;
+    tr(art.querySelector('.note-kind'),
+       n.status === 'applied' ? 'kindApplied' : (kinds[n.kind] || 'kindEdit'));
     art.querySelector('.note-body').textContent = n.text;
     art.querySelector('.time-chip').addEventListener('click', () => seek(n.t));
     el.notes.append(art);
@@ -792,7 +912,7 @@ async function boot() {
   });
 
   el.projectNew?.addEventListener('click', async () => {
-    const title = prompt('Название ролика');
+    const title = prompt(window.taktText('projectPrompt'));
     if (!title) return;
     await post('/api/projects', { title });
     location.reload();

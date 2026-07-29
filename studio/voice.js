@@ -29,15 +29,21 @@ export function setupVoice({ post, getToken }) {
 
   const stopRecording = () => recorder?.state === 'recording' && recorder.stop();
 
+  // Строки берём из общего словаря студии: панель голоса — та же страница, и её тексты
+  // обязаны переключаться вместе со всеми. Узлы, которые остаются на экране, размечаем
+  // ключом; для prompt и alert строка нужна готовой — переключать в них уже нечего.
+  const say = (key, args) => window.taktText?.(key, args) ?? '';
+  const put = (node, key, args) => {
+    node.dataset.i = key;
+    if (args) node.dataset.iArgs = JSON.stringify(args); else delete node.dataset.iArgs;
+    node.textContent = say(key, args);
+  };
+
   /** Имя и согласие спрашиваем ДО записи: после — человек уже наговорил впустую. */
   const askMeta = (source) => {
-    const name = prompt(source === 'record'
-      ? 'Чей это голос? Имя появится в каталоге'
-      : 'Чей голос в файле?');
+    const name = prompt(say(source === 'record' ? 'voiceAskRecord' : 'voiceAskFile'));
     if (!name) return null;
-    const consent = confirm(
-      `Подтвердите: ${name} согласен, что этим голосом будет говорить синтез.\n\n`
-      + 'Голос человека охраняется законом — записывать чужой голос без его разрешения нельзя.');
+    const consent = confirm(say('voiceConsent', { name }));
     if (!consent) return null;
     return { name: name.trim(), consentBy: name.trim() };
   };
@@ -56,7 +62,7 @@ export function setupVoice({ post, getToken }) {
     } catch {
       // Обработка звука браузером выключена намеренно: шумодав и автоусиление срезают
       // обертоны, по которым голос узнаётся, — то же, чего мы избегаем при подготовке.
-      alert('Микрофон недоступен. Разрешите доступ в настройках браузера.');
+      alert(say('voiceNoMic'));
       return;
     }
 
@@ -67,12 +73,12 @@ export function setupVoice({ post, getToken }) {
       stream.getTracks().forEach((t) => t.stop());
       clearInterval(timer);
       const seconds = (Date.now() - startedAt) / 1000;
-      el.record.textContent = 'Записать сейчас';
+      put(el.record, 'record');
       el.record.classList.remove('rec-active');
 
       if (seconds < MIN_SECONDS) {
-        alert(`Слишком коротко: ${Math.round(seconds)} с. Нужно хотя бы ${MIN_SECONDS},`
-              + ` а лучше около ${GOOD_SECONDS} — от этого сходство зависит сильнее всего.`);
+        alert(say('voiceTooShort',
+                  { sec: Math.round(seconds), min: MIN_SECONDS, good: GOOD_SECONDS }));
         return;
       }
 
@@ -92,9 +98,7 @@ export function setupVoice({ post, getToken }) {
       const s = Math.round((Date.now() - startedAt) / 1000);
       // Счётчик показывает не только время, но и достаточно ли уже: без этого человек
       // либо останавливается слишком рано, либо наговаривает лишние пять минут.
-      el.record.textContent = s < MIN_SECONDS
-        ? `Запись ${s} с — мало`
-        : `Запись ${s} с — хватит, нажмите чтобы остановить`;
+      put(el.record, s < MIN_SECONDS ? 'recShort' : 'recEnough', { sec: s });
     }, 250);
   });
 

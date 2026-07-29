@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Takt — студия демонстрационных роликов</title>
+<title data-i="pageTitle">Takt — студия демонстрационных роликов</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -52,19 +52,20 @@
     <ul class="steps" hidden></ul>
 
     <div class="script-empty">
-      <p class="script-empty-text">Опишите, что показать в ролике. Обычными словами — на них
-        соберётся сценарий, который можно будет поправить до съёмки.</p>
-      <textarea class="task-input" rows="4"
+      <p class="script-empty-text" data-i="scriptEmpty">Опишите, что показать в ролике. Обычными
+        словами — на них соберётся сценарий, который можно будет поправить до съёмки.</p>
+      <textarea class="task-input" rows="4" data-i-ph="taskPh"
         placeholder="Например: показать, как создать домен, добавить в него маршрут на очередь и запустить"></textarea>
-      <button class="primary task-send" type="button">Собрать сценарий</button>
+      <button class="primary task-send" type="button" data-i="taskSend">Собрать сценарий</button>
     </div>
 
     <!-- Добавление шага требует знания интерфейса стенда, поэтому уходит агенту;
          остальные правки человек делает сам и мгновенно. -->
     <div class="script-actions" hidden>
-      <textarea class="scenario-note" rows="2"
+      <textarea class="scenario-note" rows="2" data-i-ph="scenarioNotePh"
         placeholder="Опишите изменение, которое хотите увидеть в сценарии"></textarea>
-      <button class="ghost scenario-note-send" type="button">Передать агенту</button>
+      <button class="ghost scenario-note-send" type="button"
+              data-i="scenarioNoteSend">Передать агенту</button>
       <ul class="inflight" hidden></ul>
     </div>
   </section>
@@ -74,20 +75,20 @@
     <div class="viewport">
       <div class="frame" data-live="true">
         <span class="live-badge" data-i="live">Идёт съёмка</span>
-        <img src="frame.jpg" alt="Экран браузера, который ведёт агент">
+        <img src="frame.jpg" data-i-alt="frameAlt" alt="Экран браузера, который ведёт агент">
         <p class="caption" hidden></p>
       </div>
     </div>
 
     <div class="transport">
-      <button class="play" type="button" aria-label="Воспроизвести">
+      <button class="play" type="button" data-i-aria="play" aria-label="Воспроизвести">
         <svg width="11" height="12" viewBox="0 0 11 12" aria-hidden="true">
           <path d="M0 0l11 6-11 6z" fill="currentColor"/>
         </svg>
       </button>
       <span class="clock"><b>0:47</b> / 4:47</span>
       <div class="transport-actions">
-        <button class="ghost script-shoot" type="button" hidden>Снимать</button>
+        <button class="ghost script-shoot" type="button" data-i="shootRun" hidden>Снимать</button>
         <button class="ghost" type="button" data-i="stop">Остановить</button>
         <button class="ghost" type="button" data-i="retake">Переснять сцену</button>
       </div>
@@ -103,18 +104,18 @@
       </div>
 
       <span class="track-label" data-i="trackSteps">Шаги</span>
-      <div class="track" data-track="steps" title="Границы шагов сценария">
+      <div class="track" data-track="steps" data-i-title="trackStepsTitle" title="Границы шагов сценария">
         <span class="playhead"></span>
       </div>
 
       <span class="track-label" data-i="trackDiagrams">Схемы</span>
-      <div class="track" data-track="diagrams" title="Врезки-схемы"></div>
+      <div class="track" data-track="diagrams" data-i-title="trackDiagramsTitle" title="Врезки-схемы"></div>
 
       <span class="track-label" data-i="trackNotes">Правки</span>
-      <div class="track" data-track="notes" title="Замечания"></div>
+      <div class="track" data-track="notes" data-i-title="trackNotesTitle" title="Замечания"></div>
 
       <span class="track-label" data-i="trackVoice">Голос</span>
-      <div class="track" data-track="voice" title="Дикторские реплики"></div>
+      <div class="track" data-track="voice" data-i-title="trackVoiceTitle" title="Дикторские реплики"></div>
     </div>
   </main>
 
@@ -160,10 +161,10 @@
     </div>
 
     <form class="composer" onsubmit="return false">
-      <textarea data-i-ph="composerPh"
+      <textarea data-i-ph="composerPh" data-i-args='{"t":"0:47"}'
         placeholder="Что поправить в этот момент? Метка встанет на 0:47"></textarea>
       <div class="composer-row">
-        <button class="ghost" type="button" data-i="pin">Метка на 0:47</button>
+        <button class="ghost" type="button" data-i="pin" data-i-args='{"t":"0:47"}'>Метка на 0:47</button>
         <button class="primary" type="submit" data-i="send">Отправить агенту</button>
       </div>
       <ul class="inflight inflight-notes" hidden></ul>
@@ -173,11 +174,11 @@
          на абстрактное «применить». Пересъёмка стоит на порядок дороже пересборки. -->
     <div class="plan" hidden>
       <div class="plan-head">
-        <span class="plan-title">Применить замечания</span>
+        <span class="plan-title" data-i="planTitle">Применить замечания</span>
         <span class="plan-cost"></span>
       </div>
       <ul class="plan-list"></ul>
-      <button class="primary plan-apply" type="button">Применить</button>
+      <button class="primary plan-apply" type="button" data-i="planApply">Применить</button>
     </div>
   </section>
 
@@ -188,7 +189,7 @@
 
     <div class="voice-cards"></div>
 
-    <button class="ghost narration-toggle" type="button" hidden>Дикторский текст</button>
+    <button class="ghost narration-toggle" type="button" data-i="narrationTitle" hidden>Дикторский текст</button>
 
     <div class="voice-actions">
       <button class="rec" type="button" data-i="record">Записать сейчас</button>
@@ -254,13 +255,13 @@
        стоит времени, а опечатка видна сразу. -->
   <dialog class="narration">
     <div class="narration-head">
-      <span>Дикторский текст</span>
+      <span data-i="narrationTitle">Дикторский текст</span>
       <span class="narration-total"></span>
-      <button class="ghost narration-close" type="button">Закрыть</button>
+      <button class="ghost narration-close" type="button" data-i="narrationClose">Закрыть</button>
     </div>
     <ul class="narration-list"></ul>
     <div class="narration-actions">
-      <button class="primary narration-voice" type="button">Озвучить</button>
+      <button class="primary narration-voice" type="button" data-i="narrationVoice">Озвучить</button>
     </div>
   </dialog>
 
