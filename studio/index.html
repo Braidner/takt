@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Takt — студия демонстрационных роликов</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="head">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Takt</div>
+    <div class="head-project" data-i="project">Ассистент: от задачи до интеграции</div>
+    <div class="head-spacer"></div>
+
+    <!-- Стенд и агент — разные поломки с разным лечением, поэтому и показаны отдельно. -->
+    <div class="agent stend" data-state="unknown" role="status" aria-live="polite" title="">
+      <span class="agent-dot" aria-hidden="true"></span>
+      <span class="stend-text">Стенд не проверен</span>
+    </div>
+
+    <!-- Состояние агента: текст плюс форма точки, не только цвет. -->
+    <div class="agent" data-state="busy" role="status" aria-live="polite">
+      <span class="agent-dot" aria-hidden="true"></span>
+      <span data-i="agentBusy">Снимает сцену — 2 из 5</span>
+    </div>
+
+    <button class="ghost" id="lang" type="button">EN</button>
+    <button class="ghost" id="theme" type="button" data-i="themeLight">Светлая</button>
+  </header>
+
+  <!-- Сценарий: не оглавление, а навигация по времени. -->
+  <section class="panel script" aria-labelledby="script-h">
+    <div class="panel-head">
+      <span id="script-h" data-i="scriptTitle">Сценарий</span>
+      <span class="panel-count">8</span>
+    </div>
+    <ul class="steps" hidden></ul>
+
+    <div class="script-empty">
+      <p class="script-empty-text">Опишите, что показать в ролике. Обычными словами — на них
+        соберётся сценарий, который можно будет поправить до съёмки.</p>
+      <textarea class="task-input" rows="4"
+        placeholder="Например: показать, как создать домен, добавить в него маршрут на очередь и запустить"></textarea>
+      <button class="primary task-send" type="button">Собрать сценарий</button>
+    </div>
+
+    <!-- Добавление шага требует знания интерфейса стенда, поэтому уходит агенту;
+         остальные правки человек делает сам и мгновенно. -->
+    <div class="script-actions" hidden>
+      <textarea class="scenario-note" rows="2"
+        placeholder="Опишите изменение, которое хотите увидеть в сценарии"></textarea>
+      <button class="ghost scenario-note-send" type="button">Передать агенту</button>
+      <ul class="inflight" hidden></ul>
+    </div>
+  </section>
+
+  <!-- Центр: живой кадр во время съёмки, готовый ролик после. -->
+  <main class="stage">
+    <div class="viewport">
+      <div class="frame" data-live="true">
+        <span class="live-badge" data-i="live">Идёт съёмка</span>
+        <img src="frame.jpg" alt="Экран браузера, который ведёт агент">
+        <p class="caption" hidden></p>
+      </div>
+    </div>
+
+    <div class="transport">
+      <button class="play" type="button" aria-label="Воспроизвести">
+        <svg width="11" height="12" viewBox="0 0 11 12" aria-hidden="true">
+          <path d="M0 0l11 6-11 6z" fill="currentColor"/>
+        </svg>
+      </button>
+      <span class="clock"><b>0:47</b> / 4:47</span>
+      <div class="transport-actions">
+        <button class="ghost script-shoot" type="button" hidden>Снимать</button>
+        <button class="ghost" type="button" data-i="stop">Остановить</button>
+        <button class="ghost" type="button" data-i="retake">Переснять сцену</button>
+      </div>
+    </div>
+
+    <div class="timeline">
+      <div class="ruler">
+        <span style="left:0%">0:00</span>
+        <span style="left:25%">1:12</span>
+        <span style="left:50%">2:24</span>
+        <span style="left:75%">3:35</span>
+        <span style="left:100%">4:47</span>
+      </div>
+
+      <span class="track-label" data-i="trackSteps">Шаги</span>
+      <div class="track" data-track="steps" title="Границы шагов сценария">
+        <span class="playhead"></span>
+      </div>
+
+      <span class="track-label" data-i="trackDiagrams">Схемы</span>
+      <div class="track" data-track="diagrams" title="Врезки-схемы"></div>
+
+      <span class="track-label" data-i="trackNotes">Правки</span>
+      <div class="track" data-track="notes" title="Замечания"></div>
+
+      <span class="track-label" data-i="trackVoice">Голос</span>
+      <div class="track" data-track="voice" title="Дикторские реплики"></div>
+    </div>
+  </main>
+
+  <!-- Замечания: очередь, уходящая агенту разом, а не диалог. -->
+  <section class="panel notes" aria-labelledby="notes-h">
+    <div class="panel-head">
+      <span id="notes-h" data-i="notesTitle">Замечания</span>
+      <span class="panel-count">4</span>
+    </div>
+
+    <div class="note-list">
+      <article class="note">
+        <div class="note-head">
+          <button class="time-chip" type="button">1:09</button>
+          <span class="note-kind" data-i="kindDiagram">Схема</span>
+        </div>
+        <p class="note-body" data-i="n1">Здесь показать схему режима планирования — три блока, снизу вверх.</p>
+      </article>
+
+      <article class="note">
+        <div class="note-head">
+          <button class="time-chip" type="button">1:48</button>
+          <span class="note-kind" data-i="kindEdit">Монтаж</span>
+        </div>
+        <p class="note-body" data-i="n2">Пауза слишком длинная, подрезать до двух секунд.</p>
+      </article>
+
+      <article class="note">
+        <div class="note-head">
+          <button class="time-chip" type="button">2:29</button>
+          <span class="note-kind" data-i="kindVoice">Озвучка</span>
+        </div>
+        <p class="note-body" data-i="n3">Переозвучить: «маршрут создан и запущен» звучит скомканно.</p>
+      </article>
+
+      <article class="note" data-status="applied">
+        <div class="note-head">
+          <button class="time-chip" type="button">3:38</button>
+          <span class="note-kind" data-i="kindApplied">Применено</span>
+        </div>
+        <p class="note-body" data-i="n4">Убрать наезд камеры на панель — она не влезает целиком.</p>
+      </article>
+    </div>
+
+    <form class="composer" onsubmit="return false">
+      <textarea data-i-ph="composerPh"
+        placeholder="Что поправить в этот момент? Метка встанет на 0:47"></textarea>
+      <div class="composer-row">
+        <button class="ghost" type="button" data-i="pin">Метка на 0:47</button>
+        <button class="primary" type="submit" data-i="send">Отправить агенту</button>
+      </div>
+      <ul class="inflight inflight-notes" hidden></ul>
+    </form>
+
+    <!-- План показывается ДО работы: человек соглашается на конкретный объём, а не
+         на абстрактное «применить». Пересъёмка стоит на порядок дороже пересборки. -->
+    <div class="plan" hidden>
+      <div class="plan-head">
+        <span class="plan-title">Применить замечания</span>
+        <span class="plan-cost"></span>
+      </div>
+      <ul class="plan-list"></ul>
+      <button class="primary plan-apply" type="button">Применить</button>
+    </div>
+  </section>
+
+  <!-- Голос: три способа равноправны. Запись на месте даёт лучший результат,
+       чем вырезка из старого ролика, поэтому она не спрятана в «прочее». -->
+  <section class="voice" aria-labelledby="voice-h">
+    <span class="voice-title" id="voice-h" data-i="voiceTitle">Голос диктора</span>
+
+    <div class="voice-cards"></div>
+
+    <button class="ghost narration-toggle" type="button" hidden>Дикторский текст</button>
+
+    <div class="voice-actions">
+      <button class="rec" type="button" data-i="record">Записать сейчас</button>
+      <button class="ghost" type="button" data-i="upload">Загрузить файл</button>
+    </div>
+  </section>
+
+  <!-- Дикторский текст: показывается ДО синтеза и правится здесь же. Озвучка пяти минут
+       стоит времени, а опечатка видна сразу. -->
+  <dialog class="narration">
+    <div class="narration-head">
+      <span>Дикторский текст</span>
+      <span class="narration-total"></span>
+      <button class="ghost narration-close" type="button">Закрыть</button>
+    </div>
+    <ul class="narration-list"></ul>
+    <div class="narration-actions">
+      <button class="primary narration-voice" type="button">Озвучить</button>
+    </div>
+  </dialog>
+
+</div>
+<script src="app.js"></script>
+<script type="module" src="live.js"></script>
+</body>
+</html>

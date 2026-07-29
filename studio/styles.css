@@ -1,0 +1,1099 @@
+/*
+ * Takt — студия демонстрационных роликов.
+ *
+ * Тёмная тема по умолчанию: работа идёт вплотную к видео, и светлый интерфейс вокруг
+ * тёмного кадра сбивает восприятие яркости. Светлая — переключателем.
+ *
+ * Брендовый градиент логотипа (синий → голубой → бирюза) работает как признак жизни:
+ * прогресс идущей съёмки, активная метка, фокус. Заливать им плоскости нельзя — рядом
+ * видео, и любой сильный цвет вокруг кадра врёт про цвет внутри кадра.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* Брендовая палитра снята пикселями с логотипа, а не подобрана на глаз: плитка идёт
+     от насыщенного синего к голубому, внутренний блок — от циана к бирюзе. Сиреневого
+     в бренде нет вовсе (он живёт только в необязательной теме продукта). */
+  --brand-blue: oklch(0.533 0.212 259.6);   /* #0162e4 */
+  --brand-sky: oklch(0.678 0.174 246.2);    /* #089efb */
+  --brand-cyan: oklch(0.754 0.128 203.8);   /* #03c6d4 */
+  --brand-teal: oklch(0.809 0.154 173.6);   /* #00e0b8 */
+  /* Три остановки, а не две: прямой переход синий→бирюза проходит через грязный
+     сине-зелёный, логотип же идёт через голубой и остаётся чистым по всей длине. */
+  --brand-flow: linear-gradient(96deg, var(--brand-blue), var(--brand-sky) 45%, var(--brand-teal));
+
+  /* Нейтрали тонированы в сторону синего на 0.008-0.014 — не «в тёплое по умолчанию». */
+  --bg: oklch(0.17 0.012 265);
+  --surface: oklch(0.213 0.014 265);
+  --surface-raised: oklch(0.253 0.016 265);
+  --line: oklch(0.32 0.016 265);
+  --line-strong: oklch(0.42 0.018 265);
+
+  --ink: oklch(0.96 0.004 265);
+  --ink-muted: oklch(0.76 0.012 265);       /* 7.2:1 на --bg */
+  /* 0.665, а не «приятные на глаз» 0.62: на приподнятой поверхности тот вариант давал
+     4.36 при норме 4.5, и это ровно тот случай, когда светло-серое «для элегантности»
+     делает интерфейс нечитаемым. */
+  --ink-faint: oklch(0.665 0.014 265);
+
+  --ok: oklch(0.72 0.16 155);
+  --warn: oklch(0.79 0.15 80);
+  --danger: oklch(0.66 0.19 25);
+
+  --focus: oklch(0.72 0.17 262);
+
+  /* Фиксированная шкала: продуктовый UI смотрят на одном DPI, плавающие заголовки здесь вредят. */
+  --t-xs: 0.75rem;
+  --t-sm: 0.8125rem;
+  --t-md: 0.875rem;
+  --t-base: 0.9375rem;
+  --t-lg: 1.0625rem;
+  --t-xl: 1.375rem;
+
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);   /* ease-out-quart */
+  --fast: 140ms;
+  --mid: 220ms;
+
+  /* Семантическая шкала слоёв: произвольные 999 здесь не появляются. */
+  --z-track: 1;
+  --z-sticky: 10;
+  --z-popover: 20;
+  --z-modal: 30;
+  --z-toast: 40;
+
+  --font: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: oklch(0.985 0.003 265);
+  --surface: oklch(1 0 0);
+  --surface-raised: oklch(0.975 0.004 265);
+  --line: oklch(0.9 0.008 265);
+  --line-strong: oklch(0.82 0.01 265);
+  --ink: oklch(0.24 0.014 265);
+  --ink-muted: oklch(0.46 0.014 265);
+  /* Светлая тема требует своего значения: та же светлота, что читается на тёмном фоне,
+     на белом даёт 4.0 вместо 4.5. Проверялось в обеих темах, а не в одной. */
+  --ink-faint: oklch(0.505 0.014 265);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: var(--t-base);
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, textarea, select { font: inherit; color: inherit; }
+
+:where(button, [tabindex], input, textarea, a):focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+/* ── Каркас ──────────────────────────────────────────────────────────────────
+   Четыре зоны живут одновременно: сценарий ведёт по времени, центр показывает
+   кадр, справа копятся замечания, снизу — голос. Прятать их по фазам значит
+   заставлять человека переключаться там, где он работает со всем сразу.       */
+
+.app {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr) 340px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "head  head   head"
+    "script stage  notes"
+    "voice voice  voice";
+  height: 100dvh;
+}
+
+/* ── Шапка ─────────────────────────────────────────────────────────────────── */
+
+.head {
+  grid-area: head;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--t-lg);
+  font-weight: 620;
+  letter-spacing: -0.02em;
+}
+
+.brand-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: var(--brand-flow);
+}
+
+.head-project {
+  color: var(--ink-muted);
+  font-size: var(--t-md);
+  padding-left: var(--sp-4);
+  border-left: 1px solid var(--line);
+}
+
+.head-spacer { flex: 1; }
+
+/* Состояние агента — элемент первого класса: писать в поле, когда на том конце
+   никого нет, и узнавать об этом через десять минут — худшее, что тут возможно.
+   Поэтому состояние передаётся текстом и формой, а не только цветом.           */
+
+.agent {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3) var(--sp-1) var(--sp-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: var(--t-sm);
+  background: var(--surface-raised);
+}
+
+.agent-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+  flex: none;
+}
+
+.agent[data-state="listening"] .agent-dot { background: var(--ok); }
+.agent[data-state="busy"] .agent-dot {
+  background: var(--brand-blue);
+  animation: pulse 1.4s var(--ease) infinite;
+}
+/* Стенд проверяется до съёмки и живёт своим состоянием: «проверяю» — это не «работает». */
+.stend .agent-dot { background: var(--ink-faint); }
+.stend[data-state="ok"] .agent-dot { background: var(--ok); }
+.stend[data-state="checking"] .agent-dot { background: var(--brand-sky); animation: pulse 1.4s var(--ease) infinite; }
+.stend[data-state="error"] .agent-dot { background: var(--danger); }
+.stend-text { max-width: 34ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.agent[data-state="offline"] .agent-dot {
+  background: transparent;
+  border: 2px solid var(--danger);
+  width: 10px;
+  height: 10px;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.72); }
+}
+
+.ghost {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: var(--sp-1) var(--sp-3);
+  font-size: var(--t-sm);
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: color var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+.ghost:hover { color: var(--ink); border-color: var(--line-strong); }
+.ghost[aria-pressed="true"] { color: var(--ink); border-color: var(--brand-blue); }
+
+/* ── Панели ────────────────────────────────────────────────────────────────── */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface);
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  font-size: var(--t-sm);
+  font-weight: 560;
+  color: var(--ink-muted);
+  border-bottom: 1px solid var(--line);
+}
+
+.panel-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+
+/* ── Сценарий: шаги привязаны ко времени ────────────────────────────────────
+   Это не оглавление, а навигация: клик по шагу переводит ролик на его момент.  */
+
+.script { grid-area: script; border-right: 1px solid var(--line); }
+
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: var(--sp-2);
+  overflow-y: auto;
+  flex: 1;
+}
+
+.step {
+  display: grid;
+  grid-template-columns: 46px 1fr;
+  gap: var(--sp-3);
+  align-items: baseline;
+  width: 100%;
+  text-align: left;
+  padding: var(--sp-2) var(--sp-2);
+  border: none;
+  border-radius: var(--r-sm);
+  background: none;
+  cursor: pointer;
+  transition: background var(--fast) var(--ease);
+}
+.step:hover { background: var(--surface-raised); }
+.step[aria-current="true"] { background: var(--surface-raised); }
+
+.step-time {
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.step[aria-current="true"] .step-time { color: var(--brand-blue); }
+
+.step-label { font-size: var(--t-md); line-height: 1.4; }
+.step[data-state="pending"] .step-label { color: var(--ink-faint); }
+
+/* Состояние шага видно по времени слева, а не по иконке справа: взгляд при съёмке
+   идёт по левому краю, сверху вниз, и искать отметку в конце строки неудобно. */
+.step[data-state="running"] { background: var(--surface-raised); }
+.step[data-state="running"] .step-time {
+  color: var(--brand-sky);
+  animation: pulse 1.4s var(--ease) infinite;
+}
+.step[data-state="running"] .step-label { color: var(--ink); }
+
+.step[data-state="failed"] .step-time { color: var(--danger); }
+.step[data-state="failed"] .step-label { color: var(--ink); }
+.step-error {
+  grid-column: 2;
+  margin-top: 3px;
+  font-size: var(--t-xs);
+  color: var(--danger);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* Подсказка приглушена: это не вторая ошибка, а выход из неё. */
+.step-fix {
+  grid-column: 2;
+  margin-top: 2px;
+  font-size: var(--t-xs);
+  color: var(--ink-muted);
+  line-height: 1.4;
+}
+
+.step-note {
+  grid-column: 2;
+  font-size: var(--t-xs);
+  color: var(--ink-faint);
+  margin-top: 2px;
+}
+
+/* Пустое состояние учит работе с инструментом, а не сообщает «здесь ничего нет»:
+   первое, что человек делает в студии, — описывает ролик словами, и поле для этого
+   должно стоять там же, где потом появится сценарий. */
+.script-empty {
+  padding: var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+/* Атрибут hidden — это всего лишь display:none в таблице стилей браузера, и любой
+   собственный display его перебивает. Без этой строки скрытый блок остаётся на экране. */
+.script-empty[hidden], .steps[hidden] { display: none; }
+
+.script-empty-text {
+  margin: 0;
+  font-size: var(--t-md);
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+.task-input {
+  width: 100%;
+  resize: vertical;
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--bg);
+  font-size: var(--t-md);
+  transition: border-color var(--fast) var(--ease);
+}
+.task-input::placeholder { color: var(--ink-faint); }
+.task-input:focus { border-color: var(--brand-blue); outline: none; }
+
+.task-send { margin-left: 0; }
+
+/* Черновик отличается от утверждённого не подписью, а поведением: пока он черновик,
+   съёмка не стартует. Метка в шапке панели объясняет, почему кнопка съёмки не активна. */
+.script-status {
+  font-size: var(--t-xs);
+  padding: 1px var(--sp-2);
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  color: var(--ink-muted);
+}
+.script-status[data-state="ready"] { border-color: var(--ok); color: var(--ink); }
+
+.script-actions {
+  display: flex;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border-top: 1px solid var(--line);
+}
+.script-actions[hidden] { display: none; }
+
+/* Замечание к сценарию целиком: «сократи вступление», «добавь шаг про очередь» —
+   это про ролик, а не про конкретную строку, и место ему под всем списком. */
+.script-actions { flex-direction: column; align-items: stretch; }
+
+.scenario-note {
+  width: 100%;
+  resize: vertical;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--bg);
+  font-size: var(--t-sm);
+  line-height: 1.45;
+}
+.scenario-note::placeholder { color: var(--ink-faint); }
+.scenario-note:focus { border-color: var(--brand-blue); outline: none; }
+
+.scenario-note-send { align-self: flex-end; }
+
+/* Отправленное, но ещё не выполненное. Без этого нажатие уходит в пустоту: человек не
+   знает, дошло ли, и жмёт второй раз — так в очереди оказываются дубли одной просьбы. */
+.inflight {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+.inflight[hidden] { display: none; }
+
+.inflight li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  border-radius: var(--r-sm);
+  background: var(--surface-raised);
+  font-size: var(--t-xs);
+  color: var(--ink-muted);
+  line-height: 1.4;
+}
+
+.inflight li::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ink-faint);
+  transform: translateY(-1px);
+}
+
+/* «Ждёт очереди» и «агент уже занят этим» — разные состояния: во втором случае
+   ожидание осмысленно, в первом стоит проверить, слушает ли вообще кто-нибудь. */
+.inflight li[data-state="working"]::before {
+  background: var(--brand-sky);
+  animation: pulse 1.4s var(--ease) infinite;
+}
+
+/* План правок: сколько это займёт и почему. Стоимость правок различается на порядок,
+   и без такой сводки человек узнаёт о получасовом ожидании уже после нажатия. */
+.plan {
+  border-top: 1px solid var(--line);
+  padding: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.plan[hidden] { display: none; }
+
+.plan-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--t-sm);
+}
+.plan-title { font-weight: 560; }
+.plan-cost { margin-left: auto; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+
+.plan-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-1); }
+.plan-list li {
+  display: flex;
+  gap: var(--sp-2);
+  font-size: var(--t-xs);
+  color: var(--ink-muted);
+  line-height: 1.4;
+}
+.plan-kind { flex: none; color: var(--ink); }
+/* Пересъёмка выделена: это единственный вид правки, который стоит десятки минут. */
+.plan-list li[data-kind="shoot"] .plan-kind { color: var(--warn); }
+.plan-list li[data-kind="unclear"] .plan-kind { color: var(--danger); }
+
+.plan-apply { align-self: flex-end; }
+
+.inflight-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.script-shoot { flex: none; }
+.script-shoot[hidden] { display: none; }
+.script-shoot:not(:disabled) { color: var(--ink); border-color: var(--brand-teal); }
+.script-shoot:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Инструменты шага лежат ПОД строкой, а не сбоку: сбоку они съедали ширину у подписи,
+   а подпись здесь — главное содержимое панели, её читают, а не кнопки. Появляются по
+   наведению и фокусу, чтобы список читался как сценарий, а не как пульт. */
+.step-row {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--r-sm);
+}
+.step-row.dragging { opacity: 0.4; }
+.step-row.drop-before { box-shadow: inset 0 2px 0 var(--brand-teal); }
+.step-row.drop-after { box-shadow: inset 0 -2px 0 var(--brand-teal); }
+
+.step-tools {
+  display: flex;
+  gap: var(--sp-1);
+  /* Выравнивание по колонке подписи (58px) съедало треть ширины, и подписи кнопок
+     обрезались на «уб». Панель узкая — здесь важнее уместиться, чем выровняться. */
+  padding: 0 var(--sp-2) var(--sp-2) var(--sp-2);
+  flex-wrap: wrap;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height var(--fast) var(--ease), opacity var(--fast) var(--ease);
+}
+.step-row:hover .step-tools,
+.step-row:focus-within .step-tools { max-height: 32px; opacity: 1; }
+
+.step-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 2px var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--ink-faint);
+  font-size: var(--t-xs);
+  cursor: pointer;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.step-tool:hover { background: var(--surface-raised); color: var(--ink); }
+.step-tool[data-act="drag"] { cursor: grab; }
+
+.step-label[contenteditable="true"] {
+  outline: 1px solid var(--brand-blue);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+/* ── Центр: кадр и таймлайн ───────────────────────────────────────────────── */
+
+.stage {
+  grid-area: stage;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg);
+}
+
+.viewport {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-5);
+}
+
+.frame {
+  position: relative;
+  width: 100%;
+  max-width: 1040px;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+/* Живой экран: тонкая рамка «идёт запись» вместо красной точки поверх кадра —
+   индикатор не должен перекрывать то, что снимают. */
+.frame[data-live="true"] { border-color: transparent; }
+.frame[data-live="true"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: var(--brand-flow);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.frame-placeholder {
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: var(--t-md);
+  max-width: 34ch;
+  text-wrap: balance;
+}
+
+.frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.frame img[hidden] { display: none; }
+.movie { width: 100%; height: 100%; object-fit: contain; display: block; background: #000; }
+
+/* Титр рисуется поверх видео, а не выжигается в него: правка формулировки не должна
+   стоить перекодирования всего ролика, а правят их чаще всего остального. */
+.caption {
+  position: absolute;
+  left: 50%;
+  bottom: 6%;
+  translate: -50% 0;
+  max-width: 78%;
+  margin: 0;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-md);
+  background: color-mix(in oklch, #000 62%, transparent);
+  color: oklch(0.98 0 0);
+  font-size: var(--t-base);
+  line-height: 1.35;
+  text-align: center;
+  text-wrap: balance;
+  pointer-events: none;
+}
+.caption[hidden] { display: none; }
+
+.live-badge[hidden] { display: none; }
+
+.live-badge {
+  position: absolute;
+  top: var(--sp-3);
+  left: var(--sp-3);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--bg) 78%, transparent);
+  font-size: var(--t-xs);
+  letter-spacing: 0.01em;
+}
+
+.live-badge::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: pulse 1.6s var(--ease) infinite;
+}
+
+/* ── Транспорт и таймлайн ───────────────────────────────────────────────────
+   Таймлайн — сквозная ось продукта, а не деталь плеера: во время съёмки на нём
+   копятся события, после — на той же линии ставятся правки. Человек правит ту
+   же линию, по которой смотрел съёмку.                                        */
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.play {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-raised);
+  cursor: pointer;
+  transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease);
+}
+.play:hover { border-color: var(--brand-blue); }
+.play:active { background: var(--surface); }
+
+.clock {
+  font-family: var(--mono);
+  font-size: var(--t-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+}
+.clock b { color: var(--ink); font-weight: 560; }
+
+.transport-actions { margin-left: auto; display: flex; gap: var(--sp-2); }
+
+/* Подписи дорожек живут в своей колонке, а не поверх содержимого: клип или
+   засечка в начале ролика иначе ложится ровно на подпись и делает нечитаемым
+   и то, и другое. */
+.timeline {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  column-gap: var(--sp-3);
+  align-items: center;
+  padding: 0 var(--sp-4) var(--sp-4);
+  background: var(--surface);
+}
+
+.timeline > .ruler { grid-column: 2; }
+
+.track-label {
+  grid-column: 1;
+  font-size: var(--t-xs);
+  color: var(--ink-faint);
+  text-align: right;
+  line-height: 26px;
+}
+
+.track {
+  grid-column: 2;
+  position: relative;
+  height: 26px;
+  border-radius: var(--r-sm);
+  background: var(--surface-raised);
+  cursor: pointer;
+}
+
+/* Прогресс — единственное место, где градиент занимает площадь: он показывает
+   не украшение, а сколько уже снято или проиграно. */
+.track-progress {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--brand-flow);
+  opacity: 0.22;
+}
+
+.tick {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--line-strong);
+}
+
+.marker {
+  position: absolute;
+  top: 50%;
+  translate: -50% -50%;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+  background: var(--brand-teal);
+  cursor: pointer;
+  transition: transform var(--fast) var(--ease);
+}
+.marker:hover { transform: scale(1.25); }
+.marker[data-kind="voice"] { background: var(--brand-cyan); }
+.marker[data-kind="diagram"] { background: var(--brand-sky); }
+
+.clip {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  border-radius: 4px;
+  background: color-mix(in oklch, var(--brand-teal) 30%, transparent);
+  border: 1px solid color-mix(in oklch, var(--brand-teal) 52%, transparent);
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 14px;
+  padding: 0 4px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+/* Врезка-схема занимает время в кадре, поэтому это отрезок, а не точка: видно, сколько
+   она держится и на какой шаг приходится. */
+.clip[data-kind="diagram"] {
+  background: color-mix(in oklch, var(--brand-sky) 26%, transparent);
+  border-color: color-mix(in oklch, var(--brand-sky) 52%, transparent);
+}
+
+/* Граница шага: отсюда начинается следующая подпись в кадре. */
+.step-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--line-strong);
+}
+.step-edge[data-state="done"] { background: color-mix(in oklch, var(--brand-teal) 70%, transparent); }
+.step-edge[data-state="failed"] { background: var(--danger); width: 2px; }
+
+.track-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: color-mix(in oklch, var(--brand-blue) 22%, transparent);
+}
+
+.playhead {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  background: var(--ink);
+  z-index: var(--z-sticky);
+  pointer-events: none;
+}
+.playhead::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  translate: -50% 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--ink);
+  rotate: 45deg;
+}
+
+.ruler {
+  position: relative;
+  height: 18px;
+  margin-bottom: var(--sp-2);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink-faint);
+}
+.ruler span { position: absolute; translate: -50% 0; }
+
+/* ── Замечания ─────────────────────────────────────────────────────────────
+   Очередь, а не чат «вопрос-ответ»: замечания копятся по ходу просмотра и
+   уходят агенту разом. Каждое привязано к моменту — в этом вся суть.          */
+
+.notes { grid-area: notes; border-left: 1px solid var(--line); }
+
+.note-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.note {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  padding: var(--sp-3);
+  background: var(--surface-raised);
+}
+
+.note-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+.time-chip {
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  font-variant-numeric: tabular-nums;
+  padding: 2px var(--sp-2);
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+.time-chip:hover { border-color: var(--brand-blue); }
+
+.note-kind {
+  font-size: var(--t-xs);
+  color: var(--ink-faint);
+  margin-left: auto;
+}
+
+.note-body { font-size: var(--t-md); line-height: 1.45; }
+
+.note[data-status="applied"] { opacity: 0.6; }
+.note[data-status="applied"] .note-body { text-decoration: line-through; }
+
+.composer {
+  border-top: 1px solid var(--line);
+  padding: var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.composer textarea {
+  width: 100%;
+  min-height: 66px;
+  resize: vertical;
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--bg);
+  font-size: var(--t-md);
+  transition: border-color var(--fast) var(--ease);
+}
+.composer textarea::placeholder { color: var(--ink-faint); }
+.composer textarea:focus { border-color: var(--brand-blue); outline: none; }
+
+.composer-row { display: flex; align-items: center; gap: var(--sp-2); }
+
+/* Кнопка — сплошной синий, а не брендовый градиент: белый текст на его бирюзовом конце
+   даёт 1.66:1, на голубом 2.81:1. Градиент несёт состояние там, где поверх него нет
+   текста (марка, рамка идущей съёмки, прогресс дорожки); текст он нести не может. */
+.primary {
+  margin-left: auto;
+  padding: var(--sp-2) var(--sp-4);
+  border: none;
+  border-radius: var(--r-sm);
+  background: var(--brand-blue);
+  color: oklch(0.99 0 0);
+  font-size: var(--t-sm);
+  font-weight: 560;
+  cursor: pointer;
+  transition: background var(--fast) var(--ease);
+}
+.primary:hover { background: oklch(0.58 0.215 259.6); }
+.primary:disabled { background: var(--surface-raised); color: var(--ink-faint); cursor: not-allowed; filter: none; }
+
+/* ── Голос ─────────────────────────────────────────────────────────────────
+   Три способа получить голос равноправны, поэтому это не выпадающий список:
+   запись на месте даёт лучший результат, чем вырезка из старого ролика, и
+   прятать её за «прочее» значит подталкивать к худшему варианту.              */
+
+.voice {
+  grid-area: voice;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  overflow-x: auto;
+}
+
+.voice-title {
+  font-size: var(--t-sm);
+  font-weight: 560;
+  color: var(--ink-muted);
+  flex: none;
+}
+
+.voice-cards { display: flex; gap: var(--sp-2); }
+
+.voice-card {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-raised);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--fast) var(--ease);
+  flex: none;
+}
+.voice-card:hover { border-color: var(--line-strong); }
+.voice-card[aria-pressed="true"] { border-color: var(--brand-cyan); }
+
+.voice-name { font-size: var(--t-md); display: block; }
+.voice-meta { font-size: var(--t-xs); color: var(--ink-faint); }
+
+.wave { display: block; width: 62px; height: 20px; flex: none; }
+.wave rect { fill: var(--line-strong); }
+.voice-card[aria-pressed="true"] .wave rect { fill: var(--brand-cyan); }
+
+.voice-actions { margin-left: auto; display: flex; gap: var(--sp-2); flex: none; }
+
+.rec {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: none;
+  font-size: var(--t-sm);
+  cursor: pointer;
+  transition: border-color var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.rec:hover { border-color: var(--brand-cyan); }
+/* Идущая запись видна и цветом, и текстом счётчика: остановить её вовремя важнее,
+   чем начать — лишние минуты материала модели не помогают. */
+.rec-active { border-color: var(--danger); color: var(--ink); }
+.rec-active::before { animation: pulse 1s var(--ease) infinite; }
+
+.voice-card:disabled { opacity: 0.55; cursor: default; }
+
+.rec::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+/* ── Адаптив: структурный, не «плавающая типографика» ────────────────────── */
+
+@media (max-width: 1180px) {
+  .app { grid-template-columns: 220px minmax(0, 1fr) 300px; }
+}
+
+@media (max-width: 940px) {
+  .app {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "head" "stage" "notes" "script" "voice";
+    height: auto;
+  }
+  .script, .notes { border: none; border-top: 1px solid var(--line); }
+  .viewport { padding: var(--sp-3); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .agent[data-state="busy"] .agent-dot { opacity: 1; }
+}
+
+/* ── Дикторский текст ──────────────────────────────────────────────────────
+   Отдельным окном, а не ещё одной колонкой: экран уже поделён на четыре зоны, и
+   пятая сделала бы каждую бесполезно узкой. Текст читают подряд и правят залпом —
+   для такой работы нужна ширина, а не постоянное присутствие на экране.          */
+
+.narration {
+  width: min(720px, 92vw);
+  max-height: 82vh;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--ink);
+  overflow: hidden;
+}
+.narration::backdrop { background: color-mix(in oklch, #000 62%, transparent); }
+
+.narration-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--t-md);
+  font-weight: 560;
+}
+.narration-total { margin-left: auto; color: var(--ink-muted); font-weight: 400; font-size: var(--t-sm); }
+
+.narration-list {
+  list-style: none;
+  margin: 0;
+  padding: var(--sp-3);
+  overflow-y: auto;
+  max-height: 56vh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.narration-line {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: var(--sp-3);
+  align-items: start;
+}
+
+.narration-at {
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  color: var(--ink-faint);
+  padding-top: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.narration-line textarea {
+  width: 100%;
+  min-height: 58px;
+  resize: vertical;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--bg);
+  font-size: var(--t-md);
+  line-height: 1.45;
+}
+.narration-line textarea:focus { border-color: var(--brand-blue); outline: none; }
+
+/* Укладка проверяется до синтеза: реплика, не влезающая в своё окно, наедет на
+   следующую, и в дорожке будут два голоса разом. */
+.narration-fit { grid-column: 2; font-size: var(--t-xs); color: var(--ink-faint); }
+.narration-fit[data-fit="tight"] { color: var(--warn); }
+.narration-fit[data-fit="over"] { color: var(--danger); }
+
+.narration-actions {
+  display: flex;
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--line);
+}
+.narration-actions .primary { margin-left: auto; }

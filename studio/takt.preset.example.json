@@ -1,0 +1,17 @@
+{
+  "name": "Моя система",
+  "targets": {
+    "local": "http://localhost:8080/",
+    "dev": "http://localhost:3000/"
+  },
+  "branchUrl": null,
+  "credentials": { "user": "admin", "password": "admin" },
+  "login": {
+    "password": "input[type=\"password\"]:visible",
+    "user": "input:not([type=\"password\"]):visible",
+    "submit": "Enter"
+  },
+  "ready": "#app, #root, main, nav",
+  "language": null,
+  "theme": null
+}
