@@ -111,12 +111,8 @@ a { color: inherit; }
 }
 .slate .tc { font-size: 0.55em; transform: translateY(-0.35em); }
 
-.lead {
-  max-width: 62ch;
-  margin-top: 20px;
-  color: var(--ink-muted);
-  font-size: 1.125rem;
-}
+.lead { margin-top: 20px; color: var(--ink-muted); font-size: 1.125rem; }
+.lead .measure { display: block; max-width: 62ch; }
 
 /* ── Герой ─────────────────────────────────────────────────────────────── */
 
@@ -161,10 +157,11 @@ a { color: inherit; }
   mask-image: radial-gradient(120% 90% at 42% 26%, oklch(0 0 0) 42%, transparent 78%);
 }
 
-.rec {
+/* Пилюля — внутренний элемент: внешний блок занимает колонку кадра (так требует
+   раскладка ленты), а рамка обнимает только текст. */
+.rec { font: 600 0.8125rem/1 var(--font-mono); color: var(--ink-muted); }
+.rec-pill {
   display: inline-flex; align-items: center; gap: 9px;
-  font: 600 0.8125rem/1 var(--font-mono);
-  color: var(--ink-muted);
   border: 1px solid var(--line); border-radius: 999px;
   padding: 8px 15px;
 }
@@ -188,14 +185,29 @@ a { color: inherit; }
 .hero-title .line { display: block; }
 .hero-title .line + .line { color: var(--ink-muted); font-weight: 600; }
 
-.hero-sub {
-  margin-top: 26px;
-  max-width: 56ch;
-  color: var(--ink-muted);
-  font-size: 1.125rem;
-}
+.hero-sub { margin-top: 26px; color: var(--ink-muted); font-size: 1.125rem; }
+.hero-sub .measure { display: block; max-width: 56ch; }
 
-.hero-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+.hero-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; align-items: stretch; }
+
+/* Команда установки — главный CTA: её копируют, а не нажимают. */
+.hero-install {
+  position: relative;
+  display: flex; align-items: center;
+  gap: 14px;
+  border: 1px solid var(--brand-blue);
+  border-radius: 10px;
+  padding: 14px 58px 14px 18px;
+  background: oklch(0.145 0.012 265);
+  box-shadow: 0 0 0 1px oklch(0.533 0.212 259.6 / 0.25), 0 12px 40px -18px oklch(0.533 0.212 259.6 / 0.5);
+}
+.hero-install code { font: 600 0.9375rem/1 var(--font-mono); color: var(--ink); white-space: nowrap; }
+.hero-install .copy { top: 50%; transform: translateY(-50%); }
+.hero-install .copy:hover { border-color: var(--brand-teal); }
+@media (max-width: 640px) {
+  .hero-install { width: 100%; padding-right: 54px; }
+  .hero-install code { white-space: normal; font-size: 0.875rem; }
+}
 
 .btn {
   display: inline-flex; align-items: center;
@@ -708,3 +720,13 @@ a { color: inherit; }
 
 /* В ленте IO-reveal не участвует: раскрытием управляет --d. */
 .filmed [data-reveal] { opacity: 1; transform: none; transition: none; }
+
+/* ── Живая стоянка героя: каждое движение колеса даёт отклик ─────────────
+   Пока кадр героя стоит, контент едва заметно уплывает вверх и аврора
+   смещается — страница дышит под рукой, а не ждёт конца стоянки. */
+.filmed .hero .rec        { transform: translateY(calc(var(--d, 0) * -14px)); }
+.filmed .hero .hero-title { transform: translateY(calc(var(--d, 0) * -22px)); }
+.filmed .hero .hero-sub   { transform: translateY(calc(var(--d, 0) * -18px)); opacity: calc(1 - var(--d, 0) * 0.25); }
+.filmed .hero .hero-cta   { transform: translateY(calc(var(--d, 0) * -12px)); }
+.filmed .hero .dialog     { transform: translateY(calc(var(--d, 0) * -8px)); }
+.filmed .hero .aurora     { transform: translateX(calc(var(--d, 0) * -6vw)) scale(calc(1 + var(--d, 0) * 0.06)); }

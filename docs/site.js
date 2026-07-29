@@ -215,15 +215,16 @@ const FILM = motionOk && matchMedia("(min-width: 900px)").matches;
    и раскрывается изнутри (его локальный прогресс --d идёт 0→1 по скроллу, поэтому
    назад крутишь — раскрытие честно откатывается), TRAVEL — проезд к следующему.
    Доли в «кадровых единицах»: у последнего кадра проезда нет. */
-const DWELL = 0.62;
-const TRAVEL = 0.38;
+const DWELL = 0.72;
+const TRAVEL = 0.28;
 const UNITS = sceneEls.length * DWELL + (sceneEls.length - 1) * TRAVEL;
 const easeTravel = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 if (FILM) {
   document.documentElement.classList.add("filmed");
-  // Высота плёнки задаёт темп: полтора экрана скролла на кадровую единицу.
-  document.documentElement.style.setProperty("--film-len", `${Math.round(UNITS * 150)}vh`);
+  // Высота плёнки задаёт темп. Почти два экрана на кадровую единицу: на трекпаде
+  // ниже — и вся лента пролетается одним свайпом, стоянки не успевают раскрыться.
+  document.documentElement.style.setProperty("--film-len", `${Math.round(UNITS * 185)}vh`);
   // Плавный якорный скролл в ленте дезориентирует: прыжок точнее.
   document.documentElement.style.scrollBehavior = "auto";
 }
@@ -256,22 +257,33 @@ const frameTop = (n) => {
   return el ? el.getBoundingClientRect().top + scrollY - 84 : 0;
 };
 
-let ticking = false;
-function playhead() {
-  ticking = false;
+/* Инерция: scrollY — цель, лента догоняет её экспоненциальным лерпом. Трекпад
+   отдаёт позицию скачками, и без сглаживания кадры щёлкают; с ним лента ведёт
+   себя как физический носитель с массой. Цикл живёт только пока есть куда
+   догонять — на неподвижной странице rAF не крутится и батарею не ест. */
+const SMOOTH = 10;            // 1/с: выше — отзывчивее, ниже — тяжелее
+let uCurrent = 0;
+let running = false;
+let lastT = 0;
+
+function targetU() {
   const max = document.documentElement.scrollHeight - innerHeight;
   const p = max > 0 ? Math.min(1, scrollY / max) : 0;
+  return p * UNITS;
+}
+
+function apply(u) {
+  const max = document.documentElement.scrollHeight - innerHeight;
+  const p = UNITS > 0 ? u / UNITS : 0;
   fill.style.width = `${p * 100}%`;
   head.style.left = `${p * 100}%`;
 
   let current = 0;
-
   if (FILM) {
-    const at = filmAt(p * UNITS);
-    strip.style.transform = `translateX(${-at.x * 100}vw)`;
+    const at = filmAt(u);
+    strip.style.transform = `translate3d(${-at.x * 100}vw, 0, 0)`;
     current = at.frame;
     sceneEls.forEach((s, i) => {
-      // --p — положение кадра в проезде (для параллакса), --d — раскрытие на стоянке.
       s.style.setProperty("--p", Math.max(-1, Math.min(1, at.x - i)));
       s.style.setProperty("--d", i === at.frame ? at.d : (i < at.frame ? 1 : 0));
     });
@@ -280,18 +292,44 @@ function playhead() {
       if (s.getBoundingClientRect().top < innerHeight * 0.5) current = i;
     });
   }
-
   marks.forEach((a) => {
     const n = sceneEls.indexOf(document.querySelector(a.getAttribute("href")));
     if (n === current) a.setAttribute("aria-current", "true");
     else a.removeAttribute("aria-current");
   });
 }
-addEventListener("scroll", () => {
-  if (!ticking) { ticking = true; requestAnimationFrame(playhead); }
-}, { passive: true });
-addEventListener("resize", playhead);
-playhead();
+
+function loop(now) {
+  const dt = Math.min(0.05, (now - lastT) / 1000 || 0.016);
+  lastT = now;
+  const target = targetU();
+  // Экспоненциальное догоняние, независимое от частоты кадров.
+  uCurrent += (target - uCurrent) * (1 - Math.exp(-SMOOTH * dt));
+  if (Math.abs(target - uCurrent) < 0.0004) {
+    uCurrent = target;
+    apply(uCurrent);
+    running = false;
+    return;
+  }
+  apply(uCurrent);
+  requestAnimationFrame(loop);
+}
+
+function wake() {
+  if (running) return;
+  running = true;
+  lastT = performance.now();
+  requestAnimationFrame(loop);
+}
+
+addEventListener("scroll", wake, { passive: true });
+addEventListener("resize", wake);
+if (!FILM) {
+  // Без ленты сглаживать нечего: плейхед пишется сразу, без цикла.
+  addEventListener("scroll", () => apply(targetU()), { passive: true });
+}
+uCurrent = targetU();
+apply(uCurrent);
 
 /* Якоря: в ленте кадр адресуется вертикальной позицией, а не своим смещением
    в DOM — браузерный переход по хешу увёз бы страницу мимо. Перехват нужен

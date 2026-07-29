@@ -30,15 +30,18 @@
   <section class="scene hero" id="s-idea">
     <canvas class="aurora" id="aurora" aria-hidden="true"></canvas>
     <div class="grain" aria-hidden="true"></div>
-    <p class="rec" aria-hidden="true"><span class="rec-dot"></span><span data-i="rec">Идёт съёмка</span></p>
+    <p class="rec" aria-hidden="true"><span class="rec-pill"><span class="rec-dot"></span><span data-i="rec">Идёт съёмка</span></span></p>
     <h1 class="hero-title">
       <span class="line" data-i="h1a">Опишите ролик словами.</span>
       <span class="line" data-i="h1b">Агент снимет, смонтирует и озвучит.</span>
     </h1>
-    <p class="hero-sub" data-i="sub">Takt — студия демонстрационных роликов для веб-интерфейсов.
-      Сценарий собирает ИИ-агент, разведав ваш интерфейс; человек правит и принимает результат.</p>
+    <p class="hero-sub"><span class="measure" data-i="sub">Takt — студия демонстрационных роликов для веб-интерфейсов.
+      Сценарий собирает ИИ-агент, разведав ваш интерфейс; человек правит и принимает результат.</span></p>
     <div class="hero-cta">
-      <a class="btn primary" href="#s-install" data-i="ctaInstall">Поставить скилл</a>
+      <div class="hero-install">
+        <code><span class="ps">$</span> npx skills add Braidner/takt</code>
+        <button class="copy" type="button" data-cmd="npx skills add Braidner/takt" aria-label="Copy"></button>
+      </div>
       <a class="btn" href="https://github.com/Braidner/takt" rel="noopener" data-i="ctaSource">Исходники</a>
     </div>
 
@@ -100,8 +103,8 @@
   <!-- ══ Сцена 2 · правка без пересъёмки ══ -->
   <section class="scene" id="s-edit">
     <h2 class="slate"><span class="tc">0:24</span><span data-i="t2">Ролик — артефакт сборки</span></h2>
-    <p class="lead" data-i="lead2">Титры, схемы и дикторский текст лежат данными, а не выжигаются в видео.
-    Поэтому правка не равна пересъёмке — пересобирается только то, что изменилось.</p>
+    <p class="lead"><span class="measure" data-i="lead2">Титры, схемы и дикторский текст лежат данными, а не выжигаются в видео.
+    Поэтому правка не равна пересъёмке — пересобирается только то, что изменилось.</span></p>
 
     <div class="tracks" data-reveal-group>
       <div class="track" data-reveal>
@@ -137,8 +140,8 @@
   <!-- ══ Сцена 3 · установка ══ -->
   <section class="scene" id="s-install">
     <h2 class="slate"><span class="tc">0:41</span><span data-i="t3">Установка</span></h2>
-    <p class="lead" data-i="lead3">Takt — скилл для Claude Code. Код живёт в репозитории, ваши ролики,
-    голоса и разведанные системы — отдельно, в ~/takt, и переживают любое обновление.</p>
+    <p class="lead"><span class="measure" data-i="lead3">Takt — скилл для Claude Code. Код живёт в репозитории, ваши ролики,
+    голоса и разведанные системы — отдельно, в ~/takt, и переживают любое обновление.</span></p>
 
     <div class="install">
       <div class="term" data-reveal>
