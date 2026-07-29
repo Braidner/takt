@@ -12,10 +12,20 @@
  */
 
 export async function explainFailure(page, step, e) {
-  const raw = (e.message || String(e)).split('\n')[0].slice(0, 200);
+  const full = e.message || String(e);
+  const raw = full.split('\n')[0].slice(0, 200);
   const timeout = /Timeout|timeout/.test(raw);
-  const selector = step.expect
-    || (step.actions || []).map((a) => a.click || a.waitFor).find(Boolean);
+
+  // Селектор берём из самого сообщения Playwright: он пишет, чего именно ждал. Шаг обычно
+  // содержит несколько селекторов — свои действия и expect, — и назвать не тот значит
+  // отправить человека чинить исправное место. Разбор по тексту сообщения точен, а список
+  // из шага остаётся запасным вариантом, когда сообщение ничего не назвало.
+  // Кавычка запоминается и ищется парная: селектор сам нередко содержит кавычки другого
+  // вида — input[placeholder*="новая задача"] — и наивный разбор обрезал бы его посередине.
+  const изСообщения = full.match(/locator\((['"])(.+?)\1\)/);
+  const selector = изСообщения?.[2]
+    || (step.actions || []).map((a) => a.click || a.waitFor || a.type?.selector).find(Boolean)
+    || step.expect;
 
   let present = null;
   let visible = null;

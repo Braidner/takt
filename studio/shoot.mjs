@@ -88,7 +88,11 @@ const streamFrames = async () => {
 
 /** Действия шага. Набор намеренно маленький: всё, что нужно для показа интерфейса. */
 async function runAction(a) {
-  if (a.goto) {
+  // Сравнение с undefined, а не проверка на истинность: goto: "" — это возврат на
+  // главную, самый обычный шаг обзорного ролика. Как ложное значение он молча
+  // пропускался, съёмка оставалась на прежнем разделе, и падал уже следующий шаг —
+  // с жалобой на селектор, которого на этом экране и не должно быть.
+  if (a.goto !== undefined) {
     await page.goto(cfg.stend.replace(/#.*$/, '') + a.goto, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(1500);
     await dismissDevOverlay(page);
