@@ -16,9 +16,9 @@ const RU = {
     + "ИИ-агент, разведав ваш интерфейс; человек правит и принимает результат.",
   ctaInstall: "Поставить скилл",
   ctaSource: "Исходники",
-  altStudio: "Студия Takt: слева сценарий с таймкодами, в центре снятый ролик с титром, "
-    + "внизу таймлайн с дорожками шагов, схем, правок и голоса",
-  capStudio: "Живая студия: сценарий, снятый ролик, дорожки таймлайна",
+  altStudio: "Запись работы студии Takt: сценарий с таймкодами слева, снятый ролик в "
+    + "центре, замечания справа, внизу таймлайн с дорожками шагов, схем, правок и голоса",
+  capStudio: "Ролик про Takt, снятый самим Takt",
 
   t1: "Как снимается",
   s1h: "Задача — одним сообщением",
@@ -81,9 +81,9 @@ const EN = {
     + "drafts the script; you refine and approve the result.",
   ctaInstall: "Install the skill",
   ctaSource: "Source",
-  altStudio: "Takt studio: script with timecodes on the left, the finished take with a "
-    + "caption in the center, timeline tracks for steps, diagrams, notes and voice below",
-  capStudio: "The live studio: script, finished take, timeline tracks",
+  altStudio: "A recording of the Takt studio at work: script with timecodes on the left, "
+    + "the finished take in the center, notes on the right, timeline tracks below",
+  capStudio: "A film about Takt, shot by Takt itself",
 
   t1: "How it shoots",
   s1h: "The task — one message",
@@ -153,6 +153,10 @@ function applyLang() {
   }
   for (const node of document.querySelectorAll("[data-i-alt]")) {
     node.alt = t(node.dataset.iAlt);
+  }
+  // У видео нет alt: доступное имя даёт aria-label, и переводить его нужно так же.
+  for (const node of document.querySelectorAll("[data-i-label]")) {
+    node.setAttribute("aria-label", t(node.dataset.iLabel));
   }
   const btn = document.getElementById("lang");
   btn.textContent = lang === "ru" ? "EN" : "RU";
@@ -341,6 +345,16 @@ function apply(u) {
     else a.removeAttribute("aria-current");
   });
   aurora(u);
+
+  const reel = document.getElementById("reel");
+  if (reel) {
+    const свой = sceneEls.indexOf(document.getElementById("s-studio"));
+    const виден = FILM ? current === свой
+                       : reel.getBoundingClientRect().top < innerHeight * 0.75
+                         && reel.getBoundingClientRect().bottom > 0;
+    if (виден && reel.paused && motionOk) reel.play().catch(() => {});
+    else if (!виден && !reel.paused) reel.pause();
+  }
 }
 
 function loop(now) {

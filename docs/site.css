@@ -257,7 +257,7 @@ a { color: inherit; }
   background: var(--surface);
   box-shadow: 0 30px 80px -30px oklch(0 0 0 / 0.55);
 }
-.frame img { width: 100%; }
+.frame img, .frame video { width: 100%; display: block; }
 
 .caption {
   display: flex; align-items: center; gap: 12px;
@@ -576,8 +576,11 @@ a { color: inherit; }
 
 /* Кадр студии: скриншот занимает почти весь экран, слегка наезжает по ходу. */
 .filmed .shot .frame { margin-top: 0; }
-.filmed .shot img {
+.filmed .shot video, .filmed .shot img {
+  /* Оба ограничения обязательны: по высоте — чтобы кадр влезал в экран, по ширине —
+     чтобы при width:auto видео не вылезло за рамку и не обрезало интерфейс справа. */
   max-height: calc(100vh - 84px - var(--bar-h) - 96px);
+  max-width: 100%;
   width: auto;
   margin-inline: auto;
 }
