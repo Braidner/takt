@@ -20,7 +20,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { TARGETS } from './home.mjs';
+import { TARGETS, HOME, PROJECTS } from './home.mjs';
 
 export const slugifyTarget = (name) => String(name).trim().toLowerCase()
   .replace(/[^a-zа-яё0-9]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'target';
@@ -83,4 +83,45 @@ export function appendNote(slug, text) {
 export function rememberSelector(slug, name, selector) {
   const t = readTarget(slug) || {};
   writeTarget(slug, { selectors: { ...(t.selectors || {}), [name]: selector } });
+}
+
+/**
+ * takt target            что известно про цель текущего ролика
+ * takt target <slug>     то же про конкретную цель
+ *
+ * Отдельной командой, потому что это первое, что делает агент, проснувшись: читает, что
+ * уже выяснено про систему. Без неё пришлось бы лезть во внутренние модули — а инструкция
+ * агента не должна знать раскладку файлов.
+ */
+if (import.meta.url === `file://${process.argv[1]}`) {
+  // Текущий проект читаем сами, а не через project.mjs: тот импортирует этот модуль, и
+  // обращение назад замкнуло бы круг — запуск повисал бы на неразрешённом импорте.
+  const текущаяЦель = () => {
+    try {
+      const { id } = JSON.parse(fs.readFileSync(path.join(HOME, 'current.json'), 'utf8'));
+      const project = JSON.parse(fs.readFileSync(path.join(PROJECTS, id, 'project.json'), 'utf8'));
+      return readTarget(project.target);
+    } catch {
+      return null;
+    }
+  };
+
+  const slug = process.argv[2];
+  const target = slug ? readTarget(slug) : текущаяЦель();
+
+  if (!target) {
+    console.error(slug
+      ? `Цели «${slug}» нет. Заведённые: ${listTargets().map((t) => t.slug).join(', ') || 'ни одной'}`
+      : 'У текущего ролика цель не указана. Список: '
+        + (listTargets().map((t) => t.slug).join(', ') || 'целей ещё нет'));
+    process.exit(1);
+  }
+
+  // Пароль не печатаем даже здесь: вывод команды попадает в транскрипт агента, оттуда в
+  // логи и в пересказы. Знать нужно лишь то, что вход настроен.
+  const { creds, ...видимое } = target;
+  console.log(JSON.stringify({ ...видимое, hasPassword: Boolean(creds?.password),
+                               user: creds?.user || null }, null, 1));
+  const notes = readNotes(target.slug);
+  if (notes) console.log('\n' + notes.trim());
 }

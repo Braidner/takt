@@ -43,8 +43,8 @@ description: Съёмка демонстрационных роликов по �
 ## Запуск
 
 ```bash
-node studio/server.mjs      # студия на http://localhost:4173, работает в фоне
-node studio/poll.mjs        # длинный опрос: ждёт события от человека
+takt serve   # студия на http://localhost:4173, работает в фоне
+takt poll    # длинный опрос: ждёт события от человека
 ```
 
 Открой человеку `http://localhost:4173` и скажи, что ждёшь. Дальше работай по событиям.
@@ -52,8 +52,7 @@ node studio/poll.mjs        # длинный опрос: ждёт события
 Первым делом — **прочитай, что уже известно про цель**:
 
 ```bash
-cat $TAKT_HOME/targets/<slug>/target.md      # заметки о системе, прозой
-node -e "import('./studio/project.mjs').then(m => console.log(JSON.stringify(m.currentTarget(), null, 1)))"
+takt target        # адрес, вход, разведанные селекторы и заметки о системе
 ```
 
 Это одна-две страницы и оно дешевле любой разведки.
@@ -73,7 +72,7 @@ node -e "import('./studio/project.mjs').then(m => console.log(JSON.stringify(m.c
 | `apply` | применить накопленные замечания | `references/notes.md` |
 | `narrate` | озвучить ролик | `references/voice.md` |
 | `voice_prepare` | подготовить добавленный голос | `references/voice.md` |
-| `check_stend` | проверить доступ к системе | `node studio/check-stend.mjs` |
+| `check_stend` | проверить доступ к системе | `takt check` |
 | `stop` | остановить съёмку | флаг читается между шагами, сам по себе действий не требует |
 
 Заводить и пополнять цель — не событие, а твоя работа по ходу любого из них:
@@ -113,4 +112,4 @@ curl -s -X POST "localhost:4173/api/targets?token=$TOKEN" -H 'Content-Type: appl
 недоступна — это не задача Takt: скажи об этом и остановись, не пытаясь чинить чужой стенд.
 
 Монтаж с зумом и переходами через Remotion — необязательная часть, у неё платная лицензия
-для команд от четырёх человек. Базовая сборка (`studio/build.mjs`) обходится без неё.
+для команд от четырёх человек. Базовая сборка (`takt build`) обходится без неё.

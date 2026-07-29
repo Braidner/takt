@@ -47,8 +47,8 @@
 ```bash
 npm install && npx playwright install chromium
 
-node studio/server.mjs          # студия на http://localhost:4173
-node studio/check-stend.mjs     # проверить доступ и снять первый кадр
+takt serve   # студия на http://localhost:4173
+takt check   # проверить доступ и снять первый кадр
 ```
 
 Адрес системы и учётные данные вписываются **в самой студии** — клик по чипу стенда в

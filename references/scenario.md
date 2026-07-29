@@ -30,8 +30,8 @@
 Отправка:
 
 ```bash
-node studio/scenario.mjs draft.json          # черновиком, человек правит
-node studio/scenario.mjs draft.json --ready  # утверждённым (обычно это делает человек кнопкой)
+takt scenario draft.json          # черновиком, человек правит
+takt scenario draft.json --ready  # утверждённым (обычно это делает человек кнопкой)
 ```
 
 ## expect — не перестраховка
