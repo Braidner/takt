@@ -631,43 +631,72 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { ok: true });
   }
 
-  // ── Настройки подключения: адрес и учётные данные из формы
+  /**
+   * ── Настройки подключения: адрес и учётные данные из формы.
+   *
+   * Пишутся В ЦЕЛЬ текущего ролика, если она задана, и только иначе — в общую настройку.
+   * Разница не формальная: общий на всю установку пароль означал бы, что учётные данные
+   * от одной системы применяются ко всем остальным. Пока система одна, это незаметно;
+   * со второй — попытка входа чужим паролем, и хорошо ещё, если она просто не пройдёт.
+   */
   if (p === '/api/connection' && req.method === 'GET') {
+    const slug = readProject(currentId)?.target;
+    const target = slug ? readTarget(slug) : null;
     const cfg = readTaktConfig();
+    const creds = target ? target.creds : cfg.creds;
     // Пароль наружу не отдаётся никогда — ни в ответе, ни в потоке событий. Форме
     // достаточно знать, задан он или нет: показывать его обратно незачем, а утечь
     // через историю браузера или скриншот он может запросто.
     return send(res, 200, {
-      stend: cfg.stend || null,
-      user: cfg.creds?.user || null,
-      hasPassword: Boolean(cfg.creds?.password),
-      targets: presetTargets(),
+      stend: (target?.url) || cfg.stend || null,
+      user: creds?.user || null,
+      hasPassword: Boolean(creds?.password),
+      target: slug || null,
+      targets: [...presetTargets(),
+                ...listTargets().map((t) => ({ name: t.name || t.slug, url: t.url }))]
+        .filter((t) => t.url),
     });
   }
 
   if (p === '/api/connection' && req.method === 'POST') {
     if (!authed) return send(res, 401, { error: 'unauthorized' });
     const msg = await body(req);
-    const cfg = readTaktConfig();
+    const slug = readProject(currentId)?.target;
 
-    if (msg?.stend) cfg.stend = String(msg.stend).trim();
-    cfg.creds = cfg.creds || {};
-    if (msg?.user !== undefined) cfg.creds.user = String(msg.user || '').trim();
     // Пустой пароль в форме означает «оставить прежний», а не «стереть»: иначе правка
     // адреса вслепую сбрасывала бы уже сохранённые учётные данные.
-    if (msg?.password) cfg.creds.password = String(msg.password);
-    if (msg?.clearPassword) delete cfg.creds.password;
+    const мержКредов = (было = {}) => {
+      const creds = { ...было };
+      if (msg?.user !== undefined) creds.user = String(msg.user || '').trim();
+      if (msg?.password) creds.password = String(msg.password);
+      if (msg?.clearPassword) delete creds.password;
+      return creds;
+    };
 
-    fs.writeFileSync(taktConfigFile, JSON.stringify(cfg, null, 2) + '\n');
+    let адрес;
+    if (slug) {
+      const t = writeTarget(slug, {
+        ...(msg?.stend ? { url: String(msg.stend).trim() } : {}),
+        creds: мержКредов(readTarget(slug)?.creds),
+      });
+      адрес = t.url;
+    } else {
+      const cfg = readTaktConfig();
+      if (msg?.stend) cfg.stend = String(msg.stend).trim();
+      cfg.creds = мержКредов(cfg.creds);
+      fs.writeFileSync(taktConfigFile, JSON.stringify(cfg, null, 2) + '\n');
+      адрес = cfg.stend;
+    }
+
     // В журнал пишем факт, но не значения: журнал читают глазами и передают дальше.
-    logEvent({ type: 'connection_saved', stend: cfg.stend, user: cfg.creds.user || null });
+    logEvent({ type: 'connection_saved', stend: адрес, target: slug || null });
 
     // Чип в шапке обязан сразу перестать показывать прежний адрес. Иначе форма врёт:
     // снимать будем с нового стенда, а зелёная отметка остаётся от старого — и это
     // ровно та ошибка, которую замечают уже на смонтированном ролике.
-    if (cfg.stend && cfg.stend !== state.stend.url) {
+    if (адрес && адрес !== state.stend.url) {
       Object.assign(state.stend, {
-        url: cfg.stend, from: 'форма', fromKey: 'form', fromArgs: null,
+        url: адрес, from: 'форма', fromKey: 'form', fromArgs: null,
         state: msg?.check ? 'checking' : 'unknown',
         text: msg?.check ? 'Проверяю доступ' : 'Стенд не проверен',
         key: msg?.check ? 'stendChecking' : 'stendUnchecked',
@@ -678,10 +707,12 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (msg?.check) {
-      enqueue({ type: 'check_stend', url: cfg.stend });
+      enqueue({ type: 'check_stend', url: адрес });
       broadcast({ type: 'status', status: state.status, agent: agentAlive(), inFlight: inFlight() });
     }
-    return send(res, 200, { ok: true, stend: cfg.stend, hasPassword: Boolean(cfg.creds.password) });
+    const сохранённые = slug ? readTarget(slug)?.creds : readTaktConfig().creds;
+    return send(res, 200, { ok: true, stend: адрес, target: slug || null,
+                            hasPassword: Boolean(сохранённые?.password) });
   }
 
   // ── Состояние стенда: проверяется отдельным шагом до всякой съёмки
