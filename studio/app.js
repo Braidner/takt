@@ -46,6 +46,17 @@ const RU = {
   v2meta: "41 с · из ролика",
   record: "Записать сейчас",
   upload: "Загрузить файл",
+  connectHead: "Куда снимаем",
+  connectUrl: "Адрес",
+  connectUser: "Логин",
+  connectUserPh: "если нужен вход",
+  connectPassword: "Пароль",
+  connectPasswordPh: "сохранён — оставьте пустым",
+  connectNoteBefore: "Пароль хранится на этой машине в",
+  connectNoteAfter: "и не попадает ни в репозиторий, ни обратно в браузер. "
+    + "Оставьте поле пустым, чтобы сохранить прежний.",
+  connectCancel: "Отмена",
+  connectSave: "Сохранить и проверить",
 };
 
 const EN = {
@@ -89,6 +100,17 @@ const EN = {
   v2meta: "41 s · from a recording",
   record: "Record now",
   upload: "Upload file",
+  connectHead: "Where we record",
+  connectUrl: "Address",
+  connectUser: "Login",
+  connectUserPh: "if sign-in is required",
+  connectPassword: "Password",
+  connectPasswordPh: "saved — leave empty to keep it",
+  connectNoteBefore: "The password stays on this machine in",
+  connectNoteAfter: "and reaches neither the repository nor the browser. "
+    + "Leave the field empty to keep the saved one.",
+  connectCancel: "Cancel",
+  connectSave: "Save and check",
 };
 
 let lang = "ru";
@@ -104,6 +126,11 @@ function apply(dict) {
   });
   document.documentElement.lang = lang;
 }
+
+// Живой клиент (live.js) добавляет и переразмечает элементы уже после загрузки: у него
+// свои данные и свои состояния. Чтобы не заводить второй словарь, он переводит через
+// эту точку — проставляет data-i у нового узла и просит перевести всё заново.
+window.taktApply = () => apply(lang === "ru" ? RU : EN);
 
 document.getElementById("lang").addEventListener("click", (e) => {
   lang = lang === "ru" ? "en" : "ru";

@@ -192,33 +192,38 @@
        возвращается — форма знает только, задан он или нет. -->
   <dialog class="connect">
     <form method="dialog" class="connect-form">
-      <div class="connect-head">Куда снимаем</div>
+      <div class="connect-head" data-i="connectHead">Куда снимаем</div>
 
       <label class="connect-row">
-        <span>Адрес</span>
+        <span data-i="connectUrl">Адрес</span>
         <input class="connect-url" type="url" required placeholder="https://example.com/app"
                list="connect-targets">
       </label>
       <datalist id="connect-targets"></datalist>
 
       <label class="connect-row">
-        <span>Логин</span>
-        <input class="connect-user" type="text" autocomplete="off" placeholder="если нужен вход">
+        <span data-i="connectUser">Логин</span>
+        <input class="connect-user" type="text" autocomplete="off"
+               data-i-ph="connectUserPh" placeholder="если нужен вход">
       </label>
 
       <label class="connect-row">
-        <span>Пароль</span>
+        <span data-i="connectPassword">Пароль</span>
         <input class="connect-password" type="password" autocomplete="off" placeholder="">
       </label>
 
+      <!-- Пояснение разрезано вокруг <code>: перевод подставляется через textContent,
+           и цельный абзац потерял бы разметку имени файла. -->
       <p class="connect-note">
-        Пароль хранится на этой машине в <code>studio/takt.json</code> и не попадает
-        ни в репозиторий, ни обратно в браузер. Оставьте поле пустым, чтобы сохранить прежний.
+        <span data-i="connectNoteBefore">Пароль хранится на этой машине в</span>
+        <code>studio/takt.json</code>
+        <span data-i="connectNoteAfter">и не попадает ни в репозиторий, ни обратно в браузер.
+          Оставьте поле пустым, чтобы сохранить прежний.</span>
       </p>
 
       <div class="connect-actions">
-        <button class="ghost connect-cancel" type="button">Отмена</button>
-        <button class="primary connect-save" type="button">Сохранить и проверить</button>
+        <button class="ghost connect-cancel" type="button" data-i="connectCancel">Отмена</button>
+        <button class="primary connect-save" type="button" data-i="connectSave">Сохранить и проверить</button>
       </div>
     </form>
   </dialog>

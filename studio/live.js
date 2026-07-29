@@ -563,7 +563,11 @@ async function openConnect() {
   el.connectUrl.value = cfg.stend || '';
   el.connectUser.value = cfg.user || '';
   el.connectPassword.value = '';
-  el.connectPassword.placeholder = cfg.hasPassword ? 'сохранён — оставьте пустым' : '';
+  // Подсказку «пароль уже сохранён» ставим ключом, а не текстом: тогда она переведётся
+  // вместе со всем остальным, в том числе если язык переключат при открытой форме.
+  if (cfg.hasPassword) el.connectPassword.dataset.iPh = 'connectPasswordPh';
+  else { delete el.connectPassword.dataset.iPh; el.connectPassword.placeholder = ''; }
+  window.taktApply?.();
 
   el.connectTargets.innerHTML = '';
   for (const t of cfg.targets || []) {
