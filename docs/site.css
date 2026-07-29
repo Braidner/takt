@@ -527,3 +527,83 @@ a { color: inherit; }
   .slate { flex-direction: column; gap: 6px; }
   .slate .tc { transform: none; }
 }
+
+/* ── Плёнка: скролл едет вправо ──────────────────────────────────────────
+   Apple-приём без захвата скролла: колесо и палец крутят страницу как обычно,
+   но main растянут на N экранов, лента прилипает и переводит вертикальный
+   прогресс в горизонтальный ход кадров. Клавиатура, якоря и читалки работают:
+   порядок DOM не меняется, translate — только презентация.
+
+   Включается классом .filmed (ставит JS), только на широких экранах и только
+   когда движение уместно: на телефоне и при reduced-motion остаётся честная
+   вертикальная страница — та же разметка без единого изменения. */
+
+.filmed .film { height: calc(var(--frames) * 92vh + 8vh); }
+
+.filmed .strip {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: stretch;
+  height: 100vh;
+  will-change: transform;
+}
+
+.filmed .scene {
+  flex: 0 0 100vw;
+  max-width: none;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-top: 84px;                       /* шапка */
+  padding-bottom: calc(var(--bar-h) + 16px);
+}
+
+/* Контент кадра держится колонкой читаемой ширины по центру кадра. */
+.filmed .scene > :not(.aurora):not(.grain) {
+  width: min(1060px, calc(100vw - 2 * clamp(20px, 4vw, 44px)));
+  margin-inline: auto;
+}
+
+.filmed .hero { padding-top: 84px; }
+
+/* Кадр студии: скриншот занимает почти весь экран, слегка наезжает по ходу. */
+.filmed .shot .frame { margin-top: 0; }
+.filmed .shot img {
+  max-height: calc(100vh - 84px - var(--bar-h) - 96px);
+  width: auto;
+  margin-inline: auto;
+}
+.filmed .shot .frame {
+  transform: scale(calc(0.95 + 0.05 * var(--p, 0)));
+  transition: none;
+}
+
+/* Сценарий и установка ужимаются, чтобы кадр влезал в высоту. */
+.filmed .script { margin-top: 24px; }
+.filmed .step { padding: 14px 0; }
+.filmed .step p { font-size: 0.9375rem; }
+.filmed .install { margin-top: 24px; }
+.filmed .install .frame img {
+  max-height: calc(100vh - 84px - var(--bar-h) - 260px);
+  width: auto; margin-inline: auto;
+}
+.filmed .tracks { margin-top: 24px; }
+.filmed .track { padding: 13px 22px; }
+.filmed .frame.slim { display: none; }     /* мал для кадра во весь экран */
+.filmed .fin { padding-bottom: 0; }
+.filmed .foot { margin-top: 40px; }
+
+/* Аврора в ленте — фон первого кадра, не всей полосы. */
+.filmed .hero .aurora, .filmed .hero .grain {
+  inset: -10vh -10vw auto;
+  width: 120vw;
+  height: 100vh;
+}
+
+/* Параллакс внутри кадра: пока кадр проезжает, его содержимое чуть отстаёт.
+   --p идёт от -1 (кадр справа) через 0 (в центре) к 1 (ушёл влево). */
+.filmed .scene .slate { transform: translateX(calc(var(--p, 0) * -34px)); }
+.filmed .scene .lead  { transform: translateX(calc(var(--p, 0) * -22px)); }

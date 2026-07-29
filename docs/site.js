@@ -197,12 +197,35 @@ if (motionOk) {
   for (const node of document.querySelectorAll("[data-reveal]")) io.observe(node);
 }
 
-/* ── Плейхед: прокрутка страницы и есть просмотр ролика ─────────────────── */
+/* ── Плёнка и плейхед ─────────────────────────────────────────────────────
+   Один мотор на всё: вертикальный прогресс скролла двигает ленту кадров,
+   плейхед и подсветку меток. Лента включается только там, где ей место —
+   широкий экран, движение разрешено; иначе тот же код обслуживает обычную
+   вертикальную страницу, и никакой второй ветки вёрстки нет. */
 
 const fill = document.getElementById("fill");
 const head = document.getElementById("head");
 const marks = [...document.querySelectorAll(".bar-marks a")];
-const scenes = marks.map((a) => document.querySelector(a.getAttribute("href")));
+const sceneEls = [...document.querySelectorAll(".scene")];
+const strip = document.getElementById("strip");
+
+const FILM = motionOk && matchMedia("(min-width: 900px)").matches;
+if (FILM) {
+  document.documentElement.classList.add("filmed");
+  document.documentElement.style.setProperty("--frames", sceneEls.length);
+  // Плавный якорный скролл в ленте дезориентирует: прыжок точнее.
+  document.documentElement.style.scrollBehavior = "auto";
+}
+
+/** Вертикальная позиция скролла, при которой кадр n стоит в центре. */
+const frameTop = (n) => {
+  if (FILM) {
+    const travel = document.documentElement.scrollHeight - innerHeight;
+    return (n / (sceneEls.length - 1)) * travel;
+  }
+  const el = sceneEls[n];
+  return el ? el.getBoundingClientRect().top + scrollY - 84 : 0;
+};
 
 let ticking = false;
 function playhead() {
@@ -212,20 +235,47 @@ function playhead() {
   fill.style.width = `${p * 100}%`;
   head.style.left = `${p * 100}%`;
 
-  // Текущая сцена — последняя, чей верх прошёл середину экрана.
   let current = 0;
-  scenes.forEach((s, i) => {
-    if (s && s.getBoundingClientRect().top < innerHeight * 0.5) current = i;
-  });
-  marks.forEach((a, i) => {
-    if (i === current) a.setAttribute("aria-current", "true");
+
+  if (FILM) {
+    const x = p * (sceneEls.length - 1);
+    strip.style.transform = `translateX(${-x * 100}vw)`;
+    current = Math.round(x);
+    // Локальный прогресс кадра для параллакса: -1 справа, 0 в центре, 1 слева.
+    sceneEls.forEach((s, i) => s.style.setProperty("--p", Math.max(-1, Math.min(1, x - i))));
+  } else {
+    sceneEls.forEach((s, i) => {
+      if (s.getBoundingClientRect().top < innerHeight * 0.5) current = i;
+    });
+  }
+
+  marks.forEach((a) => {
+    const n = sceneEls.indexOf(document.querySelector(a.getAttribute("href")));
+    if (n === current) a.setAttribute("aria-current", "true");
     else a.removeAttribute("aria-current");
   });
 }
 addEventListener("scroll", () => {
   if (!ticking) { ticking = true; requestAnimationFrame(playhead); }
 }, { passive: true });
+addEventListener("resize", playhead);
 playhead();
+
+/* Якоря: в ленте кадр адресуется вертикальной позицией, а не своим смещением
+   в DOM — браузерный переход по хешу увёз бы страницу мимо. Перехват нужен
+   всем внутристраничным ссылкам, включая CTA героя. */
+if (FILM) {
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest('a[href^="#"]');
+    if (!a) return;
+    const n = sceneEls.indexOf(document.querySelector(a.getAttribute("href")));
+    if (n < 0) return;
+    e.preventDefault();
+    scrollTo({ top: frameTop(n), behavior: "smooth" });
+  });
+  // Кадры, приезжающие сбоку, не должны ждать вертикального наблюдателя.
+  for (const el of document.querySelectorAll("[data-reveal]")) el.classList.add("in");
+}
 
 /* ── Копирование команд ──────────────────────────────────────────────────── */
 
