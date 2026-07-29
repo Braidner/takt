@@ -538,7 +538,7 @@ a { color: inherit; }
    когда движение уместно: на телефоне и при reduced-motion остаётся честная
    вертикальная страница — та же разметка без единого изменения. */
 
-.filmed .film { height: calc(var(--frames) * 92vh + 8vh); }
+.filmed .film { height: var(--film-len, 800vh); }
 
 .filmed .strip {
   position: sticky;
@@ -607,3 +607,104 @@ a { color: inherit; }
    --p идёт от -1 (кадр справа) через 0 (в центре) к 1 (ушёл влево). */
 .filmed .scene .slate { transform: translateX(calc(var(--p, 0) * -34px)); }
 .filmed .scene .lead  { transform: translateX(calc(var(--p, 0) * -22px)); }
+
+/* ── Раскрытие кадра на стоянке ──────────────────────────────────────────
+   Вся внутренняя хореография привязана к --d (0→1, локальный прогресс кадра
+   по скроллу), а не ко времени: прокрутка назад честно откатывает раскрытие.
+   Формула одна и та же: порог начала + длительность, clamp держит края.
+
+   Пишется через локальные переменные --t*, чтобы каждая строка читалась как
+   «этот элемент живёт на отрезке [start, start+dur] стоянки». */
+
+/* Кадр студии: наезд из глубины и титр в конце. */
+.filmed .shot .frame {
+  --t: clamp(0, calc((var(--d, 0) - 0.05) / 0.5), 1);
+  transform: scale(calc(0.9 + 0.1 * var(--t)));
+  opacity: calc(0.55 + 0.45 * var(--t));
+}
+.filmed .shot .caption {
+  --t: clamp(0, calc((var(--d, 0) - 0.6) / 0.3), 1);
+  opacity: var(--t);
+  transform: translateY(calc((1 - var(--t)) * 10px));
+}
+
+/* Сценарий: шаги входят по одному, плёнка-линия растёт вместе с ними. */
+.filmed .script::before {
+  transform-origin: top;
+  transform: scaleY(clamp(0, calc(var(--d, 0) / 0.8), 1));
+}
+.filmed .script .step {
+  --t: clamp(0, calc((var(--d, 0) - var(--at)) / 0.22), 1);
+  opacity: calc(0.12 + 0.88 * var(--t));
+  transform: translateX(calc((1 - var(--t)) * 36px));
+}
+.filmed .script .step:nth-child(1) { --at: 0.06; }
+.filmed .script .step:nth-child(2) { --at: 0.26; }
+.filmed .script .step:nth-child(3) { --at: 0.46; }
+.filmed .script .step:nth-child(4) { --at: 0.66; }
+
+/* Дорожки стоимости: строка приезжает, ценник «штампуется» следом. */
+.filmed .tracks .track {
+  --t: clamp(0, calc((var(--d, 0) - var(--at)) / 0.2), 1);
+  opacity: calc(0.15 + 0.85 * var(--t));
+  transform: translateY(calc((1 - var(--t)) * 18px));
+}
+.filmed .tracks .track .track-cost {
+  --s: clamp(0, calc((var(--d, 0) - var(--at) - 0.1) / 0.16), 1);
+  opacity: var(--s);
+  transform: scale(calc(1.25 - 0.25 * var(--s)));
+  transform-origin: right center;
+}
+.filmed .tracks .track:nth-child(1) { --at: 0.05; }
+.filmed .tracks .track:nth-child(2) { --at: 0.24; }
+.filmed .tracks .track:nth-child(3) { --at: 0.43; }
+.filmed .tracks .track:nth-child(4) { --at: 0.62; }
+
+/* Установка: строки терминала печатаются раскрытием, панель приезжает справа. */
+.filmed .term-body li {
+  --t: clamp(0, calc((var(--d, 0) - var(--at)) / 0.18), 1);
+  opacity: calc(0.1 + 0.9 * var(--t));
+  transform: translateY(calc((1 - var(--t)) * 12px));
+}
+.filmed .term-body li:nth-child(1) { --at: 0.08; }
+.filmed .term-body li:nth-child(2) { --at: 0.26; }
+.filmed .term-body li:nth-child(3) { --at: 0.44; }
+.filmed .term-after {
+  --t: clamp(0, calc((var(--d, 0) - 0.6) / 0.25), 1);
+  opacity: calc(0.1 + 0.9 * var(--t));
+}
+.filmed .install .frame {
+  --t: clamp(0, calc((var(--d, 0) - 0.3) / 0.45), 1);
+  opacity: var(--t);
+  transform: translateX(calc((1 - var(--t)) * 60px));
+}
+
+/* Финал: «Снято.» проявляется из расфокуса, как титр на плёнке. */
+.filmed .fin-mark {
+  --t: clamp(0, calc((var(--d, 0) - 0.08) / 0.4), 1);
+  opacity: var(--t);
+  filter: blur(calc((1 - var(--t)) * 14px));
+  transform: scale(calc(1.06 - 0.06 * var(--t)));
+}
+.filmed .fin-sub, .filmed .fin .hero-cta {
+  --t: clamp(0, calc((var(--d, 0) - 0.42) / 0.3), 1);
+  opacity: var(--t);
+  transform: translateY(calc((1 - var(--t)) * 14px));
+}
+.filmed .fin .foot {
+  --t: clamp(0, calc((var(--d, 0) - 0.66) / 0.3), 1);
+  opacity: var(--t);
+}
+
+/* Заголовки кадров подъезжают в начале стоянки. */
+.filmed .scene .slate {
+  --t: clamp(0, calc(var(--d, 0) / 0.25), 1);
+  opacity: calc(0.25 + 0.75 * var(--t));
+}
+.filmed .scene .lead {
+  --t: clamp(0, calc((var(--d, 0) - 0.08) / 0.25), 1);
+  opacity: calc(0.15 + 0.85 * var(--t));
+}
+
+/* В ленте IO-reveal не участвует: раскрытием управляет --d. */
+.filmed [data-reveal] { opacity: 1; transform: none; transition: none; }

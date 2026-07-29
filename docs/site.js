@@ -210,18 +210,47 @@ const sceneEls = [...document.querySelectorAll(".scene")];
 const strip = document.getElementById("strip");
 
 const FILM = motionOk && matchMedia("(min-width: 900px)").matches;
+
+/* Кадр живёт в двух фазах, как в презентациях Apple: DWELL — кадр стоит на месте
+   и раскрывается изнутри (его локальный прогресс --d идёт 0→1 по скроллу, поэтому
+   назад крутишь — раскрытие честно откатывается), TRAVEL — проезд к следующему.
+   Доли в «кадровых единицах»: у последнего кадра проезда нет. */
+const DWELL = 0.62;
+const TRAVEL = 0.38;
+const UNITS = sceneEls.length * DWELL + (sceneEls.length - 1) * TRAVEL;
+const easeTravel = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
 if (FILM) {
   document.documentElement.classList.add("filmed");
-  document.documentElement.style.setProperty("--frames", sceneEls.length);
+  // Высота плёнки задаёт темп: полтора экрана скролла на кадровую единицу.
+  document.documentElement.style.setProperty("--film-len", `${Math.round(UNITS * 150)}vh`);
   // Плавный якорный скролл в ленте дезориентирует: прыжок точнее.
   document.documentElement.style.scrollBehavior = "auto";
 }
 
-/** Вертикальная позиция скролла, при которой кадр n стоит в центре. */
+/** Раскладка плёнки по фазам: где какой кадр стоит и едет. */
+function filmAt(u) {
+  let acc = 0;
+  for (let i = 0; i < sceneEls.length; i++) {
+    if (u < acc + DWELL || i === sceneEls.length - 1) {
+      return { x: i, frame: i, d: Math.max(0, Math.min(1, (u - acc) / DWELL)) };
+    }
+    acc += DWELL;
+    if (u < acc + TRAVEL) {
+      const t = easeTravel((u - acc) / TRAVEL);
+      return { x: i + t, frame: t < 0.5 ? i : i + 1, d: t < 0.5 ? 1 : 0 };
+    }
+    acc += TRAVEL;
+  }
+  return { x: sceneEls.length - 1, frame: sceneEls.length - 1, d: 1 };
+}
+
+/** Вертикальная позиция скролла, при которой кадр n стоит раскрытым. */
 const frameTop = (n) => {
   if (FILM) {
     const travel = document.documentElement.scrollHeight - innerHeight;
-    return (n / (sceneEls.length - 1)) * travel;
+    const u = n * (DWELL + TRAVEL) + DWELL * 0.85;   // почти конец раскрытия
+    return (u / UNITS) * travel;
   }
   const el = sceneEls[n];
   return el ? el.getBoundingClientRect().top + scrollY - 84 : 0;
@@ -238,11 +267,14 @@ function playhead() {
   let current = 0;
 
   if (FILM) {
-    const x = p * (sceneEls.length - 1);
-    strip.style.transform = `translateX(${-x * 100}vw)`;
-    current = Math.round(x);
-    // Локальный прогресс кадра для параллакса: -1 справа, 0 в центре, 1 слева.
-    sceneEls.forEach((s, i) => s.style.setProperty("--p", Math.max(-1, Math.min(1, x - i))));
+    const at = filmAt(p * UNITS);
+    strip.style.transform = `translateX(${-at.x * 100}vw)`;
+    current = at.frame;
+    sceneEls.forEach((s, i) => {
+      // --p — положение кадра в проезде (для параллакса), --d — раскрытие на стоянке.
+      s.style.setProperty("--p", Math.max(-1, Math.min(1, at.x - i)));
+      s.style.setProperty("--d", i === at.frame ? at.d : (i < at.frame ? 1 : 0));
+    });
   } else {
     sceneEls.forEach((s, i) => {
       if (s.getBoundingClientRect().top < innerHeight * 0.5) current = i;
@@ -273,8 +305,6 @@ if (FILM) {
     e.preventDefault();
     scrollTo({ top: frameTop(n), behavior: "smooth" });
   });
-  // Кадры, приезжающие сбоку, не должны ждать вертикального наблюдателя.
-  for (const el of document.querySelectorAll("[data-reveal]")) el.classList.add("in");
 }
 
 /* ── Копирование команд ──────────────────────────────────────────────────── */
