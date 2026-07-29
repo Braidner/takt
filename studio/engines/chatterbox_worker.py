@@ -15,10 +15,23 @@ import json
 import os
 import sys
 
+# Рядом с этим файлом лежит chatterbox.py — наш модуль движка. Python ставит каталог
+# скрипта первым в путь, и «import chatterbox» находил бы его, а не установленный пакет.
+# Каталог скрипта убираем: worker не импортирует ничего своего.
+sys.path = [p for p in sys.path if os.path.abspath(p or ".") != os.path.dirname(os.path.abspath(__file__))]
+
+# Протокол идёт по stdout, но stdout здесь ничей: chatterbox печатает туда свой лог
+# («loaded PerthNet…»), и одна такая строка ломает родителю разбор JSON. Поэтому канал
+# протокола забираем себе до первого чужого импорта, а sys.stdout отправляем в stderr —
+# чужие print остаются видимыми, но в протокол попасть не могут.
+PIPE = os.fdopen(os.dup(1), "w", encoding="utf-8")
+os.dup2(2, 1)
+sys.stdout = sys.stderr
+
 
 def say(obj):
-    sys.stdout.write(json.dumps(obj, ensure_ascii=False) + "\n")
-    sys.stdout.flush()
+    PIPE.write(json.dumps(obj, ensure_ascii=False) + "\n")
+    PIPE.flush()
 
 
 def device():
@@ -30,9 +43,11 @@ def device():
 
 
 try:
-    from chatterbox.tts import ChatterboxTTS
+    # Именно многоязычная модель: английская ChatterboxTTS на русском тексте нестабильна
+    # вплоть до тихого падения посреди сэмплинга — без traceback, просто выход.
+    from chatterbox.mtl_tts import ChatterboxMultilingualTTS
     import torchaudio
-    model = ChatterboxTTS.from_pretrained(device=device())
+    model = ChatterboxMultilingualTTS.from_pretrained(device=device())
 except Exception as e:  # noqa: BLE001 — причина любая, родителю нужна строка
     say({"ok": False, "fatal": True, "error": str(e)})
     sys.exit(1)
@@ -45,7 +60,8 @@ for line in sys.stdin:
         continue
     try:
         req = json.loads(line)
-        wav = model.generate(req["text"], audio_prompt_path=req["ref_wav"])
+        wav = model.generate(req["text"], audio_prompt_path=req["ref_wav"],
+                             language_id=req.get("lang", "ru"))
         out = os.path.join(req["out_dir"], "line.wav")
         torchaudio.save(out, wav, model.sr)
         say({"ok": True, "file": "line.wav"})
