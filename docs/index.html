@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Takt — агент снимает демо-ролики по вашему интерфейсу</title>
+<meta name="description" content="Опишите ролик словами — агент разведает интерфейс, снимет браузером, смонтирует и озвучит клонированным голосом. Правка титра или реплики не требует пересъёмки.">
+<meta property="og:title" content="Takt — студия демонстрационных роликов">
+<meta property="og:description" content="Опишите ролик словами — агент снимет, смонтирует и озвучит.">
+<meta property="og:image" content="assets/studio.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%230162e4'/%3E%3Cstop offset='.5' stop-color='%23089efb'/%3E%3Cstop offset='1' stop-color='%2300e0b8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<header class="head">
+  <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true"></span>Takt</a>
+  <nav class="head-nav">
+    <button class="lang" id="lang" type="button" aria-label="Switch language">EN</button>
+    <a class="gh" href="https://github.com/Braidner/takt" rel="noopener">GitHub</a>
+  </nav>
+</header>
+
+<main id="top">
+
+  <!-- ══ Сцена 0 · титр ══ -->
+  <section class="scene hero" id="s-idea">
+    <p class="rec" aria-hidden="true"><span class="rec-dot"></span><span data-i="rec">Идёт съёмка</span></p>
+    <h1 class="hero-title">
+      <span class="line" data-i="h1a">Опишите ролик словами.</span>
+      <span class="line" data-i="h1b">Агент снимет, смонтирует и озвучит.</span>
+    </h1>
+    <p class="hero-sub" data-i="sub">Takt — студия демонстрационных роликов для веб-интерфейсов.
+      Сценарий собирает ИИ-агент, разведав ваш интерфейс; человек правит и принимает результат.</p>
+    <div class="hero-cta">
+      <a class="btn primary" href="#s-install" data-i="ctaInstall">Поставить скилл</a>
+      <a class="btn" href="https://github.com/Braidner/takt" rel="noopener" data-i="ctaSource">Исходники</a>
+    </div>
+
+    <figure class="frame" data-reveal>
+      <img src="assets/studio.png" width="1600" height="1000"
+           alt="Студия Takt: слева сценарий с таймкодами, в центре снятый ролик с титром, внизу таймлайн с дорожками шагов, схем, правок и голоса"
+           data-i-alt="altStudio">
+      <figcaption class="caption"><span class="tc">0:04</span><span data-i="capStudio">Живая студия: сценарий, снятый ролик, дорожки таймлайна</span></figcaption>
+    </figure>
+  </section>
+
+  <!-- ══ Сцена 1 · как снимается ══ -->
+  <section class="scene" id="s-shoot">
+    <h2 class="slate"><span class="tc">0:10</span><span data-i="t1">Как снимается</span></h2>
+
+    <ol class="script" data-reveal-group>
+      <li class="step" data-reveal>
+        <span class="step-tc">0:00</span>
+        <div><h3 data-i="s1h">Задача — одним сообщением</h3>
+        <p data-i="s1p">«Показать, как создать домен, добавить маршрут и запустить». Агент разведывает
+        интерфейс и собирает сценарий: шаги, титры, хронометраж. Вы правите его до съёмки —
+        перетаскиванием, без ожидания.</p></div>
+      </li>
+      <li class="step" data-reveal>
+        <span class="step-tc">0:14</span>
+        <div><h3 data-i="s2h">Съёмка — headless, с живым экраном</h3>
+        <p data-i="s2p">Playwright проходит сценарий в браузере и пишет телеметрию: что нажато и когда.
+        В студии виден живой экран и прогресс по шагам — видно, что происходит и где застряло.
+        Машина остаётся свободной.</p></div>
+      </li>
+      <li class="step" data-reveal>
+        <span class="step-tc">0:31</span>
+        <div><h3 data-i="s3h">Правки — метками на таймлайне</h3>
+        <p data-i="s3p">Смотрите ролик и ставите замечания по таймкодам: «пауза длинная», «переозвучить»,
+        «показать схему». Агент разбирает их по стоимости и показывает план до работы: монтаж —
+        минуты, пересъёмка — только если меняется кадр.</p></div>
+      </li>
+      <li class="step" data-reveal>
+        <span class="step-tc">0:47</span>
+        <div><h3 data-i="s4h">Озвучка — клонированным голосом</h3>
+        <p data-i="s4p">Голос диктора записывается прямо в браузере — с согласия его обладателя.
+        Реплики раскладываются по титрам и проверяются на укладку до синтеза. Два движка:
+        Qwen3-TTS и Chatterbox, сравниваются на одной реплике.</p></div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ══ Сцена 2 · правка без пересъёмки ══ -->
+  <section class="scene" id="s-edit">
+    <h2 class="slate"><span class="tc">0:24</span><span data-i="t2">Ролик — артефакт сборки</span></h2>
+    <p class="lead" data-i="lead2">Титры, схемы и дикторский текст лежат данными, а не выжигаются в видео.
+    Поэтому правка не равна пересъёмке — пересобирается только то, что изменилось.</p>
+
+    <div class="tracks" data-reveal-group>
+      <div class="track" data-reveal>
+        <span class="track-name" data-i="tr1n">Титр</span>
+        <span class="track-what" data-i="tr1w">переписали формулировку</span>
+        <span class="track-cost fast" data-i="tr1c">пересборка · секунды</span>
+      </div>
+      <div class="track" data-reveal>
+        <span class="track-name" data-i="tr2n">Реплика</span>
+        <span class="track-what" data-i="tr2w">«звучит скомканно»</span>
+        <span class="track-cost fast" data-i="tr2c">пересинтез одной фразы</span>
+      </div>
+      <div class="track" data-reveal>
+        <span class="track-name" data-i="tr3n">Схема</span>
+        <span class="track-what" data-i="tr3w">врезка поверх паузы</span>
+        <span class="track-cost fast" data-i="tr3c">сборка без съёмки</span>
+      </div>
+      <div class="track" data-reveal>
+        <span class="track-name" data-i="tr4n">Кадр</span>
+        <span class="track-what" data-i="tr4w">меняется происходящее на экране</span>
+        <span class="track-cost" data-i="tr4c">пересъёмка одной сцены</span>
+      </div>
+    </div>
+
+    <figure class="frame slim" data-reveal>
+      <img src="assets/timeline.png" width="1104" height="150" loading="lazy"
+           alt="Таймлайн студии: дорожки шагов, схем, правок и голоса с плейхедом"
+           data-i-alt="altTimeline">
+      <figcaption class="caption"><span class="tc">0:29</span><span data-i="capTimeline">Дорожки таймлайна: шаги — факт съёмки, остальное — намерения</span></figcaption>
+    </figure>
+  </section>
+
+  <!-- ══ Сцена 3 · установка ══ -->
+  <section class="scene" id="s-install">
+    <h2 class="slate"><span class="tc">0:41</span><span data-i="t3">Установка</span></h2>
+    <p class="lead" data-i="lead3">Takt — скилл для Claude Code. Код живёт в репозитории, ваши ролики,
+    голоса и разведанные системы — отдельно, в ~/takt, и переживают любое обновление.</p>
+
+    <div class="install">
+      <div class="term" data-reveal>
+        <div class="term-bar"><span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span>
+          <span class="term-title" data-i="termTitle">четыре команды</span></div>
+        <ol class="term-body">
+          <li><button class="copy" type="button" data-cmd="git clone https://github.com/Braidner/takt ~/takt-studio" aria-label="Copy"></button><code><span class="ps">$</span> git clone https://github.com/Braidner/takt ~/takt-studio</code><span class="term-note" data-i="c1">код студии</span></li>
+          <li><button class="copy" type="button" data-cmd="cd ~/takt-studio && npm install && npx playwright install chromium" aria-label="Copy"></button><code><span class="ps">$</span> cd ~/takt-studio && npm install && npx playwright install chromium</code><span class="term-note" data-i="c2">зависимости и браузер для съёмки</span></li>
+          <li><button class="copy" type="button" data-cmd="ln -s ~/takt-studio ~/.claude/skills/takt" aria-label="Copy"></button><code><span class="ps">$</span> ln -s ~/takt-studio ~/.claude/skills/takt</code><span class="term-note" data-i="c3">теперь это скилл Claude Code</span></li>
+          <li><button class="copy" type="button" data-cmd="node cli.mjs serve" aria-label="Copy"></button><code><span class="ps">$</span> node cli.mjs serve</code><span class="term-note" data-i="c4">студия на localhost:4173</span></li>
+        </ol>
+        <p class="term-after" data-i="termAfter">Дальше — скажите агенту «сними демо по …» и откройте студию.
+        Озвучка ставится отдельно и по желанию: takt install покажет, что и сколько весит, до загрузки.</p>
+      </div>
+
+      <figure class="frame" data-reveal>
+        <img src="assets/env.png" width="1120" height="824" loading="lazy"
+             alt="Панель «Окружение»: возможности со статусом — съёмка, сборка, монтаж, два движка озвучки; вес загрузки показан до установки"
+             data-i-alt="altEnv">
+        <figcaption class="caption"><span class="tc">0:52</span><span data-i="capEnv">Панель окружения: вес загрузки — до кнопки, а не после</span></figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ══ Финальный титр ══ -->
+  <section class="scene fin" id="s-fin">
+    <p class="fin-mark" data-i="finCut">Снято.</p>
+    <p class="fin-sub" data-i="finSub">Один вечер — и ваш продукт рассказывает о себе сам.</p>
+    <div class="hero-cta">
+      <a class="btn primary" href="https://github.com/Braidner/takt" rel="noopener" data-i="finBtn">Открыть репозиторий</a>
+    </div>
+    <footer class="foot">
+      <span data-i="footLic">MIT · движки синтеза Apache 2.0 / MIT</span>
+      <span class="foot-voice" data-i="footVoice">Голос человека охраняется законом: клонирование — только с согласия обладателя.</span>
+    </footer>
+  </section>
+</main>
+
+<!-- ══ Плейхед страницы: прокрутка и есть просмотр ══ -->
+<nav class="bar" aria-label="Scenes">
+  <div class="bar-rail"><div class="bar-fill" id="fill"></div><div class="bar-head" id="head"></div></div>
+  <div class="bar-marks">
+    <a href="#s-idea"><span class="tc">0:00</span><span data-i="m0">Идея</span></a>
+    <a href="#s-shoot"><span class="tc">0:10</span><span data-i="m1">Съёмка</span></a>
+    <a href="#s-edit"><span class="tc">0:24</span><span data-i="m2">Правки</span></a>
+    <a href="#s-install"><span class="tc">0:41</span><span data-i="m3">Установка</span></a>
+    <a href="#s-fin"><span class="tc">1:07</span><span data-i="m4">Снято</span></a>
+  </div>
+</nav>
+
+<script src="site.js"></script>
+</body>
+</html>

@@ -1,0 +1,461 @@
+/*
+ * Takt — страница-презентация. Сайт продолжает продукт: токены сняты со студии,
+ * а структура — с её метафоры. Страница листается как ролик: секции — сцены,
+ * заголовки — титры с таймкодами, внизу таймлайн с плейхедом вместо меню.
+ *
+ * Брендовый градиент — признак жизни (плейхед, марка, прогресс), никогда не текст
+ * и не заливка плоскостей: рядом кадры интерфейса, и сильный цвет вокруг них врёт.
+ */
+
+:root {
+  color-scheme: dark;
+
+  --brand-blue: oklch(0.533 0.212 259.6);
+  --brand-sky: oklch(0.678 0.174 246.2);
+  --brand-cyan: oklch(0.754 0.128 203.8);
+  --brand-teal: oklch(0.809 0.154 173.6);
+  --brand-flow: linear-gradient(96deg, var(--brand-blue), var(--brand-sky) 45%, var(--brand-teal));
+
+  --bg: oklch(0.17 0.012 265);
+  --surface: oklch(0.213 0.014 265);
+  --surface-raised: oklch(0.253 0.016 265);
+  --line: oklch(0.32 0.016 265);
+  --line-strong: oklch(0.42 0.018 265);
+
+  --ink: oklch(0.96 0.004 265);
+  --ink-muted: oklch(0.78 0.012 265);
+  --rec: oklch(0.66 0.19 25);
+
+  --font-display: "Unbounded", system-ui, sans-serif;
+  --font-body: "Golos Text", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Нижний таймлайн — часть рамки страницы; контент не должен под него заезжать. */
+  --bar-h: 72px;
+}
+
+* { box-sizing: border-box; margin: 0; }
+
+html { scroll-behavior: smooth; scroll-padding-top: 84px; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 1.0625rem;
+  line-height: 1.65;
+  padding-bottom: var(--bar-h);
+  -webkit-font-smoothing: antialiased;
+}
+
+img { max-width: 100%; height: auto; display: block; }
+a { color: inherit; }
+
+/* ── Шапка ─────────────────────────────────────────────────────────────── */
+
+.head {
+  position: fixed; inset: 0 0 auto 0; z-index: 40;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px clamp(20px, 4vw, 44px);
+  background: color-mix(in oklch, var(--bg) 82%, transparent);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid color-mix(in oklch, var(--line) 60%, transparent);
+}
+
+.brand {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: var(--font-display); font-weight: 600; font-size: 1.05rem;
+  letter-spacing: 0.01em; text-decoration: none;
+}
+.brand-mark {
+  width: 22px; height: 22px; border-radius: 6px;
+  background: var(--brand-flow);
+}
+
+.head-nav { display: flex; align-items: center; gap: 10px; }
+
+.lang, .gh {
+  font: 600 0.8125rem/1 var(--font-body);
+  color: var(--ink-muted); text-decoration: none;
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 8px 14px; background: none; cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+.lang:hover, .gh:hover { color: var(--ink); border-color: var(--line-strong); }
+
+/* ── Сцены ─────────────────────────────────────────────────────────────── */
+
+.scene {
+  max-width: 1060px;
+  margin-inline: auto;
+  padding: clamp(72px, 12vh, 128px) clamp(20px, 4vw, 44px) 0;
+}
+
+/* Титр сцены: таймкод + текст, как подпись в кадре. Одна система на всю страницу —
+   это язык продукта, а не декоративная метка над каждым заголовком. */
+.slate {
+  display: flex; align-items: baseline; gap: 16px;
+  font-family: var(--font-display); font-weight: 600;
+  font-size: clamp(1.6rem, 3.6vw, 2.4rem);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.tc {
+  font: 600 0.75em/1 var(--font-mono);
+  color: var(--brand-sky);
+  letter-spacing: 0.02em;
+  flex: none;
+}
+.slate .tc { font-size: 0.55em; transform: translateY(-0.35em); }
+
+.lead {
+  max-width: 62ch;
+  margin-top: 20px;
+  color: var(--ink-muted);
+  font-size: 1.125rem;
+}
+
+/* ── Герой ─────────────────────────────────────────────────────────────── */
+
+.hero { padding-top: clamp(120px, 18vh, 190px); text-align: left; }
+
+.rec {
+  display: inline-flex; align-items: center; gap: 9px;
+  font: 600 0.8125rem/1 var(--font-mono);
+  color: var(--ink-muted);
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 8px 15px;
+}
+.rec-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--rec);
+}
+@keyframes rec-pulse { 50% { opacity: 0.35; } }
+.rec-dot { animation: rec-pulse 1.6s var(--ease-out) infinite; }
+
+.hero-title {
+  margin-top: 30px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(2.1rem, 6vw, 4.4rem);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+  max-width: 20ch;
+}
+.hero-title .line { display: block; }
+.hero-title .line + .line { color: var(--ink-muted); font-weight: 600; }
+
+.hero-sub {
+  margin-top: 26px;
+  max-width: 56ch;
+  color: var(--ink-muted);
+  font-size: 1.125rem;
+}
+
+.hero-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 34px; }
+
+.btn {
+  display: inline-flex; align-items: center;
+  font: 600 0.9375rem/1 var(--font-body);
+  text-decoration: none;
+  padding: 14px 24px; border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+  transition: transform 0.25s var(--ease-out), border-color 0.2s, background 0.2s;
+}
+.btn:hover { border-color: var(--brand-sky); transform: translateY(-1px); }
+.btn.primary {
+  background: var(--brand-blue);
+  border-color: transparent;
+  color: oklch(0.99 0 0);
+}
+.btn.primary:hover { background: oklch(0.58 0.21 259.6); }
+
+/* ── Кадр: скриншоты в рамке просмотра ─────────────────────────────────── */
+
+.frame {
+  margin-top: clamp(44px, 7vh, 72px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: 0 30px 80px -30px oklch(0 0 0 / 0.55);
+}
+.frame img { width: 100%; }
+
+.caption {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line);
+  font-size: 0.875rem;
+  color: var(--ink-muted);
+}
+
+.frame.slim { max-width: 860px; }
+
+/* ── Сценарий: шаги с таймкодами (как панель сценария студии) ──────────── */
+
+.script {
+  list-style: none;
+  padding: 0;
+  margin-top: clamp(36px, 6vh, 56px);
+  position: relative;
+}
+/* Вертикальная линия — плёнка, по которой идут шаги. */
+.script::before {
+  content: "";
+  position: absolute; left: 24px; top: 8px; bottom: 8px;
+  width: 1px; background: var(--line);
+}
+
+.step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 18px;
+  padding: 26px 0;
+  max-width: 760px;
+}
+.step-tc {
+  font: 600 0.8125rem/1.4 var(--font-mono);
+  color: var(--brand-sky);
+  background: var(--bg);
+  align-self: start;
+  position: relative; z-index: 1;
+  padding: 4px 0;
+  text-align: left;
+}
+.step h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.2rem;
+  letter-spacing: -0.005em;
+  margin-bottom: 8px;
+}
+.step p { color: var(--ink-muted); max-width: 58ch; }
+
+/* ── Дорожки стоимости правок ──────────────────────────────────────────── */
+
+.tracks {
+  margin-top: clamp(32px, 5vh, 48px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.track {
+  display: grid;
+  grid-template-columns: 130px 1fr auto;
+  gap: 16px; align-items: center;
+  padding: 18px 22px;
+  background: var(--surface);
+}
+.track + .track { border-top: 1px solid var(--line); }
+.track-name { font: 600 1rem/1.3 var(--font-display); }
+.track-what { color: var(--ink-muted); }
+.track-cost {
+  font: 600 0.8125rem/1 var(--font-mono);
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.track-cost.fast { color: var(--brand-teal); }
+
+/* ── Установка: терминал ───────────────────────────────────────────────── */
+
+.install { margin-top: clamp(36px, 6vh, 56px); display: grid; gap: 40px; }
+
+.term {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: oklch(0.145 0.012 265);
+  overflow: hidden;
+}
+.term-bar {
+  display: flex; align-items: center; gap: 7px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.term-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line-strong); }
+.term-title {
+  margin-left: 8px;
+  font: 500 0.8125rem/1 var(--font-mono);
+  color: var(--ink-muted);
+}
+
+.term-body { list-style: none; padding: 10px 0; margin: 0; }
+.term-body li {
+  position: relative;
+  padding: 12px 56px 12px 20px;
+  display: grid; gap: 5px;
+}
+.term-body code {
+  font: 500 0.875rem/1.5 var(--font-mono);
+  color: var(--ink);
+  overflow-x: auto; display: block;
+  white-space: pre;
+  scrollbar-width: none;
+}
+.ps { color: var(--brand-teal); margin-right: 8px; user-select: none; }
+.term-note { font-size: 0.8125rem; color: var(--ink-muted); }
+
+.copy {
+  position: absolute; right: 12px; top: 10px;
+  width: 32px; height: 32px;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: none; cursor: pointer;
+  transition: border-color 0.2s;
+}
+.copy::before {
+  content: "";
+  position: absolute; inset: 8px;
+  border: 1.5px solid var(--ink-muted);
+  border-radius: 3px;
+}
+.copy::after {
+  content: "";
+  position: absolute; inset: 5px 11px 11px 5px;
+  border: 1.5px solid var(--ink-muted);
+  border-radius: 3px;
+  background: oklch(0.145 0.012 265);
+}
+.copy:hover { border-color: var(--brand-sky); }
+.copy.done::before, .copy.done::after { border-color: var(--brand-teal); }
+
+.term-after {
+  padding: 14px 20px 18px;
+  border-top: 1px solid var(--line);
+  font-size: 0.9375rem;
+  color: var(--ink-muted);
+  max-width: 70ch;
+}
+
+/* ── Финал ─────────────────────────────────────────────────────────────── */
+
+.fin {
+  text-align: center;
+  padding-bottom: clamp(72px, 12vh, 120px);
+}
+.fin-mark {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(2.6rem, 8vw, 5.5rem);
+  letter-spacing: -0.02em;
+}
+.fin-sub { margin-top: 16px; color: var(--ink-muted); font-size: 1.125rem; }
+.fin .hero-cta { justify-content: center; }
+
+.foot {
+  margin-top: clamp(56px, 10vh, 96px);
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+  display: grid; gap: 6px;
+  font-size: 0.8125rem;
+  color: var(--ink-muted);
+}
+
+/* ── Таймлайн-навигация ────────────────────────────────────────────────── */
+
+.bar {
+  position: fixed; inset: auto 0 0 0; z-index: 40;
+  height: var(--bar-h);
+  background: color-mix(in oklch, var(--bg) 88%, transparent);
+  backdrop-filter: blur(14px);
+  border-top: 1px solid var(--line);
+  padding: 14px clamp(20px, 4vw, 44px) 10px;
+}
+
+.bar-rail {
+  position: relative;
+  height: 4px; border-radius: 999px;
+  background: var(--surface-raised);
+}
+.bar-fill {
+  position: absolute; inset: 0 auto 0 0;
+  width: 0%;
+  border-radius: inherit;
+  background: var(--brand-flow);
+}
+.bar-head {
+  position: absolute; top: 50%; left: 0%;
+  width: 14px; height: 14px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--ink);
+  border: 3px solid var(--bg);
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+
+.bar-marks {
+  display: flex; justify-content: space-between;
+  margin-top: 9px;
+}
+.bar-marks a {
+  display: inline-flex; gap: 8px; align-items: baseline;
+  font-size: 0.8125rem; color: var(--ink-muted);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.bar-marks a:hover, .bar-marks a[aria-current] { color: var(--ink); }
+.bar-marks .tc { font-size: 0.6875rem; }
+
+/* ── Появление: базово всё видно; хореографию добавляет JS и только когда
+      можно. Скрытого по умолчанию контента на странице нет. ─────────────── */
+
+[data-reveal] { opacity: 1; transform: none; }
+
+.motion-ok [data-reveal] {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity 0.7s var(--ease-out), transform 0.7s var(--ease-out);
+}
+.motion-ok [data-reveal].in { opacity: 1; transform: none; }
+
+/* Титр героя собирается построчно, как титры в кадре. */
+.motion-ok .hero-title .line,
+.motion-ok .hero-sub,
+.motion-ok .hero-cta,
+.motion-ok .rec {
+  opacity: 0;
+  transform: translateY(18px);
+  animation: rise 0.8s var(--ease-out) forwards;
+}
+.motion-ok .rec { animation-delay: 0.05s; }
+.motion-ok .hero-title .line:nth-child(1) { animation-delay: 0.18s; }
+.motion-ok .hero-title .line:nth-child(2) { animation-delay: 0.34s; }
+.motion-ok .hero-sub { animation-delay: 0.52s; }
+.motion-ok .hero-cta { animation-delay: 0.66s; }
+@keyframes rise { to { opacity: 1; transform: none; } }
+.motion-ok .rec-dot { animation: rec-pulse 1.6s var(--ease-out) infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .motion-ok [data-reveal],
+  .motion-ok .hero-title .line, .motion-ok .hero-sub,
+  .motion-ok .hero-cta, .motion-ok .rec {
+    opacity: 1; transform: none; transition: none; animation: none;
+  }
+  .rec-dot { animation: none; }
+}
+
+/* ── Адаптив ───────────────────────────────────────────────────────────── */
+
+@media (min-width: 900px) {
+  .install {
+    grid-template-columns: minmax(0, 7fr) minmax(0, 6fr);
+    align-items: start;
+  }
+  .install .frame { margin-top: 0; }
+}
+
+@media (max-width: 640px) {
+  :root { --bar-h: 58px; }
+  .bar-marks a span:not(.tc) { display: none; }  /* на телефоне — только таймкоды */
+  .track { grid-template-columns: 1fr; gap: 4px; padding: 14px 18px; }
+  .track-cost { justify-self: start; }
+  .step { grid-template-columns: 52px 1fr; gap: 12px; }
+  .script::before { left: 18px; }
+  .slate { flex-direction: column; gap: 6px; }
+  .slate .tc { transform: none; }
+}
