@@ -23,11 +23,11 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { inProject } from './project.mjs';
+import { SERVER_INFO } from './home.mjs';
 
 const run = promisify(execFile);
 const DIR = path.dirname(fileURLToPath(import.meta.url));
-const JOURNAL = path.join(DIR, 'journal');
-const info = JSON.parse(fs.readFileSync(path.join(JOURNAL, 'server.json'), 'utf8'));
+const info = JSON.parse(fs.readFileSync(SERVER_INFO, 'utf8'));
 const base = `http://localhost:${info.port}`;
 
 const api = (route, payload) =>

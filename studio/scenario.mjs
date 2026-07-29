@@ -22,9 +22,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SERVER_INFO } from './home.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
-const info = JSON.parse(fs.readFileSync(path.join(DIR, 'journal', 'server.json'), 'utf8'));
+const info = JSON.parse(fs.readFileSync(SERVER_INFO, 'utf8'));
 const base = `http://localhost:${info.port}`;
 
 if (process.argv[2] === '--show') {

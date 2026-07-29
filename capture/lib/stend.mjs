@@ -5,7 +5,8 @@
  * селекторы формы входа приходят из пресета (studio/preset.mjs). Иначе инструмент годится
  * ровно для одного приложения, а снять что-то ещё можно только правкой исходников.
  */
-import { branchSlug, loadPreset } from '../../studio/preset.mjs';
+import { branchSlug, loadPreset, presetForTarget } from '../../studio/preset.mjs';
+import { currentTarget } from '../../studio/project.mjs';
 
 /**
  * Адрес по короткому указанию.
@@ -44,7 +45,8 @@ export function stendUrl(target = 'local') {
  * успеха считаем исчезновение этого поля — заголовки и меню у всех разные.
  */
 export async function login(page, creds = {}) {
-  const preset = loadPreset();
+  // Форма входа берётся из цели проекта, если она известна: у каждой системы своя.
+  const preset = presetForTarget(currentTarget());
   const { user, password } = { ...preset.credentials, ...creds };
   const sel = preset.login;
 

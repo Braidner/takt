@@ -7,19 +7,32 @@
  *
  * Порядок намеренно такой:
  *   1. переменная TAKT_STEND — разовый перекрыв для одной съёмки, ничего не записывает;
- *   2. studio/takt.json — то, что человек однажды подтвердил; самый частый случай;
- *   3. цели из пресета — если система описана в takt.preset.json, адрес известен оттуда;
- *   4. что-то уже запущенное локально — проверяем адреса из пресета по очереди.
+ *   2. ЦЕЛЬ ТЕКУЩЕГО ПРОЕКТА — ролик знает, про какую систему он снят, и адрес берётся
+ *      оттуда. Это главный путь, когда роликов несколько и системы разные: без него
+ *      переключение проекта оставляло бы прежний стенд, и второй ролик снимался бы не
+ *      про то, что заявлено в его названии;
+ *   3. takt.json — общая настройка, когда система всего одна и цель заводить незачем;
+ *   4. цели из пресета — проверяем, что из описанного уже поднято локально.
  *
- * Найденное записывается в takt.json, чтобы вопрос не повторялся.
+ * Найденное записывается, чтобы вопрос не повторялся.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadPreset } from './preset.mjs';
+import { HOME } from './home.mjs';
+import { currentTarget } from './project.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
-const CONFIG = path.join(DIR, 'takt.json');
+const CONFIG = path.join(HOME, 'takt.json');
+const LEGACY_CONFIG = path.join(DIR, 'takt.json');
+
+// Раскладка первых версий держала настройки рядом с кодом. Переносим один раз и молча:
+// человек в этот момент занят роликом, а не переездом файлов.
+if (!fs.existsSync(CONFIG) && fs.existsSync(LEGACY_CONFIG)) {
+  fs.mkdirSync(path.dirname(CONFIG), { recursive: true });
+  fs.copyFileSync(LEGACY_CONFIG, CONFIG);
+}
 
 async function localAlive(url) {
   try {
@@ -32,22 +45,47 @@ async function localAlive(url) {
 }
 
 export function readConfig() {
-  try { return JSON.parse(fs.readFileSync(CONFIG, 'utf8')); } catch { return {}; }
+  const base = (() => {
+    try { return JSON.parse(fs.readFileSync(CONFIG, 'utf8')); } catch { return {}; }
+  })();
+
+  // Цель перекрывает общую настройку: у каждой системы свой адрес и свой вход, и путать
+  // их между роликами — самая дорогая ошибка, потому что обнаруживается она уже в кадре.
+  const target = currentTarget();
+  if (!target?.url) return base;
+  return { ...base, stend: target.url, creds: { ...(base.creds || {}), ...(target.creds || {}) } };
 }
 
 export function saveConfig(patch) {
-  const next = { ...readConfig(), ...patch };
+  const stored = (() => {
+    try { return JSON.parse(fs.readFileSync(CONFIG, 'utf8')); } catch { return {}; }
+  })();
+  const next = { ...stored, ...patch };
+  fs.mkdirSync(path.dirname(CONFIG), { recursive: true });
   fs.writeFileSync(CONFIG, JSON.stringify(next, null, 2) + '\n');
   return next;
 }
 
+/**
+ * Источник адреса едет до интерфейса ключом, а не фразой: показывает его студия, а она
+ * двуязычная. Готовая строка остаётся рядом — её читают в консоли и в журнале, где
+ * словаря нет.
+ */
 export async function resolveStend() {
   if (process.env.TAKT_STEND) {
-    return { url: process.env.TAKT_STEND, from: 'переменная TAKT_STEND', saved: false };
+    return { url: process.env.TAKT_STEND, from: 'переменная TAKT_STEND', fromKey: 'env', saved: false };
+  }
+
+  const target = currentTarget();
+  if (target?.url) {
+    return { url: target.url, from: `цель «${target.name || target.slug}»`, fromKey: 'target',
+             fromArgs: { name: target.name || target.slug }, saved: true, creds: target.creds };
   }
 
   const cfg = readConfig();
-  if (cfg.stend) return { url: cfg.stend, from: 'takt.json', saved: true, creds: cfg.creds };
+  if (cfg.stend) {
+    return { url: cfg.stend, from: 'takt.json', fromKey: 'config', saved: true, creds: cfg.creds };
+  }
 
   // Цели из пресета проверяем по очереди: если что-то из описанного уже поднято,
   // это почти наверняка то, что человек и собирался снимать.
@@ -55,7 +93,7 @@ export async function resolveStend() {
   for (const [name, url] of Object.entries(preset.targets || {})) {
     if (await localAlive(url)) {
       saveConfig({ stend: url });
-      return { url, from: `цель «${name}» из пресета`, saved: true };
+      return { url, from: `цель «${name}» из пресета`, fromKey: 'preset', fromArgs: { name }, saved: true };
     }
   }
 

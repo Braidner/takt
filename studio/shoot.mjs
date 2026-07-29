@@ -25,9 +25,10 @@ import { readConfig } from './resolve-stend.mjs';
 import { dismissDevOverlay } from './dismiss-overlay.mjs';
 import { loadPreset } from './preset.mjs';
 import { explainFailure } from './explain-failure.mjs';
+import { SERVER_INFO } from './home.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
-const info = JSON.parse(fs.readFileSync(path.join(DIR, 'journal', 'server.json'), 'utf8'));
+const info = JSON.parse(fs.readFileSync(SERVER_INFO, 'utf8'));
 const base = `http://localhost:${info.port}`;
 
 const api = (route, payload) =>
@@ -122,7 +123,8 @@ await fetch(`${base}/api/control?token=${info.token}`, {
 });
 
 try {
-  await setStatus({ state: 'busy', text: 'Открываю стенд', step: 0, of: scenario.steps.length });
+  await setStatus({ state: 'busy', text: 'Открываю стенд', key: 'agentOpening',
+                    step: 0, of: scenario.steps.length });
   await page.goto(cfg.stend, { waitUntil: 'domcontentloaded', timeout: 90000 });
   await page.waitForTimeout(3000);
   await login(page, cfg.creds || {});
@@ -177,13 +179,16 @@ try {
   fs.writeFileSync(inProject('timeline.json'), JSON.stringify(timeline, null, 2));
 
   if (stopped) {
-    await setStatus({ state: 'listening', text: 'Съёмка остановлена', step: null, of: null });
+    await setStatus({ state: 'listening', text: 'Съёмка остановлена', key: 'agentStopped',
+                      step: null, of: null });
     console.log(JSON.stringify({ ok: false, stopped: true, video: file }));
   } else if (failed) {
-    await setStatus({ state: 'listening', text: `Шаг ${failed.n} не прошёл`, step: null, of: null });
+    await setStatus({ state: 'listening', text: `Шаг ${failed.n} не прошёл`,
+                      key: 'agentStepFailed', args: { n: failed.n }, step: null, of: null });
     console.log(JSON.stringify({ ok: false, failed, video: file }));
   } else {
-    await setStatus({ state: 'listening', text: 'Съёмка завершена', step: null, of: null });
+    await setStatus({ state: 'listening', text: 'Съёмка завершена', key: 'agentDone',
+                      step: null, of: null });
     console.log(JSON.stringify({ ok: true, steps: scenario.steps.length,
                                  seconds: Math.round((Date.now() - started) / 1000), video: file }));
   }

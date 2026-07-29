@@ -20,9 +20,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SERVER_INFO } from './home.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
-const infoPath = path.join(DIR, 'journal', 'server.json');
+const infoPath = SERVER_INFO;
 
 if (!fs.existsSync(infoPath)) {
   console.error('Сервер не запущен. Запустить: node studio/server.mjs');

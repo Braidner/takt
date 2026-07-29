@@ -52,6 +52,29 @@ const DEFAULT = {
 
 let cached = null;
 
+/**
+ * Пресет с поправкой на цель текущего проекта.
+ *
+ * Пресет описывает систему по умолчанию — он был единственным способом рассказать студии
+ * о приложении, пока роликов было мало и система одна. Цель описывает конкретную систему
+ * этого ролика и потому главнее: у неё свой признак готовности и своя форма входа. Разница
+ * не косметическая — с чужим селектором готовности вход проходит, а интерфейс считается
+ * незагрузившимся, и съёмка встаёт на ровном месте.
+ */
+export function presetForTarget(target) {
+  const base = loadPreset();
+  if (!target) return base;
+  return {
+    ...base,
+    name: target.name || base.name,
+    ready: target.ready || base.ready,
+    login: { ...base.login, ...(target.login || {}) },
+    credentials: { ...base.credentials, ...(target.creds || {}) },
+    language: target.language ?? base.language,
+    theme: target.theme ?? base.theme,
+  };
+}
+
 export function loadPreset() {
   if (cached) return cached;
 

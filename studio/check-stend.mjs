@@ -17,28 +17,40 @@ import { login, stendUrl } from '../capture/lib/stend.mjs';
 import { readConfig, resolveStend, saveConfig } from './resolve-stend.mjs';
 import { dismissDevOverlay } from './dismiss-overlay.mjs';
 import { loadPreset } from './preset.mjs';
+import { SERVER_INFO } from './home.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
-const info = JSON.parse(fs.readFileSync(path.join(DIR, 'journal', 'server.json'), 'utf8'));
+const info = JSON.parse(fs.readFileSync(SERVER_INFO, 'utf8'));
 const api = (route, payload) =>
   fetch(`http://localhost:${info.port}${route}?token=${info.token}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   }).then((r) => r.json());
 
+/**
+ * Состояние уходит в студию парой: готовая фраза и ключ словаря к ней. Фразу читают в
+ * журнале и в консоли, ключ — интерфейс, который двуязычен и собирает строку сам.
+ * Отправлять только текст значило бы оставить шапку студии на русском при английском
+ * интерфейсе, а только ключ — сделать журнал нечитаемым без словаря.
+ */
 const report = (patch) => api('/api/stend', patch);
+const where = () => ({ url: target.url, from: target.from, fromKey: target.fromKey,
+                       fromArgs: target.fromArgs });
 
 const arg = process.argv[2];
-let target = arg ? { url: stendUrl(arg), from: 'указан вручную' } : await resolveStend();
+let target = arg
+  ? { url: stendUrl(arg), from: 'указан вручную', fromKey: 'manual' }
+  : await resolveStend();
 
 if (!target) {
-  await report({ state: 'unknown', text: 'Адрес стенда не задан', url: null, from: null });
+  await report({ state: 'unknown', text: 'Адрес стенда не задан', key: 'stendNoAddress',
+                 url: null, from: null, fromKey: null });
   console.log(JSON.stringify({ ok: false, reason: 'no_address' }));
   process.exit(2);
 }
 if (arg) saveConfig({ stend: target.url });
 
-await report({ state: 'checking', text: 'Проверяю доступ', url: target.url, from: target.from });
+await report({ state: 'checking', text: 'Проверяю доступ', key: 'stendChecking', ...where() });
 
 const creds = readConfig().creds || {};
 const browser = await chromium.launch();
@@ -79,23 +91,23 @@ try {
   if (status >= 400) {
     const text = `Стенд отвечает ошибкой ${status}`;
     result = { ok: false, reason: 'http_error', status, text };
-    await report({ state: 'error', text, url: target.url, from: target.from });
+    await report({ state: 'error', text, key: 'stendHttpError', args: { status }, ...where() });
   } else if (stillLogin) {
     result = { ok: false, reason: 'auth_failed', text: 'Логин не принят' };
-    await report({ state: 'error', text: 'Логин не принят', url: target.url, from: target.from });
+    await report({ state: 'error', text: 'Логин не принят', key: 'stendAuthFailed', ...where() });
   } else if (!hasUi) {
     const text = 'Интерфейс не загрузился';
     result = { ok: false, reason: 'no_ui', text };
-    await report({ state: 'error', text, url: target.url, from: target.from });
+    await report({ state: 'error', text, key: 'stendNoUi', ...where() });
   } else {
     result = { ok: true, url: target.url, from: target.from, devOverlay: hadOverlay };
-    await report({ state: 'ok', text: 'Стенд подключён', url: target.url, from: target.from });
+    await report({ state: 'ok', text: 'Стенд подключён', key: 'stendOk', ...where() });
   }
 } catch (e) {
   const timeout = /Timeout|timeout/.test(e.message);
   const text = timeout ? 'Стенд не отвечает' : 'Не удалось открыть стенд';
   result = { ok: false, reason: timeout ? 'timeout' : 'open_failed', text, detail: e.message.slice(0, 160) };
-  await report({ state: 'error', text, url: target.url, from: target.from });
+  await report({ state: 'error', text, key: timeout ? 'stendTimeout' : 'stendOpenFailed', ...where() });
 } finally {
   await browser.close();
 }

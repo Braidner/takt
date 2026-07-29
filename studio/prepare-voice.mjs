@@ -22,11 +22,12 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { VOICES, SERVER_INFO } from './home.mjs';
 
 const run = promisify(execFile);
 const DIR = path.dirname(fileURLToPath(import.meta.url));
-const VOICES = path.join(DIR, 'journal', 'voices');
-const info = JSON.parse(fs.readFileSync(path.join(DIR, 'journal', 'server.json'), 'utf8'));
+
+const info = JSON.parse(fs.readFileSync(SERVER_INFO, 'utf8'));
 
 const id = process.argv[2];
 if (!id) { console.error('Укажите идентификатор голоса'); process.exit(1); }

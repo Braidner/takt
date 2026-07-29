@@ -27,6 +27,9 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { planFor } from './classify-notes.mjs';
+import { HOME, HOME_FROM, PROJECTS, VOICES, SERVER_INFO, ensureHome } from './home.mjs';
+import { listTargets, readTarget, writeTarget, readNotes as readTargetNotes,
+         appendNote, slugifyTarget } from './target.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.TAKT_PORT || 4173);
@@ -46,10 +49,13 @@ const HEARTBEAT_MS = 30_000;
  * ролик был один, это не мешало.
  *
  * Голоса живут ВНЕ проектов: голос диктора один на все ролики, и записывать его заново
- * под каждый бессмысленно.
+ * под каждый бессмысленно. Там же, вне проектов, живут цели — знание о снимаемой системе
+ * переживает десятки роликов про неё.
+ *
+ * Сам каталог данных лежит отдельно от кода: код скилла обновляется и переустанавливается,
+ * а снятое и записанное должно это пережить (см. home.mjs).
  */
-const ROOT = path.join(DIR, 'journal');
-const PROJECTS = path.join(ROOT, 'projects');
+const ROOT = HOME;
 fs.mkdirSync(PROJECTS, { recursive: true });
 
 const slugify = (name) => String(name).trim().toLowerCase()
@@ -69,13 +75,27 @@ const listProjects = () => {
   } catch { return []; }
 };
 
-function ensureProject(id, title) {
+const readProject = (id) => {
+  try { return JSON.parse(fs.readFileSync(path.join(PROJECTS, id, 'project.json'), 'utf8')); }
+  catch { return null; }
+};
+
+const writeProject = (id, patch) => {
+  const next = { ...(readProject(id) || { id }), ...patch };
+  fs.mkdirSync(path.join(PROJECTS, id), { recursive: true });
+  fs.writeFileSync(path.join(PROJECTS, id, 'project.json'), JSON.stringify(next, null, 2));
+  return next;
+};
+
+/** Проект знает свою цель — систему, про которую снят ролик. Всё знание о самой системе
+ *  лежит в цели и переиспользуется остальными роликами про неё. */
+function ensureProject(id, title, target = null) {
   const dir = path.join(PROJECTS, id);
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, 'project.json');
   if (!fs.existsSync(file)) {
     fs.writeFileSync(file, JSON.stringify(
-      { id, title: title || id, createdAt: new Date().toISOString() }, null, 2));
+      { id, title: title || id, target, createdAt: new Date().toISOString() }, null, 2));
   }
   return dir;
 }
@@ -92,8 +112,6 @@ if (!currentId || !fs.existsSync(path.join(PROJECTS, currentId, 'project.json'))
 /** Путь внутри текущего проекта. Всё состояние ролика адресуется только так. */
 const inProject = (...parts) => path.join(PROJECTS, currentId, ...parts);
 
-const JOURNAL = ROOT;
-
 const state = {
   token: crypto.randomBytes(16).toString('hex'),
   queue: [],            // события, ждущие агента
@@ -102,25 +120,28 @@ const state = {
   sse: new Set(),        // подписанные страницы
   agentSeenAt: 0,
   lastFrame: null,       // последний кадр живого экрана
-  status: { state: 'offline', text: 'Агент не подключён', step: null, of: null },
+  // Рядом с текстом состояния едет ключ словаря: студия двуязычна и собирает строку
+  // сама, а текст остаётся для журнала и консоли, где словаря нет.
+  status: { state: 'offline', text: 'Агент не подключён', key: 'agentOffline', step: null, of: null },
   // Стенд — вторая сущность состояния рядом с агентом: агент может быть на связи, а
   // стенд недоступен, и это разные поломки с разным лечением.
-  stend: { url: null, state: 'unknown', text: 'Стенд не проверен', from: null },
+  stend: { url: null, state: 'unknown', text: 'Стенд не проверен', key: 'stendUnchecked', from: null },
   // Остановка не может быть событием в общей очереди: съёмка идёт минуты и всё это
   // время не опрашивает очередь. Это флаг, который процесс съёмки читает между шагами.
   stopRequested: false,
 };
 
+const stendFile = path.join(ROOT, 'stend.json');
+
 try {
-  Object.assign(state.stend, JSON.parse(fs.readFileSync(path.join(DIR, 'journal', 'stend.json'), 'utf8')));
+  Object.assign(state.stend, JSON.parse(fs.readFileSync(stendFile, 'utf8')));
 } catch { /* первого запуска ещё не было */ }
 
 /**
- * Каталог голосов лежит рядом с журналом, а не в репозитории: это записи голосов живых
- * людей, и расходиться со всеми клонами проекта они не должны.
+ * Каталоги данных: проекты, цели, голоса. Голоса не в репозитории намеренно — это записи
+ * голосов живых людей, и расходиться со всеми клонами проекта они не должны.
  */
-const VOICES = path.join(DIR, 'journal', 'voices');
-fs.mkdirSync(VOICES, { recursive: true });
+ensureHome();
 
 const readVoices = () => {
   try {
@@ -141,11 +162,9 @@ const readMovie = () => {
   try { return JSON.parse(fs.readFileSync(movieFile(), 'utf8')); } catch { return null; }
 };
 
-const stendFile = path.join(ROOT, 'stend.json');
-
 // Настройки подключения лежат рядом со студией и не попадают в репозиторий: там адрес
 // внутреннего окружения и учётные данные.
-const taktConfigFile = path.join(DIR, 'takt.json');
+const taktConfigFile = path.join(HOME, 'takt.json');
 const readTaktConfig = () => {
   try { return JSON.parse(fs.readFileSync(taktConfigFile, 'utf8')); } catch { return {}; }
 };
@@ -207,7 +226,9 @@ const inFlight = () => [
 ];
 
 function pushStatus(patch) {
-  Object.assign(state.status, patch);
+  // Ключ словаря сбрасывается вместе с текстом: подпись шага сценария переводу не
+  // подлежит, и оставшийся от прошлого состояния ключ подменил бы её своей фразой.
+  Object.assign(state.status, { key: null, args: null }, patch);
   broadcast({ type: 'status', status: state.status, agent: agentAlive(), inFlight: inFlight() });
 }
 
@@ -490,7 +511,9 @@ const server = http.createServer(async (req, res) => {
     // при совпадении добавляем номер, а не отказываем.
     let n = 2;
     while (fs.existsSync(path.join(PROJECTS, id, 'project.json'))) id = `${slugify(title)}-${n++}`;
-    ensureProject(id, title);
+    // Новый ролик наследует цель текущего: чаще всего снимают следующий сюжет про ту же
+    // систему, и заставлять человека каждый раз выбирать её заново незачем.
+    ensureProject(id, title, msg?.target ?? readProject(currentId)?.target ?? null);
     currentId = id;
     fs.writeFileSync(currentFile, JSON.stringify({ id: currentId }, null, 2));
     logEvent({ type: 'project_create', id, title });
@@ -500,6 +523,69 @@ const server = http.createServer(async (req, res) => {
     broadcast({ type: 'movie', movie: null });
     broadcast({ type: 'narration', narration: null });
     return send(res, 200, { ok: true, id });
+  }
+
+  /**
+   * ── Цели съёмки: системы, про которые снимают ролики.
+   *
+   * Пароль наружу не отдаётся — как и в настройках подключения. Заметки отдаются целиком:
+   * их пишет агент для себя, но человеку полезно видеть, что тот выучил про его систему,
+   * и поправить, если выучил неверно.
+   */
+  if (p === '/api/targets' && req.method === 'GET') {
+    const targets = listTargets().map(({ creds, ...t }) => ({ ...t, hasPassword: Boolean(creds?.password) }));
+    return send(res, 200, {
+      targets,
+      current: readProject(currentId)?.target || null,
+      notes: readTargetNotes(readProject(currentId)?.target),
+    });
+  }
+
+  if (p === '/api/targets' && req.method === 'POST') {
+    if (!authed) return send(res, 401, { error: 'unauthorized' });
+    const msg = await body(req);
+
+    // Привязка текущего ролика к цели — самое частое действие: систему завели один раз,
+    // а роликов про неё будет много.
+    if (msg?.use !== undefined) {
+      writeProject(currentId, { target: msg.use || null });
+      logEvent({ type: 'target_use', project: currentId, target: msg.use || null });
+      broadcast({ type: 'project', current: currentId, projects: listProjects() });
+      return send(res, 200, { ok: true, target: msg.use || null });
+    }
+
+    const patch = {};
+    for (const k of ['name', 'url', 'ready', 'login', 'selectors', 'language', 'theme']) {
+      if (msg[k] !== undefined) patch[k] = msg[k];
+    }
+    const описываетЦель = Object.keys(patch).length > 0 || msg?.user !== undefined || msg?.password;
+
+    // Заметка агента о системе. Копится списком с датами, а не переписывается: выученное
+    // про интерфейс накапливается по крупицам, и каждая крупица потом экономит разведку.
+    // Отдельной веткой — только когда пришла ОДНА заметка: иначе она перехватывала бы
+    // сохранение цели, у которой заметка идёт довеском к полям.
+    if (msg?.note && !описываетЦель) {
+      const slug = msg.slug || readProject(currentId)?.target;
+      if (!slug) return send(res, 400, { error: 'no_target' });
+      appendNote(slug, msg.note);
+      return send(res, 200, { ok: true });
+    }
+
+    const slug = msg?.slug || slugifyTarget(msg?.name || '');
+    if (!slug) return send(res, 400, { error: 'no_slug' });
+    if (msg.user !== undefined || msg.password) {
+      const current = readTarget(slug)?.creds || {};
+      patch.creds = { ...current };
+      if (msg.user !== undefined) patch.creds.user = String(msg.user || '').trim();
+      // Пустой пароль означает «оставить прежний» — та же логика, что в форме подключения.
+      if (msg.password) patch.creds.password = String(msg.password);
+    }
+
+    const saved = writeTarget(slug, patch);
+    if (msg.note) appendNote(slug, msg.note);
+    logEvent({ type: 'target_saved', slug, url: saved.url || null });
+    broadcast({ type: 'targets', targets: listTargets().map(({ creds, ...t }) => t) });
+    return send(res, 200, { ok: true, slug });
   }
 
   // ── План работ по накопленным замечаниям: что и сколько займёт
@@ -581,8 +667,11 @@ const server = http.createServer(async (req, res) => {
     // ровно та ошибка, которую замечают уже на смонтированном ролике.
     if (cfg.stend && cfg.stend !== state.stend.url) {
       Object.assign(state.stend, {
-        url: cfg.stend, from: 'форма', state: msg?.check ? 'checking' : 'unknown',
-        text: msg?.check ? 'Проверяю стенд' : 'Стенд не проверен',
+        url: cfg.stend, from: 'форма', fromKey: 'form', fromArgs: null,
+        state: msg?.check ? 'checking' : 'unknown',
+        text: msg?.check ? 'Проверяю доступ' : 'Стенд не проверен',
+        key: msg?.check ? 'stendChecking' : 'stendUnchecked',
+        args: null,
       });
       fs.writeFileSync(stendFile, JSON.stringify(state.stend, null, 2));
       broadcast({ type: 'stend', stend: state.stend });
@@ -599,7 +688,9 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/stend' && req.method === 'POST') {
     if (!authed) return send(res, 401, { error: 'unauthorized' });
     const msg = await body(req);
-    Object.assign(state.stend, msg || {});
+    // Ключ и подстановки к нему сбрасываются вместе с состоянием: оставшиеся от прошлой
+    // проверки, они подставились бы в новую фразу — «ошибка 500» пережила бы саму ошибку.
+    Object.assign(state.stend, { key: null, args: null, fromKey: null, fromArgs: null }, msg || {});
     fs.writeFileSync(stendFile, JSON.stringify(state.stend, null, 2));
     logEvent({ type: 'stend', ...state.stend });
     broadcast({ type: 'stend', stend: state.stend });
@@ -669,7 +760,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, '127.0.0.1', () => {
-  fs.writeFileSync(path.join(JOURNAL, 'server.json'),
+  fs.writeFileSync(SERVER_INFO,
     JSON.stringify({ port: PORT, token: state.token, pid: process.pid }, null, 2));
   console.log(JSON.stringify({ ok: true, url: `http://localhost:${PORT}`, token: state.token }));
 });
