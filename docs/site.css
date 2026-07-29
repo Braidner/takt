@@ -123,38 +123,31 @@ a { color: inherit; }
   /* Аврора живёт за содержимым и не должна вылезать за сцену. */
   overflow: visible;
 }
-.hero > :not(.aurora):not(.grain) { position: relative; z-index: 1; }
+.film, .head, .bar { position: relative; z-index: 1; }
+.bar, .head { z-index: 40; }
 
 /* Генеративный фон: пятна брендового градиента дрейфуют, как свет проектора в
    тёмной аппаратной. Рисуется в крошечный канвас и растягивается — блюр бесплатно,
    на телефоне не греет. Скрыт от чтения и остановлен при reduced-motion. */
 .aurora {
-  position: absolute;
-  inset: -14vh -24vw auto;
-  height: min(96vh, 940px);
-  width: calc(100% + 48vw);
+  position: fixed;
+  inset: 0;
+  width: 100vw; height: 100vh;
   z-index: 0;
-  opacity: 0.5;
+  opacity: 0.42;
   filter: saturate(1.1);
-  /* Двухосная маска: пятна растворяются до того, как дойдут до краёв блока,
-     иначе фон обрезается видимой вертикалью. */
-  -webkit-mask-image: radial-gradient(120% 90% at 42% 26%, oklch(0 0 0) 42%, transparent 78%);
-  mask-image: radial-gradient(120% 90% at 42% 26%, oklch(0 0 0) 42%, transparent 78%);
   pointer-events: none;
 }
 
 /* Плёночное зерно поверх авроры: без него градиентные пятна на тёмном полосуют.
    SVG-шум, статичный, почти невидимый — работает как дизер. */
 .grain {
-  position: absolute; inset: -14vh -24vw auto;
-  width: calc(100% + 48vw);
-  height: min(96vh, 940px);
+  position: fixed; inset: 0;
+  width: 100vw; height: 100vh;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.14;
+  opacity: 0.12;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
-  -webkit-mask-image: radial-gradient(120% 90% at 42% 26%, oklch(0 0 0) 42%, transparent 78%);
-  mask-image: radial-gradient(120% 90% at 42% 26%, oklch(0 0 0) 42%, transparent 78%);
 }
 
 /* Пилюля — внутренний элемент: внешний блок занимает колонку кадра (так требует
@@ -574,7 +567,7 @@ a { color: inherit; }
 }
 
 /* Контент кадра держится колонкой читаемой ширины по центру кадра. */
-.filmed .scene > :not(.aurora):not(.grain) {
+.filmed .scene > * {
   width: min(1060px, calc(100vw - 2 * clamp(20px, 4vw, 44px)));
   margin-inline: auto;
 }
@@ -607,13 +600,6 @@ a { color: inherit; }
 .filmed .frame.slim { display: none; }     /* мал для кадра во весь экран */
 .filmed .fin { padding-bottom: 0; }
 .filmed .foot { margin-top: 40px; }
-
-/* Аврора в ленте — фон первого кадра, не всей полосы. */
-.filmed .hero .aurora, .filmed .hero .grain {
-  inset: -10vh -10vw auto;
-  width: 120vw;
-  height: 100vh;
-}
 
 /* Параллакс внутри кадра: пока кадр проезжает, его содержимое чуть отстаёт.
    --p идёт от -1 (кадр справа) через 0 (в центре) к 1 (ушёл влево). */
@@ -729,4 +715,3 @@ a { color: inherit; }
 .filmed .hero .hero-sub   { transform: translateY(calc(var(--d, 0) * -18px)); opacity: calc(1 - var(--d, 0) * 0.25); }
 .filmed .hero .hero-cta   { transform: translateY(calc(var(--d, 0) * -12px)); }
 .filmed .hero .dialog     { transform: translateY(calc(var(--d, 0) * -8px)); }
-.filmed .hero .aurora     { transform: translateX(calc(var(--d, 0) * -6vw)) scale(calc(1 + var(--d, 0) * 0.06)); }

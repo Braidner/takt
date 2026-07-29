@@ -220,6 +220,49 @@ const TRAVEL = 0.28;
 const UNITS = sceneEls.length * DWELL + (sceneEls.length - 1) * TRAVEL;
 const easeTravel = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
+/* Фон общий для всей плёнки и едет вместе с ней: пятна дрейфуют сами по себе, но
+   прокрутка сдвигает их по горизонтали — сильнее, чем едет лента, поэтому кадры
+   выглядят пролетающими сквозь один непрерывный свет, а не сменой картинок.
+   Цвет пятна тоже зависит от позиции: к финалу свет уходит в бирюзу. */
+const aurora = (() => {
+  const cv = document.getElementById("aurora");
+  if (!cv) return () => {};
+  const ctx = cv.getContext("2d");
+  const W = cv.width = 72;
+  const H = cv.height = 44;
+
+  const blobs = [
+    { c: [1, 98, 228],  r: 30, x: 0.20, y: 0.32, ax: 0.13, ay: 0.09, px: 0.00011, py: 0.00007, k: 0.55 },
+    { c: [8, 158, 251], r: 24, x: 0.58, y: 0.20, ax: 0.16, ay: 0.11, px: 0.00008, py: 0.00013, k: 0.85 },
+    { c: [3, 198, 212], r: 21, x: 0.86, y: 0.54, ax: 0.10, ay: 0.14, px: 0.00014, py: 0.00006, k: 1.15 },
+    { c: [0, 224, 184], r: 17, x: 0.40, y: 0.66, ax: 0.12, ay: 0.08, px: 0.00006, py: 0.00012, k: 0.7 },
+  ];
+
+  let now = 0;
+  if (motionOk) {
+    // Собственный дрейф идёт всегда, независимо от скролла: неподвижный фон под
+    // остановившимся пальцем выглядит как замерший экран.
+    (function tick(t) { now = t; requestAnimationFrame(tick); })(0);
+  }
+
+  /** u — позиция на плёнке в кадровых единицах. */
+  return (u) => {
+    const shift = UNITS > 0 ? u / UNITS : 0;
+    ctx.clearRect(0, 0, W, H);
+    ctx.globalCompositeOperation = "lighter";
+    for (const b of blobs) {
+      // Пятна уезжают на разную величину — получается параллакс в глубину.
+      const x = ((b.x + Math.sin(now * b.px) * b.ax - shift * b.k) % 1.6 + 1.6) % 1.6 - 0.3;
+      const y = (b.y + Math.cos(now * b.py) * b.ay) * H;
+      const g = ctx.createRadialGradient(x * W, y, 0, x * W, y, b.r);
+      g.addColorStop(0, `rgb(${b.c[0]} ${b.c[1]} ${b.c[2]} / 0.5)`);
+      g.addColorStop(1, "rgb(0 0 0 / 0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, W, H);
+    }
+  };
+})();
+
 if (FILM) {
   document.documentElement.classList.add("filmed");
   // Высота плёнки задаёт темп. Почти два экрана на кадровую единицу: на трекпаде
@@ -297,6 +340,7 @@ function apply(u) {
     if (n === current) a.setAttribute("aria-current", "true");
     else a.removeAttribute("aria-current");
   });
+  aurora(u);
 }
 
 function loop(now) {
@@ -308,7 +352,10 @@ function loop(now) {
   if (Math.abs(target - uCurrent) < 0.0004) {
     uCurrent = target;
     apply(uCurrent);
-    running = false;
+    // Фон продолжает дышать после остановки, поэтому цикл засыпает только там,
+    // где движение вообще запрещено.
+    running = motionOk;
+    if (motionOk) requestAnimationFrame(loop);
     return;
   }
   apply(uCurrent);
@@ -401,41 +448,3 @@ document.getElementById("lang").addEventListener("click", playDialog);
    синусам с несоизмеримыми периодами: рисунок не зацикливается заметно.
    При reduced-motion рисуется один кадр и всё замирает. */
 
-(() => {
-  const cv = document.getElementById("aurora");
-  if (!cv) return;
-  const ctx = cv.getContext("2d");
-  const W = cv.width = 64;
-  const H = cv.height = 40;
-
-  const blobs = [
-    { c: [1, 98, 228],  r: 26, x: 0.22, y: 0.30, ax: 0.13, ay: 0.09,  px: 0.00011, py: 0.00007 },
-    { c: [8, 158, 251], r: 21, x: 0.62, y: 0.18, ax: 0.16, ay: 0.11,  px: 0.00008, py: 0.00013 },
-    { c: [3, 198, 212], r: 18, x: 0.82, y: 0.52, ax: 0.10, ay: 0.14,  px: 0.00014, py: 0.00006 },
-    { c: [0, 224, 184], r: 14, x: 0.42, y: 0.62, ax: 0.12, ay: 0.08,  px: 0.00006, py: 0.00012 },
-  ];
-
-  function frame(now) {
-    ctx.clearRect(0, 0, W, H);
-    ctx.globalCompositeOperation = "lighter";
-    for (const b of blobs) {
-      const x = (b.x + Math.sin(now * b.px) * b.ax) * W;
-      const y = (b.y + Math.cos(now * b.py) * b.ay) * H;
-      const g = ctx.createRadialGradient(x, y, 0, x, y, b.r);
-      g.addColorStop(0, `rgb(${b.c[0]} ${b.c[1]} ${b.c[2]} / 0.55)`);
-      g.addColorStop(1, "rgb(0 0 0 / 0)");
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, W, H);
-    }
-  }
-
-  frame(0);
-  if (motionOk) {
-    let visible = true;
-    new IntersectionObserver((e) => { visible = e[0].isIntersecting; }).observe(cv);
-    (function loop(now) {
-      if (visible) frame(now);
-      requestAnimationFrame(loop);
-    })(0);
-  }
-})();
