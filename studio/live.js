@@ -556,6 +556,55 @@ async function renderPlan() {
  * «оставить прежний». Иначе правка адреса вслепую сбрасывала бы сохранённые данные, а сам
  * пароль оседал бы в истории браузера и на скриншотах.
  */
+/**
+ * Панель окружения: возможности со статусом, недостающие — с кнопкой установки.
+ *
+ * Кнопка кладёт агенту событие install с одним идентификатором. Что за ним стоит —
+ * решает реестр внутри Takt (studio/install.mjs); прислать агенту произвольную команду
+ * через эту панель нельзя по построению.
+ */
+async function openEnv() {
+  const dlg = document.querySelector('.env');
+  const list = dlg.querySelector('.env-list');
+  const plat = dlg.querySelector('.env-platform');
+  dlg.showModal();
+  list.textContent = '…';
+
+  const d = await fetch('/api/doctor').then((r) => r.json()).catch(() => null);
+  if (!d) { list.textContent = window.taktText?.('envFailed') ?? ''; return; }
+
+  plat.textContent = `${d.platform.os}/${d.platform.arch}`
+    + (d.platform.apple ? ' · Apple Silicon' : d.platform.nvidia ? ' · NVIDIA' : '')
+    + ` · ${d.home.dir}`;
+
+  list.innerHTML = '';
+  for (const c of d.capabilities) {
+    const row = document.createElement('div');
+    row.className = 'env-row';
+    row.dataset.state = c.ready ? 'ok' : c.optional ? 'off' : 'missing';
+    const кнопка = !c.ready && c.fix?.startsWith('takt install ')
+      ? `<button type="button" class="primary env-install"
+                 data-capability="${c.fix.replace('takt install ', '')}"></button>` : '';
+    row.innerHTML = `<span class="env-dot" aria-hidden="true"></span>
+      <span class="env-name"></span><span class="env-note"></span>${кнопка}`;
+    row.querySelector('.env-name').textContent = c.name;
+    row.querySelector('.env-note').textContent = c.ready
+      ? (c.note || '') : (c.size ? c.size : (c.note || ''));
+    const btn = row.querySelector('.env-install');
+    if (btn) {
+      btn.textContent = window.taktText?.('envInstall') ?? '';
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        await post('/api/event', { type: 'install', capability: btn.dataset.capability });
+        // Панель не изображает прогресс, которого не знает: установка идёт у агента, её
+        // статус виден в шапке. Здесь — только что задача поставлена.
+        btn.textContent = window.taktText?.('envQueued') ?? '';
+      });
+    }
+    list.append(row);
+  }
+}
+
 async function openConnect() {
   const cfg = await fetch('/api/connection').then((r) => r.json()).catch(() => null);
   if (!cfg) return;
@@ -716,6 +765,9 @@ async function boot() {
   });
 
   el.stend?.addEventListener('click', openConnect);
+  document.querySelector('.env-open')?.addEventListener('click', openEnv);
+  document.querySelector('.env-close')?.addEventListener('click',
+    () => document.querySelector('.env').close());
   el.connectCancel?.addEventListener('click', () => el.connect.close());
   el.connectSave?.addEventListener('click', async () => {
     const url = el.connectUrl.value.trim();

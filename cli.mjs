@@ -36,6 +36,7 @@ const COMMANDS = {
   target:   { file: 'studio/target.mjs',      help: 'что известно про снимаемую систему' },
   export:   { file: 'studio/export.mjs',      help: 'выгрузить ролик со сценарием и текстом' },
   doctor:   { file: 'studio/doctor.mjs',      help: 'что установлено и что для чего не хватает' },
+  install:  { file: 'studio/install.mjs',     help: 'поставить возможность (список: takt install --list)' },
 };
 
 /**
@@ -100,10 +101,14 @@ const venv = path.join(DIR, 'studio', 'venv-tts', 'bin', 'python3');
 const runner = python ? (fs.existsSync(venv) ? venv : 'python3') : process.execPath;
 
 // Каталог данных выбирает home.mjs, но питоновской части он недоступен: импортировать
-// модуль Node оттуда нельзя. Передаём разрешённый путь окружением, чтобы обе половины
-// инструмента писали в одно место, а не каждая в своё представление о нём.
-const { HOME } = await import('./studio/home.mjs');
-const env = { ...process.env, TAKT_HOME: HOME };
+// модуль Node оттуда нельзя. Разрешённый путь передаётся окружением — но ТОЛЬКО питону:
+// Node-скрипты разрешают его сами, а навязанная переменная заставила бы их же врать о
+// её источнике («задан переменной», хотя человек ничего не задавал).
+const env = { ...process.env };
+if (python) {
+  const { HOME } = await import('./studio/home.mjs');
+  env.TAKT_HOME = HOME;
+}
 
 const child = spawn(runner, [file, ...args], { stdio: 'inherit', cwd: DIR, env });
 child.on('error', (e) => {

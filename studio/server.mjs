@@ -641,6 +641,25 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { ok: true, slug });
   }
 
+  /**
+   * ── Окружение: что установлено и что можно доставить.
+   *
+   * Доктор запускается отдельным процессом при каждом запросе, без кэша: панель
+   * открывают редко и как раз тогда, когда состояние только что менялось — сразу после
+   * установки. Кэш здесь отдавал бы устаревшее в единственный интересный момент.
+   */
+  if (p === '/api/doctor' && req.method === 'GET') {
+    const { execFile } = await import('node:child_process');
+    return new Promise((resolve) => {
+      execFile(process.execPath, [path.join(DIR, 'doctor.mjs'), '--json'],
+               { timeout: 30000 }, (err, stdout) => {
+        if (err) { send(res, 500, { error: 'doctor_failed', detail: String(err).slice(0, 200) }); }
+        else { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(stdout); }
+        resolve();
+      });
+    });
+  }
+
   // ── План работ по накопленным замечаниям: что и сколько займёт
   if (p === '/api/plan') {
     const plan = planFor(readNotes());

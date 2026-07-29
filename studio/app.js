@@ -146,6 +146,15 @@ const RU = {
   recShort: "Запись {sec} с — мало",
   recEnough: "Запись {sec} с — хватит, нажмите чтобы остановить",
   voiceEngineTitle: "Каким движком синтезировать этот голос. Клик переключает; уже собранные дорожки не трогаются",
+  envOpen: "Окружение",
+  envOpenTitle: "Что установлено и что можно доставить",
+  envHead: "Окружение",
+  envNote: "Установку выполняет агент — кнопка ставит задачу в его очередь. "
+    + "Ставится только перечисленное самим Takt; вес загрузки показан до начала.",
+  envClose: "Закрыть",
+  envInstall: "Установить",
+  envQueued: "В очереди у агента",
+  envFailed: "Не удалось опросить окружение — запущена ли студия командой takt serve?",
   voiceAskRecord: "Чей это голос? Имя появится в каталоге",
   voiceAskFile: "Чей голос в файле?",
   voiceConsent: "Подтвердите: {name} согласен, что этим голосом будет говорить синтез.\n\n"
@@ -302,6 +311,15 @@ const EN = {
   recShort: "Recording {sec} s — too short",
   recEnough: "Recording {sec} s — enough, click to stop",
   voiceEngineTitle: "Which engine synthesizes this voice. Click to switch; existing tracks are untouched",
+  envOpen: "Environment",
+  envOpenTitle: "What is installed and what can be added",
+  envHead: "Environment",
+  envNote: "Installation is done by the agent — the button queues a task for it. "
+    + "Only what Takt itself lists can be installed; download size is shown up front.",
+  envClose: "Close",
+  envInstall: "Install",
+  envQueued: "Queued for the agent",
+  envFailed: "Could not query the environment — is the studio running (takt serve)?",
   voiceAskRecord: "Whose voice is this? The name will show up in the catalogue",
   voiceAskFile: "Whose voice is in the file?",
   voiceConsent: "Confirm: {name} agrees that synthesis may speak in this voice.\n\n"

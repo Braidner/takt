@@ -19,6 +19,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { HOME, HOME_FROM } from './home.mjs';
+import { REGISTRY } from './registry.mjs';
 
 const run = promisify(execFile);
 const DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -63,10 +64,14 @@ async function chromium() {
   } catch { return false; }
 }
 
-const venvPython = path.join(DIR, 'venv-tts', 'bin', 'python3');
+const BIN = process.platform === 'win32' ? 'Scripts' : 'bin';
+const PY = process.platform === 'win32' ? 'python.exe' : 'python3';
+const venvPython = path.join(DIR, 'venv-tts', BIN, PY);
+// У Chatterbox своя venv с более старым Python: в рабочую MLX-venv он не встаёт.
+const chatterPython = path.join(DIR, 'venv-chatterbox', BIN, PY);
 
-async function pythonPkg(pkg) {
-  const py = fs.existsSync(venvPython) ? venvPython : 'python3';
+async function pythonPkg(pkg, interpreter = venvPython) {
+  const py = fs.existsSync(interpreter) ? interpreter : 'python3';
   try { await run(py, ['-c', `import ${pkg}`]); return true; } catch { return false; }
 }
 
@@ -75,23 +80,24 @@ const [ff, h264, chrome, py] = await Promise.all([
   has('ffmpeg', ['-version']), ffmpegH264(), chromium(), has('python3', ['--version']),
 ]);
 
-const [mlxAudio, torch, qwen, chatter, whisper] = fs.existsSync(venvPython) || py
+const [mlxAudio, torch, qwen, whisper] = fs.existsSync(venvPython) || py
   ? await Promise.all([pythonPkg('mlx_audio'), pythonPkg('torch'), pythonPkg('qwen3_tts'),
-                       pythonPkg('chatterbox'), pythonPkg('faster_whisper')])
-  : [false, false, false, false, false];
+                       pythonPkg('faster_whisper')])
+  : [false, false, false, false];
+const chatter = fs.existsSync(chatterPython) && await pythonPkg('chatterbox', chatterPython);
 
 // Модель на Маке идёт через MLX, на остальных платформах — через torch. Спрашивать про
 // оба бэкенда бессмысленно: на Windows не существует первого, а на Apple Silicon второй
 // потребовал бы вторую копию весов.
 const qwenReady = p.apple ? mlxAudio && whisper : torch && qwen && whisper;
-const chatterReady = torch && chatter;
+const chatterReady = Boolean(chatter);
 
 const capabilities = [
   {
     id: 'shoot', name: 'Съёмка',
     ready: Boolean(installed('playwright') && chrome),
     missing: [!installed('playwright') && 'playwright', !chrome && 'браузер Chromium'].filter(Boolean),
-    fix: 'npm install && npx playwright install chromium',
+    fix: 'takt install browser',
   },
   {
     id: 'build', name: 'Сборка ролика',
@@ -104,7 +110,7 @@ const capabilities = [
     ready: installed('remotion'),
     optional: true,
     missing: installed('remotion') ? [] : ['remotion'],
-    fix: 'npm install remotion @remotion/cli @remotion/transitions @remotion/media',
+    fix: 'takt install zoom',
     note: 'необязательно; платная лицензия для команд от четырёх человек',
   },
   {
@@ -113,21 +119,25 @@ const capabilities = [
     missing: p.apple
       ? [!mlxAudio && 'mlx-audio', !whisper && 'faster-whisper'].filter(Boolean)
       : [!torch && 'torch', !qwen && 'qwen3-tts', !whisper && 'faster-whisper'].filter(Boolean),
-    fix: p.apple
-      ? 'pip install mlx-audio faster-whisper'
-      : `pip install torch${p.nvidia ? ' --index-url https://download.pytorch.org/whl/cu128' : ''}`
-        + ' && pip install qwen3-tts faster-whisper',
+    fix: 'takt install voice-qwen',
     note: p.apple ? 'бэкенд MLX' : p.nvidia ? 'бэкенд torch + CUDA' : 'бэкенд torch на CPU — медленно',
   },
   {
     id: 'voice-chatterbox', name: 'Озвучка — Chatterbox',
     ready: chatterReady, optional: true,
-    missing: [!torch && 'torch', !chatter && 'chatterbox-tts'].filter(Boolean),
-    fix: `pip install torch${p.nvidia ? ' --index-url https://download.pytorch.org/whl/cu128' : ''}`
-      + ' && pip install chatterbox-tts',
+    missing: chatter ? [] : ['chatterbox-tts (своя venv)'],
+    fix: 'takt install voice-chatterbox',
     note: p.apple ? 'бэкенд torch на Metal' : p.nvidia ? 'бэкенд torch + CUDA' : 'бэкенд torch на CPU — медленно',
   },
 ];
+
+// Вес загрузки едет вместе с возможностью: панель обязана назвать его до кнопки.
+const весом = { shoot: 'browser', build: null, zoom: 'zoom',
+                'voice-qwen': 'voice-qwen', 'voice-chatterbox': 'voice-chatterbox' };
+for (const c of capabilities) {
+  const рег = REGISTRY[весом[c.id]];
+  if (рег && !c.ready) c.size = рег.size;
+}
 
 const report = {
   platform: p,

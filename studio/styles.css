@@ -1176,3 +1176,21 @@ button, input, textarea, select { font: inherit; color: inherit; }
 }
 
 .connect-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; }
+
+/* Панель окружения: возможности со статусом. Точка — тем же языком, что у агента
+   и стенда в шапке: зелёная «работает», серая «не поставлено». */
+.env { border: 1px solid var(--hair); border-radius: 14px; background: var(--panel);
+       color: var(--ink); padding: 0; width: min(560px, calc(100vw - 48px)); }
+.env::backdrop { background: rgb(0 0 0 / 0.45); }
+.env-form { padding: 18px 20px; display: grid; gap: 12px; }
+.env-platform { font-size: 12px; color: var(--muted); }
+.env-list { display: grid; gap: 8px; }
+.env-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px;
+           align-items: center; padding: 8px 10px; border: 1px solid var(--hair);
+           border-radius: 10px; }
+.env-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.env-row[data-state="ok"] .env-dot { background: var(--ok, #27c26c); }
+.env-row[data-state="missing"] .env-dot { background: var(--danger, #e5484d); }
+.env-name { font-size: 13px; }
+.env-note { font-size: 11px; color: var(--muted); text-align: right; max-width: 220px; }
+.env-install { font-size: 12px; padding: 4px 12px; }

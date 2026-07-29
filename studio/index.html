@@ -14,23 +14,31 @@
     <!-- Проект — единица работы: свой сценарий, дубли, ролик, замечания и озвучка.
          Голоса общие, они не про конкретный ролик. -->
     <div class="head-project">
-      <select class="project-select" aria-label="Проект"></select>
-      <button class="ghost project-new" type="button" title="Новый ролик">+</button>
+      <select class="project-select" data-i-aria="projectLabel" aria-label="Проект"></select>
+      <button class="ghost project-new" type="button" data-i-title="projectNew" title="Новый ролик">+</button>
     </div>
     <div class="head-spacer"></div>
 
     <!-- Стенд и агент — разные поломки с разным лечением, поэтому и показаны отдельно. -->
-    <button class="agent stend" data-state="unknown" type="button" title="Настроить подключение">
+    <button class="agent stend" data-state="unknown" type="button"
+            data-i-title="stendSetup" title="Настроить подключение">
       <span class="agent-dot" aria-hidden="true"></span>
-      <span class="stend-text">Стенд не проверен</span>
+      <span class="stend-text" data-i="stendUnchecked">Стенд не проверен</span>
     </button>
 
     <!-- Состояние агента: текст плюс форма точки, не только цвет. -->
     <div class="agent" data-state="busy" role="status" aria-live="polite">
       <span class="agent-dot" aria-hidden="true"></span>
-      <span data-i="agentBusy">Снимает сцену — 2 из 5</span>
+      <!-- Счётчик «2 из 5» — отдельный узел внутри общей обёртки: числа приходят из
+           данных, слова вокруг них у каждого языка свои, а зазор между строками нужен
+           не здесь, а между точкой и надписью. -->
+      <span class="agent-status"><span class="agent-text"
+        data-i="agentBusy">Снимает сцену</span><span class="agent-progress"
+        data-i="agentProgress" data-i-args='{"step":2,"of":5}'> — 2 из 5</span></span>
     </div>
 
+    <button class="ghost env-open" type="button" data-i="envOpen"
+            data-i-title="envOpenTitle" title="Что установлено и что можно доставить">Окружение</button>
     <button class="ghost" id="lang" type="button">EN</button>
     <button class="ghost" id="theme" type="button" data-i="themeLight">Светлая</button>
   </header>
@@ -190,6 +198,20 @@
 
   <!-- Подключение: адрес и учётные данные. Пароль уходит на сервер и обратно не
        возвращается — форма знает только, задан он или нет. -->
+  <dialog class="env">
+    <div class="env-form">
+      <div class="connect-head" data-i="envHead">Окружение</div>
+      <div class="env-platform"></div>
+      <div class="env-list" aria-live="polite"></div>
+      <div class="connect-note" data-i="envNote">Установку выполняет агент — кнопка ставит
+        задачу в его очередь. Ставится только перечисленное самим Takt; вес загрузки
+        показан до начала.</div>
+      <div class="connect-actions">
+        <button type="button" class="ghost env-close" data-i="envClose">Закрыть</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog class="connect">
     <form method="dialog" class="connect-form">
       <div class="connect-head" data-i="connectHead">Куда снимаем</div>
