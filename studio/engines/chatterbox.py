@@ -23,7 +23,9 @@ NEEDS_REF_TEXT = False
 
 DIR = os.path.dirname(os.path.abspath(__file__))
 BIN = "Scripts" if os.name == "nt" else "bin"
-WORKER_PY = os.path.join(os.path.dirname(DIR), "venv-chatterbox", BIN,
+# Venv живёт в $TAKT_HOME (данные), а не рядом с кодом: cli.mjs передаёт путь окружением.
+_HOME = os.environ.get("TAKT_HOME", os.path.expanduser(os.path.join("~", "takt")))
+WORKER_PY = os.path.join(_HOME, "venvs", "venv-chatterbox", BIN,
                          "python.exe" if os.name == "nt" else "python3")
 
 

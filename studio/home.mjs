@@ -38,6 +38,9 @@ export const PROJECTS = path.join(HOME, 'projects');
 export const TARGETS = path.join(HOME, 'targets');
 export const VOICES = path.join(HOME, 'voices');       // голоса общие для всех роликов
 export const SERVER_INFO = path.join(HOME, 'server.json');
+// Окружения озвучки. Это данные, а не код: обновление скилла может перезаписать
+// каталог кода целиком, а переустановка гигабайтов синтеза этого пережить не должна.
+export const VENVS = path.join(HOME, 'venvs');
 
 /** Путь внутри каталога данных, с созданием родителей: писать сюда — обычное дело. */
 export function inHome(...parts) {

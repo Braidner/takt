@@ -97,8 +97,12 @@ if (entry.studio && !(await studioAlive())) {
 // Python-часть (озвучка) ставится отдельно и необязательна: инструмент снимает ролики и
 // без неё. Поэтому её отсутствие — не поломка, а понятное сообщение.
 const python = file.endsWith('.py');
-const venv = path.join(DIR, 'studio', 'venv-tts', 'bin', 'python3');
-const runner = python ? (fs.existsSync(venv) ? venv : 'python3') : process.execPath;
+let runner = process.execPath;
+if (python) {
+  const { VENV_TTS, BIN, PY } = await import('./studio/registry.mjs');
+  const venvPy = path.join(VENV_TTS, BIN, PY);
+  runner = fs.existsSync(venvPy) ? venvPy : 'python3';
+}
 
 // Каталог данных выбирает home.mjs, но питоновской части он недоступен: импортировать
 // модуль Node оттуда нельзя. Разрешённый путь передаётся окружением — но ТОЛЬКО питону:

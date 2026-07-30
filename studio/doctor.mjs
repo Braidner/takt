@@ -19,7 +19,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { HOME, HOME_FROM } from './home.mjs';
-import { REGISTRY } from './registry.mjs';
+import { REGISTRY, VENV_TTS, VENV_CHATTERBOX, BIN, PY } from './registry.mjs';
 
 const run = promisify(execFile);
 const DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -64,11 +64,9 @@ async function chromium() {
   } catch { return false; }
 }
 
-const BIN = process.platform === 'win32' ? 'Scripts' : 'bin';
-const PY = process.platform === 'win32' ? 'python.exe' : 'python3';
-const venvPython = path.join(DIR, 'venv-tts', BIN, PY);
+const venvPython = path.join(VENV_TTS, BIN, PY);
 // У Chatterbox своя venv с более старым Python: в рабочую MLX-venv он не встаёт.
-const chatterPython = path.join(DIR, 'venv-chatterbox', BIN, PY);
+const chatterPython = path.join(VENV_CHATTERBOX, BIN, PY);
 
 async function pythonPkg(pkg, interpreter = venvPython) {
   const py = fs.existsSync(interpreter) ? interpreter : 'python3';

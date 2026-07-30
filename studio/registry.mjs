@@ -8,15 +8,14 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const DIR = path.dirname(fileURLToPath(import.meta.url));
+import { VENVS } from './home.mjs';
 
 export const APPLE = process.platform === 'darwin' && process.arch === 'arm64';
 export const BIN = process.platform === 'win32' ? 'Scripts' : 'bin';
 export const PY = process.platform === 'win32' ? 'python.exe' : 'python3';
-export const VENV_TTS = path.join(DIR, 'venv-tts');
-export const VENV_CHATTERBOX = path.join(DIR, 'venv-chatterbox');
+// Внутри $TAKT_HOME, а не рядом с кодом: см. комментарий у VENVS в home.mjs.
+export const VENV_TTS = path.join(VENVS, 'venv-tts');
+export const VENV_CHATTERBOX = path.join(VENVS, 'venv-chatterbox');
 
 /**
  * Шаг — это argv, а не строка шелла: команда с параметрами из реестра не проходит через
@@ -48,7 +47,9 @@ export const REGISTRY = {
     python: APPLE ? ['3.14', '3.13', '3.12', '3'] : ['3.12', '3.11', '3.13'],
     venv: VENV_TTS,
     steps: (py) => {
-      const pip = [path.join(VENV_TTS, BIN, 'pip'), 'install', '--quiet'];
+      // pip — через «python -m pip», не через бинарь: шебанги скриптов venv хранят
+      // абсолютный путь и ломаются при переносе, а сам python работает откуда угодно.
+      const pip = [path.join(VENV_TTS, BIN, PY), '-m', 'pip', 'install', '--quiet'];
       const пакеты = APPLE
         ? ['mlx-audio', 'faster-whisper']
         : ['torch', 'qwen3-tts', 'faster-whisper', 'soundfile'];
@@ -66,7 +67,7 @@ export const REGISTRY = {
     venv: VENV_CHATTERBOX,
     steps: (py) => [
       fs.existsSync(VENV_CHATTERBOX) ? null : [py, '-m', 'venv', VENV_CHATTERBOX],
-      [path.join(VENV_CHATTERBOX, BIN, 'pip'), 'install', '--quiet', 'chatterbox-tts'],
+      [path.join(VENV_CHATTERBOX, BIN, PY), '-m', 'pip', 'install', '--quiet', 'chatterbox-tts'],
     ].filter(Boolean),
   },
 };
