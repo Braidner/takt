@@ -1,133 +1,143 @@
+<div align="center">
+
 # Takt
 
-Студия демонстрационных роликов для веб-интерфейсов. Вы описываете словами, что показать;
-агент проходит сценарий в браузере, пишет экран, монтирует ролик и озвучивает его
-клонированным голосом диктора. Правки ставятся метками прямо на таймлайне.
+**A demo-video studio for web interfaces.**
 
-Инструмент рассчитан на работу в паре с ИИ-агентом (Claude Code и подобные): сценарий
-собирает он, разведав интерфейс, а человек правит и принимает результат.
+Describe the story in plain words — an AI agent walks your UI in a browser,
+records the screen, edits the cut, and narrates it with a cloned voice.
+Feedback goes straight onto the timeline as markers.
 
-## Зачем
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node.js ≥ 20](https://img.shields.io/badge/Node.js-%E2%89%A5%2020-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org)
+[![Playwright](https://img.shields.io/badge/Playwright-recorder-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev)
+[![Agent Skill](https://img.shields.io/badge/Claude%20Code-skill-d97757)](SKILL.md)
 
-Демонстрационный ролик обычно делают двумя способами, и оба неудобны. Запись экрана с
-живым голосом приходится переснимать целиком из-за одной оговорки. Монтаж в редакторе —
-это отдельная профессия и дни работы.
+[Quick Start](#quick-start) · [How It Works](#how-it-works) · [As an Agent Skill](#as-an-agent-skill) · [FAQ](#where-things-live)
 
-Здесь ролик — артефакт сборки. Сценарий, титры, схемы и дикторский текст лежат данными,
-поэтому правка формулировки или момента не требует пересъёмки: пересобирается только то,
-что изменилось. Пересъёмка нужна лишь тогда, когда меняется происходящее в кадре.
+<img src="docs/assets/studio.png" alt="Takt studio: scenario on the left, frame in the center, notes on the right" width="800">
 
-## Как это устроено
+</div>
 
-**Playwright — актёр.** Ведёт браузер по шагам сценария и попутно пишет телеметрию: что
-происходило и когда. Съёмка идёт headless, поэтому машина остаётся свободной.
+---
 
-**Студия — рабочее место.** Локальная страница: сценарий слева, кадр или готовый ролик в
-центре, замечания справа, голоса снизу. Во время съёмки в центре виден живой экран
-браузера с прогрессом по шагам — видно, что происходит и где застряло.
+Takt is built for working in tandem with an AI agent (Claude Code and friends):
+the agent scouts the interface and drafts the scenario; you review, tweak, and approve.
 
-**Агент слушает события.** Между студией и агентом — длинный опрос: соединение
-разрешается ровно в момент вашего нажатия, без периодических проверок. Отправленное
-видно в интерфейсе («ждёт» / «в работе»), а если агента нет — кнопки блокируются, чтобы
-не писать в пустоту.
+## Why
 
-**Озвучка — клонированием голоса.** Голос записывается прямо в браузере или загружается
-файлом. Дикторский текст раскладывается по меткам титров и проверяется на укладку до
-синтеза: реплика, не влезающая в своё окно, наедет на следующую.
+Demo videos are usually made one of two ways, and both hurt. A screen recording with
+live narration has to be reshot end-to-end because of a single slip of the tongue.
+Editing in a video editor is a separate profession and days of work.
 
-## Что нужно
+Here, **the video is a build artifact**. The scenario, captions, diagrams, and narration
+script live as data — so changing a phrase or a timestamp doesn't mean reshooting:
+only what changed gets rebuilt. You reshoot only when what happens *on screen* changes.
 
-- Node 20+ и `npm install`
-- `ffmpeg` с H.264 (`brew install ffmpeg`)
-- Python — только для озвучки; ставится командой `takt install voice-qwen`
+## How It Works
 
-Озвучка работает на любой платформе: на Apple Silicon синтез идёт через MLX, на
-Windows и Linux — через PyTorch (с CUDA, если есть карта NVIDIA; без неё — медленно).
-Модель одна и та же, поэтому ролик, начатый на одной машине, звучит так же на другой.
+| | |
+|---|---|
+| 🎭 **Playwright is the actor** | Drives the browser through the scenario steps and logs telemetry along the way: what happened and when. Capture runs headless, so your machine stays free. |
+| 🎬 **The studio is your workbench** | A local page: scenario on the left, frame or finished video in the center, notes on the right, voices at the bottom. During capture, the center shows the live browser screen with per-step progress — you see what's happening and where it got stuck. |
+| 📡 **The agent listens for events** | Studio and agent talk over long polling: the connection resolves exactly when you click, no periodic checks. Every request is visible in the UI ("pending" / "in progress"), and if no agent is attached, buttons lock so you never shout into the void. |
+| 🗣️ **Narration via voice cloning** | Record a voice right in the browser or upload a file. The narration script is laid out across caption markers and checked for fit *before* synthesis: a line that doesn't fit its window would collide with the next one. |
 
-Что установлено и чего не хватает — `takt doctor`; установка недостающего — кнопкой в
-панели «Окружение» в студии или командой `takt install` (вес загрузки показывается до
-начала).
+## Requirements
 
-## Быстрый старт
+- Node 20+ and `npm install`
+- `ffmpeg` with H.264 (`brew install ffmpeg`)
+- Python — only for narration; installed via `takt install voice-qwen`
+
+Voice synthesis works on every platform: MLX on Apple Silicon, PyTorch on Windows and
+Linux (CUDA if you have an NVIDIA card; slow without one). It's the same model everywhere,
+so a video started on one machine sounds identical on another.
+
+Run `takt doctor` to see what's installed and what's missing; install the rest from the
+**Environment** panel in the studio or with `takt install` (download size is shown up front).
+
+## Quick Start
 
 ```bash
 npx skills add Braidner/takt
 cd ~/.claude/skills/takt && npm install && npx playwright install chromium
-node cli.mjs serve      # студия на http://localhost:4173
+node cli.mjs serve      # studio at http://localhost:4173
 ```
 
-Первая команда ставит скилл целиком ([skills CLI](https://github.com/vercel-labs/skills)
-спросит, куда — в проект или глобально). Клонировали репозиторий руками — тогда просто
-`npm install && npx playwright install chromium` и симлинк в `~/.claude/skills/takt`.
+The first command installs the whole skill (the [skills CLI](https://github.com/vercel-labs/skills)
+asks where — project or global). Cloned the repo by hand? Then just
+`npm install && npx playwright install chromium` and symlink it into `~/.claude/skills/takt`.
 
-Адрес системы и учётные данные вписываются **в самой студии** — клик по чипу стенда в
-шапке. Пароль остаётся на вашей машине: в репозиторий он не попадает и обратно в браузер
-не отдаётся.
+The target system's URL and credentials are entered **in the studio itself** — click the
+stand chip in the header. The password stays on your machine: it never lands in the repo
+and is never echoed back to the browser.
 
-Дальше — из студии: опишите ролик словами, поправьте сценарий, нажмите «Снимать».
+From there, everything happens in the studio: describe the video in words, adjust the
+scenario, hit **Shoot**.
 
-## Как скилл
+## As an Agent Skill
 
-Takt рассчитан на работу агентом. `SKILL.md` в корне описывает процедуру: агент поднимает
-студию, садится на длинный опрос и работает по событиям — собрать сценарий, снять,
-смонтировать, озвучить, применить правки. Подробности по каждому событию — в
-`references/`.
+Takt is designed to be operated by an agent. [`SKILL.md`](SKILL.md) at the repo root
+describes the procedure: the agent starts the studio, attaches to the long poll, and works
+event by event — draft the scenario, shoot, edit, narrate, apply timeline notes. Details
+for each event live in [`references/`](references/).
 
-Установка — `npx skills add Braidner/takt`; CLI раскладывает скилл по агентам сам
-(Claude Code, Codex, Cursor и другие). Руками — симлинк каталога в `~/.claude/skills/takt`.
+Install with `npx skills add Braidner/takt` — the CLI distributes the skill across agents
+by itself (Claude Code, Codex, Cursor, and others). Manual route: symlink the directory
+into `~/.claude/skills/takt`.
 
-## Где что лежит
+## Where Things Live
 
-Три уровня, и путать их дорого:
+Three layers, and mixing them up is expensive:
 
-| Уровень | Что знает | Где |
+| Layer | What it knows | Where |
 |---|---|---|
-| Код | как снимать вообще | этот репозиторий |
-| **Цель** | адрес, вход, разделы, селекторы, чего не трогать | `$TAKT_HOME/targets/<slug>/` |
-| Проект | сценарий, дубли, ролик, замечания, озвучка | `$TAKT_HOME/projects/<id>/` |
+| Code | how to shoot in general | this repository |
+| **Target** | URL, login, sections, selectors, what not to touch | `$TAKT_HOME/targets/<slug>/` |
+| Project | scenario, takes, video, notes, narration | `$TAKT_HOME/projects/<id>/` |
 
-**Проект — это один ролик. Цель — система, про которую снимают**, и роликов про неё
-бывает много. Разведка интерфейса стоит минут, поэтому её результат живёт в цели:
-второй ролик про ту же систему не начинается с той же разведки. Рядом с машинным
-`target.json` лежит `target.md` — заметки агента прозой о том, что в схему не уложить:
-что тут медленно грузится, где грабли, чего трогать нельзя.
+**A project is one video. A target is the system being filmed** — and one system can star
+in many videos. Scouting an interface costs minutes, so its results live in the target:
+the second video about the same system doesn't start with the same scouting. Next to the
+machine-readable `target.json` sits `target.md` — the agent's prose notes about what won't
+fit into a schema: what loads slowly, where the traps are, what must not be touched.
 
-`$TAKT_HOME` по умолчанию `~/takt` и лежит **вне кода намеренно**: репозиторий
-обновляется и переустанавливается, а снятые ролики и записи голосов должны это пережить.
-Задать другой путь — переменной `TAKT_HOME`.
+`$TAKT_HOME` defaults to `~/takt` and lives **outside the code on purpose**: the repository
+gets updated and reinstalled, while recorded videos and voice samples must survive that.
+Set a different path with the `TAKT_HOME` environment variable.
 
-Ничего из этого в репозиторий не попадает: там записи чужих интерфейсов, голоса живых
-людей и учётные данные. Из истории git такое не вычищается.
+None of this ever enters the repository: it contains recordings of other people's
+interfaces, voices of real humans, and credentials. Git history doesn't forget.
 
-## Пресет системы (необязательно)
+## System Preset (optional)
 
-Если систем несколько и вы хотите описать их заранее, а не заводить цели из студии —
-`studio/takt.preset.json`:
+If you have several systems and want to describe them ahead of time instead of creating
+targets from the studio — `studio/takt.preset.json`:
 
 ```json
 {
-  "name": "Моя система",
+  "name": "My system",
   "targets": { "local": "http://localhost:8080/" },
   "branchUrl": "https://{slug}.preview.example.com/app/",
   "ready": "#app, main"
 }
 ```
 
-`branchUrl` пригодится, если CI поднимает окружение на каждую ветку: новая ветка даёт
-чистую систему под съёмку, а её адрес выводится из имени. Цель, привязанная к ролику,
-пресет перекрывает.
+`branchUrl` comes in handy when CI spins up an environment per branch: a fresh branch gives
+you a clean system to film, and its URL is derived from the branch name. A target bound to
+a specific video overrides the preset.
 
-## Голос: правовая рамка
+## Voice Cloning: the Legal Part
 
-Голос человека охраняется законом. Синтезировать чужой голос можно только с согласия его
-обладателя — студия спрашивает подтверждение при добавлении и хранит его рядом с записью.
-Спрашивать нужно у самого обладателя голоса, а не у того, кто принёс запись.
+A person's voice is protected by law. You may synthesize someone's voice only with the
+consent of its owner — the studio asks for confirmation when a voice is added and stores
+it next to the recording. Consent must come from the voice's owner, not from whoever
+brought the file.
 
-## Лицензии
+## License
 
-Код — MIT. Движки синтеза: Qwen3-TTS (Apache 2.0) и Chatterbox (MIT), оба пригодны для
-коммерческого использования; Chatterbox встраивает водяной знак.
+Code is [MIT](LICENSE). Synthesis engines: Qwen3-TTS (Apache 2.0) and Chatterbox (MIT),
+both fine for commercial use; Chatterbox embeds a watermark.
 
-Монтаж через Remotion (необязательная часть) требует платной лицензии для команд от
-четырёх человек — см. remotion.pro/license.
+Editing via Remotion (an optional component) requires a paid license for teams of four
+or more — see [remotion.pro/license](https://remotion.pro/license).
