@@ -23,6 +23,8 @@ const DIR = path.dirname(fileURLToPath(import.meta.url));
 // studio: команда разговаривает с запущенной студией. Такие скрипты пишут в неё прогресс
 // и читают текущий проект, поэтому без неё осмысленно работать не могут.
 const COMMANDS = {
+  start:    { file: 'studio/start.mjs',       help: 'поставить недостающее, поднять студию в фоне, открыть сайт' },
+  update:   { file: 'studio/update.mjs',      help: 'обновить скилл и перезапустить студию' },
   serve:    { file: 'studio/server.mjs',      help: 'поднять студию (http://localhost:4173)' },
   poll:     { file: 'studio/poll.mjs',        help: 'ждать событий от человека (длинный опрос)', studio: true },
   check:    { file: 'studio/check-stend.mjs', help: 'проверить доступ к системе и вход', studio: true },
