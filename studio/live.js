@@ -428,25 +428,19 @@ function renderTracks() {
   const pct = (t) => `${Math.max(0, Math.min(100, (t / DURATION) * 100))}%`;
   const track = (name) => document.querySelector(`.track[data-track="${name}"]`);
 
-  // Шаги: границы между подписями в кадре. Цвет границы говорит, что с шагом стало.
+  // Шаги: сегменты, как клипы в монтажке. Граница шага читается стыком сегментов,
+  // состояние — цветом; зазор в пиксель с каждой стороны и делает стык видимым.
   const steps = track('steps');
   if (steps) {
-    steps.querySelectorAll('.step-edge, .track-fill').forEach((x) => x.remove());
-    const done = scenario?.steps?.filter((s) => s.state === 'done') || [];
-    if (done.length) {
-      const fill = document.createElement('span');
-      fill.className = 'track-fill';
-      const last = done[done.length - 1];
-      fill.style.width = pct(last.at + last.seconds);
-      steps.prepend(fill);
-    }
+    steps.querySelectorAll('.step-seg').forEach((x) => x.remove());
     for (const s of scenario?.steps || []) {
-      const edge = document.createElement('span');
-      edge.className = 'step-edge';
-      edge.dataset.state = s.state || 'pending';
-      edge.style.left = pct(s.at);
-      edge.title = `${s.n}. ${s.label}`;
-      steps.append(edge);
+      const seg = document.createElement('span');
+      seg.className = 'step-seg';
+      seg.dataset.state = s.state || 'pending';
+      seg.style.left = `calc(${pct(s.at)} + 1px)`;
+      seg.style.width = `calc(${pct(s.seconds)} - 2px)`;
+      seg.title = `${s.n}. ${s.label}`;
+      steps.append(seg);
     }
   }
 

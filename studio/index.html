@@ -94,28 +94,30 @@
       </div>
     </div>
 
+    <!-- Подписи — своей колонкой, дорожки — своей: плейхед должен пересекать все
+         дорожки разом, а его координата в процентах имеет смысл только внутри
+         колонки, чья ширина совпадает с шириной дорожек. -->
     <div class="timeline">
-      <div class="ruler">
-        <span style="left:0%">0:00</span>
-        <span style="left:25%">1:12</span>
-        <span style="left:50%">2:24</span>
-        <span style="left:75%">3:35</span>
-        <span style="left:100%">4:47</span>
+      <div class="track-labels" aria-hidden="true">
+        <span class="track-label" data-i="trackSteps">Шаги</span>
+        <span class="track-label" data-i="trackDiagrams">Схемы</span>
+        <span class="track-label" data-i="trackNotes">Правки</span>
+        <span class="track-label" data-i="trackVoice">Голос</span>
       </div>
-
-      <span class="track-label" data-i="trackSteps">Шаги</span>
-      <div class="track" data-track="steps" data-i-title="trackStepsTitle" title="Границы шагов сценария">
+      <div class="lanes">
+        <div class="ruler">
+          <span style="left:0%">0:00</span>
+          <span style="left:25%">1:12</span>
+          <span style="left:50%">2:24</span>
+          <span style="left:75%">3:35</span>
+          <span style="left:100%">4:47</span>
+        </div>
+        <div class="track" data-track="steps" data-i-title="trackStepsTitle" title="Границы шагов сценария"></div>
+        <div class="track" data-track="diagrams" data-i-title="trackDiagramsTitle" title="Врезки-схемы"></div>
+        <div class="track" data-track="notes" data-i-title="trackNotesTitle" title="Замечания"></div>
+        <div class="track" data-track="voice" data-i-title="trackVoiceTitle" title="Дикторские реплики"></div>
         <span class="playhead"></span>
       </div>
-
-      <span class="track-label" data-i="trackDiagrams">Схемы</span>
-      <div class="track" data-track="diagrams" data-i-title="trackDiagramsTitle" title="Врезки-схемы"></div>
-
-      <span class="track-label" data-i="trackNotes">Правки</span>
-      <div class="track" data-track="notes" data-i-title="trackNotesTitle" title="Замечания"></div>
-
-      <span class="track-label" data-i="trackVoice">Голос</span>
-      <div class="track" data-track="voice" data-i-title="trackVoiceTitle" title="Дикторские реплики"></div>
     </div>
   </main>
 
