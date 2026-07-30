@@ -150,14 +150,13 @@
     <div class="install">
       <div class="term" data-reveal>
         <div class="term-bar"><span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span>
-          <span class="term-title" data-i="termTitle">три команды</span></div>
+          <span class="term-title" data-i="termTitle">две команды</span></div>
         <ol class="term-body">
           <li><button class="copy" type="button" data-cmd="npx skills add Braidner/takt" aria-label="Copy"></button><code><span class="ps">$</span> npx skills add Braidner/takt</code><span class="term-note" data-i="c1">скилл целиком, одной командой</span></li>
-          <li><button class="copy" type="button" data-cmd="cd ~/.claude/skills/takt && npm install && npx playwright install chromium" aria-label="Copy"></button><code><span class="ps">$</span> cd ~/.claude/skills/takt && npm install && npx playwright install chromium</code><span class="term-note" data-i="c2">зависимости и браузер для съёмки</span></li>
-          <li><button class="copy" type="button" data-cmd="node cli.mjs serve" aria-label="Copy"></button><code><span class="ps">$</span> node cli.mjs serve</code><span class="term-note" data-i="c4">студия на localhost:4173</span></li>
+          <li><button class="copy" type="button" data-cmd="/takt start" aria-label="Copy"></button><code><span class="ps">&gt;</span> /takt start</code><span class="term-note" data-i="c2">агент ставит недостающее, поднимает студию и открывает сайт</span></li>
         </ol>
-        <p class="term-after" data-i="termAfter">Дальше — скажите агенту «сними демо по …» и откройте студию.
-        Озвучка ставится отдельно и по желанию: takt install покажет, что и сколько весит, до загрузки.</p>
+        <p class="term-after" data-i="termAfter">Дальше — скажите агенту «сними демо по …». Озвучка ставится
+        по желанию из панели «Окружение», вес загрузки — до кнопки. Обновление — /takt update.</p>
       </div>
 
       <figure class="frame" data-reveal>

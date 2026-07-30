@@ -51,12 +51,11 @@ const RU = {
   t3: "Установка",
   lead3: "Takt — скилл для Claude Code. Код живёт в репозитории, ваши ролики, голоса и "
     + "разведанные системы — отдельно, в ~/takt, и переживают любое обновление.",
-  termTitle: "три команды",
+  termTitle: "две команды",
   c1: "скилл целиком, одной командой",
-  c2: "зависимости и браузер для съёмки",
-  c4: "студия на localhost:4173",
-  termAfter: "Дальше — скажите агенту «сними демо по …» и откройте студию. Озвучка "
-    + "ставится отдельно и по желанию: takt install покажет, что и сколько весит, до загрузки.",
+  c2: "агент ставит недостающее, поднимает студию и открывает сайт",
+  termAfter: "Дальше — скажите агенту «сними демо по …». Озвучка ставится по желанию "
+    + "из панели «Окружение», вес загрузки — до кнопки. Обновление — /takt update.",
   altEnv: "Панель «Окружение»: возможности со статусом — съёмка, сборка, монтаж, два "
     + "движка озвучки; вес загрузки показан до установки",
   capEnv: "Панель окружения: вес загрузки — до кнопки, а не после",
@@ -116,12 +115,11 @@ const EN = {
   t3: "Install",
   lead3: "Takt is a Claude Code skill. The code lives in the repo; your takes, voices and "
     + "scouted systems live separately in ~/takt and survive any update.",
-  termTitle: "three commands",
+  termTitle: "two commands",
   c1: "the whole skill, one command",
-  c2: "dependencies and the shooting browser",
-  c4: "the studio at localhost:4173",
-  termAfter: "Then tell the agent “shoot a demo of …” and open the studio. Voice-over is "
-    + "optional and installs separately: takt install shows what it weighs before downloading.",
+  c2: "the agent installs what's missing, starts the studio, opens the site",
+  termAfter: "Then tell the agent “shoot a demo of …”. Voice-over is optional — installed "
+    + "from the Environment panel, download size shown up front. Updating is /takt update.",
   altEnv: "The Environment panel: capabilities with status — shooting, build, editing, two "
     + "voice engines; download size shown before installing",
   capEnv: "The environment panel: download size before the button, not after",

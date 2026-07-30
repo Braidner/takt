@@ -45,7 +45,7 @@ only what changed gets rebuilt. You reshoot only when what happens *on screen* c
 
 ## Requirements
 
-- Node 20+ and `npm install`
+- Node 20+ (everything else is installed by `takt start` on first run)
 - `ffmpeg` with H.264 (`brew install ffmpeg`)
 - Python — only for narration; installed via `takt install voice-qwen`
 
@@ -60,13 +60,21 @@ Run `takt doctor` to see what's installed and what's missing; install the rest f
 
 ```bash
 npx skills add Braidner/takt
-cd ~/.claude/skills/takt && npm install && npx playwright install chromium
-node cli.mjs serve      # studio at http://localhost:4173
 ```
 
-The first command installs the whole skill (the [skills CLI](https://github.com/vercel-labs/skills)
-asks where — project or global). Cloned the repo by hand? Then just
-`npm install && npx playwright install chromium` and symlink it into `~/.claude/skills/takt`.
+Then, in Claude Code:
+
+```
+/takt start
+```
+
+That's it. On first run it installs what's missing (npm dependencies, the capture
+browser), starts the studio in the background, opens http://localhost:4173, and the
+agent attaches to studio events. Update anytime with `/takt update`.
+
+Running without an agent? `node cli.mjs start` does the same from the terminal.
+Optional capabilities — narration engines, Remotion editing — are installed from the
+**Environment** panel in the studio, each with its download size shown up front.
 
 The target system's URL and credentials are entered **in the studio itself** — click the
 stand chip in the header. The password stays on your machine: it never lands in the repo
