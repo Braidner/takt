@@ -1219,3 +1219,21 @@ button, input, textarea, select { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .step-row.lit, .note.lit, .narration-line.lit { animation-duration: 0.01s; }
 }
+
+/* Переключатель версий ролика. Сегментами, а не выпадающим списком: версий три-четыре,
+   и видеть их все сразу важнее, чем экономить место — человек сравнивает. */
+.cuts { display: inline-flex; gap: 2px; padding: 2px; margin-left: var(--sp-3);
+        border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.cut-btn {
+  font: 500 var(--t-xs)/1 inherit;
+  white-space: nowrap;
+  color: var(--ink-faint);
+  background: none; border: none; border-radius: 6px;
+  padding: 6px 10px; cursor: pointer;
+  transition: color 0.15s var(--ease), background 0.15s var(--ease);
+}
+.cut-btn:hover { color: var(--ink); }
+.cut-btn[aria-pressed="true"] { background: var(--surface-raised); color: var(--ink); }
+/* Часы не переносятся: «0:47 / 1:19» в три строки — это сломанная панель, а не
+   компактность. */
+.clock { white-space: nowrap; }

@@ -158,8 +158,30 @@ const readNarration = () => {
 };
 
 const movieFile = () => inProject('movie.json');
+
+/**
+ * Готовые версии ролика. Их несколько, и это разные вещи, а не копии: мастер — рабочий
+ * материал для студии, смонтированный — то, что показывают, хайлайты — то, что кидают
+ * в ленту. Человек должен видеть, что у него уже есть, не выясняя это по датам файлов.
+ */
+const CUTS = [
+  { id: 'full',  file: 'movie.mp4',                 key: 'movieFull' },
+  { id: 'cut',   file: 'movie-vo.mp4',              key: 'movieVoiced' },
+  { id: 'edit',  file: 'movie-cut.mp4',             key: 'movieCut' },
+  { id: 'short', file: 'movie-short.mp4',           key: 'movieShort' },
+  { id: 'vert',  file: 'movie-short-vertical.mp4',  key: 'movieVertical' },
+];
+
+const readCuts = () => CUTS
+  .filter((c) => fs.existsSync(inProject(c.file)))
+  .map((c) => ({ ...c, url: `/project/${c.file}`,
+                 size: Math.round(fs.statSync(inProject(c.file)).size / 1024 / 1024 * 10) / 10 }));
+
 const readMovie = () => {
-  try { return JSON.parse(fs.readFileSync(movieFile(), 'utf8')); } catch { return null; }
+  try {
+    const m = JSON.parse(fs.readFileSync(movieFile(), 'utf8'));
+    return { ...m, cuts: readCuts() };
+  } catch { return null; }
 };
 
 // Настройки подключения лежат рядом со студией и не попадают в репозиторий: там адрес

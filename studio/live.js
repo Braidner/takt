@@ -36,6 +36,9 @@ const el = {
   scenarioNote: document.querySelector('.scenario-note'),
   scenarioNoteSend: document.querySelector('.scenario-note-send'),
   shoot: document.querySelector('.script-shoot'),
+  cut: document.querySelector('.cut-run'),
+  cuts: document.querySelector('.cuts'),
+  short: document.querySelector('.short-run'),
   play: document.querySelector('.play'),
   caption: document.querySelector('.caption'),
   plan: document.querySelector('.plan'),
@@ -562,6 +565,8 @@ const EVENT_TITLES = {
   narrate: 'evNarrate',
   check_stend: 'evCheckStend',
   voice_prepare: 'evVoicePrepare',
+  cut: 'evCut',
+  short: 'evShort',
 };
 
 /**
@@ -606,8 +611,52 @@ function renderInFlight(list = []) {
  * Держать их рядом значило бы делить и без того тесный центр между двумя картинками,
  * из которых в каждый момент осмысленна ровно одна.
  */
+/**
+ * Версии ролика: мастер, смонтированный, хайлайты.
+ *
+ * Переключатель показывает только собранное. Вертикальную версию плеер студии
+ * покажет как есть — с полями по бокам: подгонять окно под 9:16 значило бы
+ * перестраивать всё рабочее место ради предпросмотра.
+ */
+function renderCuts(cuts) {
+  if (!el.cuts) return;
+  el.cuts.hidden = cuts.length < 2;
+  if (cuts.length < 2) return;
+
+  const текущий = video?.src ? decodeURIComponent(video.src).split('/').pop() : null;
+  el.cuts.innerHTML = '';
+  for (const c of cuts) {
+    const b = document.createElement('button');
+    b.className = 'cut-btn';
+    b.type = 'button';
+    b.setAttribute('aria-pressed', String(c.file === текущий));
+    tr(b, c.key);
+    // Размер — в подсказку, а не в кнопку: он нужен раз в жизни, перед отправкой
+    // файла, а место в панели транспорта занимает постоянно.
+    b.title = `${c.size} МБ`;
+    b.addEventListener('click', () => {
+      if (!video) return;
+      const было = video.currentTime;
+      video.src = c.url;
+      // Позицию сохраняем: человек сравнивает версии в одном месте ролика, и
+      // сброс в ноль заставлял бы каждый раз доматывать заново.
+      video.addEventListener('loadedmetadata', () => {
+        video.currentTime = Math.min(было, video.duration || было);
+      }, { once: true });
+      renderCuts(cuts);
+    });
+    el.cuts.append(b);
+  }
+}
+
 function renderMovie(next) {
   movie = next;
+  // Монтировать можно только снятое: до первой съёмки эти кнопки — обещание,
+  // которое некуда исполнить.
+  const снято = Boolean(movie?.url);
+  if (el.cut) el.cut.hidden = !снято;
+  if (el.short) el.short.hidden = !снято;
+  renderCuts(movie?.cuts || []);
   if (!movie?.url || !el.frame) return;
 
   if (!video) {
@@ -987,6 +1036,11 @@ async function boot() {
     await pushScenario({ status: 'ready' });
     await post('/api/event', { type: 'shoot' });
   });
+
+  // Монтаж и хайлайты — работа агента: считается минуты, поэтому кнопка ставит задачу
+  // в очередь и сразу гаснет, а не изображает прогресс, которого страница не знает.
+  el.cut?.addEventListener('click', () => post('/api/event', { type: 'cut' }));
+  el.short?.addEventListener('click', () => post('/api/event', { type: 'short' }));
 
   el.stend?.addEventListener('click', openConnect);
   document.querySelector('.env-open')?.addEventListener('click', openEnv);
