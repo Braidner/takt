@@ -131,7 +131,12 @@ export async function buildSound({ video, out, hits = [], duration, work, music 
     // выход в ffmpeg нельзя подключить дважды, а шина нужна и как боковая цепь
     // компрессора, и как самостоятельный голос в миксе.
     const keys = marks.map((_, i) => `[k${i}]`).join('');
-    parts.push(`${keys}[wh]amix=inputs=${marks.length + 1}:normalize=0,asplit=2[fxA][fxB]`);
+    // Шину дополняем тишиной до полной длины: sidechaincompress завершается по
+    // КРАТЧАЙШЕМУ входу, а щелчки кончаются задолго до конца музыки — без padding
+    // он обрезал бы готовый ролик на последнем действии. Ошибки при этом нет:
+    // файл просто оказывается короче картинки.
+    parts.push(`${keys}[wh]amix=inputs=${marks.length + 1}:normalize=0,`
+      + `apad=whole_dur=${duration.toFixed(2)},atrim=0:${duration.toFixed(2)},asplit=2[fxA][fxB]`);
     parts.push('[bedv][fxA]sidechaincompress=threshold=0.06:ratio=6:attack=6:release=280[ducked]');
     parts.push('[ducked][fxB]amix=inputs=2:normalize=0,'
       + 'loudnorm=I=-19:TP=-1.5,alimiter=limit=0.95[mix]');
