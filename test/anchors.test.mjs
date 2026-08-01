@@ -88,3 +88,29 @@ test('трек снимается после прокрутки, а не до �
   const inFrame = tracks[0].rects.filter((r) => visible(r, { width: 400, height: 300 }));
   assert.ok(inFrame.length > 0, 'элемент ни разу не попал в кадр — трек бесполезен');
 });
+
+test('селекторы Playwright работают: text= и :has-text() — не CSS', async () => {
+  // Сценарии Takt написаны на селекторах Playwright. document.querySelector на них
+  // бросает SyntaxError, и первая версия трекера молча писала пустые треки —
+  // камере было не на что наводиться, а никто не жаловался.
+  const browser = await chromium.launch();
+  const page = await browser.newPage({ viewport: { width: 400, height: 300 } });
+  await page.setContent(`
+    <body style="margin:0">
+      <button style="height:30px">БОЕВИКИ</button>
+      <div style="padding:8px">Дискавери</div>
+    </body>`);
+
+  const t0 = Date.now();
+  const tracker = new AnchorTracker(page, { width: 400, height: 300 }, () => (Date.now() - t0) / 1000);
+  for (const sel of ['text=Дискавери', 'button:has-text("БОЕВИКИ")']) tracker.watch(sel);
+  tracker.start();
+  await page.waitForTimeout(500);
+  const tracks = tracker.stop();
+  await browser.close();
+
+  for (const t of tracks) {
+    assert.ok(t.rects.length > 0, `у «${t.selector}» ноль проб — селектор не понят`);
+    assert.ok(visible(t.rects[0], { width: 400, height: 300 }));
+  }
+});

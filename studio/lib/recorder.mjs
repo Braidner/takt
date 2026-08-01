@@ -70,12 +70,19 @@ export class Recorder {
   /** Наибольший масштаб, укладывающийся в бюджет кадра на ЭТОЙ странице и машине. */
   async #pickScale() {
     const budget = (1000 / this.fps) * Recorder.HEADROOM;
+    const probe = path.join(this.framesDir, 'probe.jpg');
     for (const scale of Recorder.SCALES) {
       const t0 = Date.now();
-      for (let i = 0; i < 3; i++) await this.#shoot(scale);
+      // Меряем ВЕСЬ виток, вместе с записью кадра на диск. Первая версия мерила только
+      // снимок и промахивалась на треть: 15,7 мс в пробе против 22,8 мс на деле.
+      for (let i = 0; i < 3; i++) {
+        const { data } = await this.#shoot(scale);
+        await fs.promises.writeFile(probe, Buffer.from(data, 'base64'));
+      }
       const ms = (Date.now() - t0) / 3;
       if (ms <= budget || scale === 1) {
         this.scalePick = { scale, ms: Number(ms.toFixed(1)), budget: Number(budget.toFixed(1)) };
+        fs.rmSync(probe, { force: true });
         return scale;
       }
     }

@@ -84,22 +84,28 @@ export class AnchorTracker {
     this.busy = true;
     const t = this.clock();
     try {
-      // Один заход в страницу на все якоря: по вызову на каждый — это лишние переходы
-      // через CDP на каждой пробе, а их десять в секунду.
-      const rects = await this.page.evaluate((list) => list.map((sel) => {
-        const el = document.querySelector(sel);
-        if (!el) return null;
-        const r = el.getBoundingClientRect();
-        return { x: r.x, y: r.y, w: r.width, h: r.height };
-      }), selectors);
+      // Локаторы Playwright, а не document.querySelector в evaluate.
+      //
+      // Соблазн понятен: один заход в страницу на все якоря дешевле, чем вызов на
+      // каждый. Но сценарии пишутся на селекторах Playwright — `text=Дискавери`,
+      // `button:has-text("БОЕВИКИ")`, — и querySelector на них бросает SyntaxError.
+      // Первая версия ловила это в общий catch и молча писала пустые треки: камере
+      // не на что было наводиться, а никто не жаловался.
+      const rects = await Promise.all(selectors.map((sel) =>
+        this.page.locator(sel).first().boundingBox({ timeout: 250 }).catch(() => null)));
 
       selectors.forEach((sel, i) => {
         const r = rects[i];
-        if (r) this.tracks.get(sel).push({ t: Number(t.toFixed(3)), ...r });
+        if (r) {
+          this.tracks.get(sel).push({
+            t: Number(t.toFixed(3)),
+            x: r.x, y: r.y, w: r.width, h: r.height,
+          });
+        }
       });
     } catch {
-      // Страница между переходами недоступна для evaluate — пропущенная проба
-      // безобиднее упавшей съёмки.
+      // Страница между переходами недоступна — пропущенная проба безобиднее
+      // упавшей съёмки.
     } finally {
       this.busy = false;
     }
