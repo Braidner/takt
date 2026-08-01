@@ -105,6 +105,11 @@ await api('/api/movie', {
 });
 await api('/api/status', { state: 'listening', text: 'Ролик собран', step: null, of: null });
 
+// Обрезку записываем в телеметрию: монтаж пересчитывает по ней и титры, и точки
+// действий. Без этого камера наезжала бы с опозданием ровно на длину входа в систему.
+timeline.trimmedStart = Math.round(offset * 10) / 10;
+fs.writeFileSync(timelinePath, JSON.stringify(timeline, null, 1));
+
 console.log(JSON.stringify({
   ok: true, out: OUT, duration: Math.round(duration),
   trimmedStart: Math.round(offset * 10) / 10,

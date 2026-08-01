@@ -99,14 +99,36 @@ async function runAction(a) {
     await dismissDevOverlay(page);
     return;
   }
-  if (a.click) await page.click(a.click, { timeout: 15000 });
-  if (a.type) await page.fill(a.type.selector, a.type.text, { timeout: 15000 });
+  if (a.click) {
+    // Координаты клика — сырьё для монтажа: по ним камера наезжает точно на место
+    // действия и рисуется курсор. Без них зум пришлось бы угадывать эвристикой,
+    // как это делают экранные рекордеры, и промахи были бы видны в каждом ролике.
+    const box = await page.locator(a.click).first().boundingBox().catch(() => null);
+    if (box) {
+      hits.push({ t: stamp(), x: Math.round(box.x + box.width / 2),
+                  y: Math.round(box.y + box.height / 2),
+                  w: Math.round(box.width), h: Math.round(box.height) });
+    }
+    await page.click(a.click, { timeout: 15000 });
+  }
+  if (a.type) {
+    const box = await page.locator(a.type.selector).first().boundingBox().catch(() => null);
+    if (box) {
+      hits.push({ t: stamp(), x: Math.round(box.x + box.width / 2),
+                  y: Math.round(box.y + box.height / 2),
+                  w: Math.round(box.width), h: Math.round(box.height), typing: true });
+    }
+    await page.fill(a.type.selector, a.type.text, { timeout: 15000 });
+  }
   if (a.press) await page.keyboard.press(a.press);
   if (a.wait) await page.waitForTimeout(a.wait);
   if (a.waitFor) await page.waitForSelector(a.waitFor, { timeout: 30000 });
 }
 
-const timeline = { scene: 'take', fps: 30, viewport: { width: 1440, height: 810 }, events: [] };
+const timeline = { scene: 'take', fps: 30, viewport: { width: 1440, height: 810 },
+                   events: [], hits: [] };
+/** Точки действий: куда и когда пришёлся клик или ввод. Монтаж наводит по ним камеру. */
+const hits = timeline.hits;
 const started = Date.now();
 // Отсчёт ведётся от момента, когда запись реально пошла, а не от старта процесса:
 // открытие стенда и вход занимают секунды, и они в кадр не попадают.
