@@ -5,9 +5,10 @@
  *   node studio/shoot.mjs --from 3   переснять начиная с третьего шага
  *
  * Два потока данных, и это не одно и то же:
- *   * ЗАПИСЬ — полноценное видео в двойном разрешении, из него потом монтируется ролик.
- *     Пишет Recorder снимками экрана, а не Playwright: встроенная запись отдаёт VP8 на
- *     600 кбит/с в CSS-пикселях, и на мелком тексте интерфейса этого мало;
+ *   * СОСТОЯНИЯ — снимки страницы целиком в двойном разрешении. Прокрутка, наезд и
+ *     удержание из них потом СОБИРАЮТСЯ композицией, а не снимаются: кадр вычисляется
+ *     из своего номера, и терять его негде. Поток пишется только там, где движение
+ *     интерфейса и есть содержание плана — такой шаг помечается mode: live;
  *   * ЖИВОЙ ЭКРАН — редкие кадры в студию, чтобы человек видел, что происходит и где
  *     застряло. Здесь важна не плавность, а свежесть: три кадра в секунду достаточно,
  *     а полноценный поток забил бы канал и замедлил саму съёмку.
@@ -27,11 +28,10 @@ import { dismissDevOverlay } from './dismiss-overlay.mjs';
 import { loadPreset } from './preset.mjs';
 import { explainFailure } from './explain-failure.mjs';
 import { SERVER_INFO } from './home.mjs';
-import { Recorder } from './lib/recorder.mjs';
-import { AnchorTracker } from './lib/anchors.mjs';
 import { waitUntilSettled } from './lib/settle.mjs';
 import { smoothScroll } from './lib/scroll.mjs';
-import { inspect } from './lib/inspect.mjs';
+import { captureState } from './lib/state.mjs';
+import { checkStates } from './lib/inspect.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const info = JSON.parse(fs.readFileSync(SERVER_INFO, 'utf8'));
@@ -64,12 +64,22 @@ const from = fromArg !== -1 ? Number(process.argv[fromArg + 1]) : 1;
 
 const cfg = readConfig();
 const OUT = inProject('takes');
+const STATES = inProject('states');
 fs.mkdirSync(OUT, { recursive: true });
+fs.mkdirSync(STATES, { recursive: true });
+
+/**
+ * Живые планы требуют записи потока, а её нельзя включить после создания контекста.
+ * Поэтому смотрим сценарий заранее: есть хоть один live — пишем весь прогон.
+ */
+const hasLive = scenario.steps.some((st) => st.mode === 'live');
 
 const VIEWPORT = { width: 1440, height: 810 };
 const browser = await chromium.launch();
 const context = await browser.newContext({
   viewport: VIEWPORT,
+  // Поток пишем только ради живых планов. Для статичных он лишний вес и лишний риск.
+  ...(hasLive ? { recordVideo: { dir: OUT, size: VIEWPORT } } : {}),
   // Вёрстка остаётся прежней, растёт только плотность отрисовки. Поднимать вместо этого
   // сам вьюпорт нельзя: интерфейс разложится как на широком мониторе, и после сжатия
   // в 1080p текст станет мельче, чем сейчас.
@@ -86,16 +96,17 @@ await page.addInitScript((p) => {
 // Живой экран идёт своим ритмом и не ждёт шагов: иначе на длинном шаге картинка
 // замирает, и человек не может отличить «идёт работа» от «всё повисло».
 //
-// Кадр берётся У РЕКОРДЕРА, а не снимается отдельно. Свой снимок здесь стоил дорого:
-// два потока снимков конкурируют за один surface браузера, и снимок рекордера переставал
-// возвращаться вовсе — процесс жив, каталог кадров создан, кадров ноль, в логе пусто.
+// Снимок через API Playwright, а не сырым CDP. Сырой цикл идёт мимо планировщика и
+// конкурирует со снимками состояний на той же странице — проверено дважды, оба раза
+// захват вставал намертво без единой ошибки.
 let alive = true;
 const streamFrames = async () => {
   while (alive) {
-    if (rec.latest) {
-      await api('/api/frame', { frame: `data:image/jpeg;base64,${rec.latest}` });
-    }
-    await new Promise((r) => setTimeout(r, 350));
+    try {
+      const shot = await page.screenshot({ type: 'jpeg', quality: 40 });
+      await api('/api/frame', { frame: `data:image/jpeg;base64,${shot.toString('base64')}` });
+    } catch { /* страница между переходами — пропускаем кадр */ }
+    await new Promise((r) => setTimeout(r, 500));
   }
 };
 
@@ -132,17 +143,15 @@ async function runAction(a) {
   }
 
   if (a.click) {
-    watchFor(a.click);
+    noteAnchor(a.click);
     await page.click(a.click, { timeout: 15000 });
     // Проба СРАЗУ ПОСЛЕ клика, а не до: перед кликом Playwright сам прокручивает страницу
     // к элементу, и снятая заранее координата относится к экрану, которого уже нет.
     // Именно так в mc-медиа появилось y=3673 при высоте кадра 810.
-    await tracker.sampleNow(a.click);
   }
   if (a.type) {
-    watchFor(a.type.selector);
+    noteAnchor(a.type.selector);
     await page.fill(a.type.selector, a.type.text, { timeout: 15000 });
-    await tracker.sampleNow(a.type.selector);
   }
   if (a.press && !['PageDown', 'PageUp', 'Home', 'End'].includes(a.press)) {
     await page.keyboard.press(a.press);
@@ -153,30 +162,29 @@ async function runAction(a) {
   if (a.waitFor) await page.waitForSelector(a.waitFor, { timeout: 30000 });
 }
 
-const timeline = { scene: 'take', fps: 30, viewport: VIEWPORT,
-                   events: [], hits: [] };
-/** Точки действий: куда и когда пришёлся клик или ввод. Монтаж наводит по ним камеру. */
+const timeline = { scene: 'take', fps: 30, viewport: VIEWPORT, events: [], hits: [] };
 const hits = timeline.hits;
 const started = Date.now();
 
-// Запись и треки живут в одной шкале времени — шкале рекордера. Отдельный отсчёт
-// разъезжался бы с кадрами тем сильнее, чем дольше идёт съёмка.
-// Масштаб не задаём: рекордер подбирает его замером на этой же странице —
-// цена снимка зависит от приложения, и константа тут врёт (см. lib/recorder.mjs).
-const rec = new Recorder(page, { dir: OUT, fps: 30, viewport: VIEWPORT });
-const stamp = () => rec.now();
-const tracker = new AnchorTracker(page, VIEWPORT, stamp);
+/**
+ * Снятые состояния и отчёт по шагам. Состояние снимается один раз на план и потом
+ * используется композицией сколько угодно — прокрутка и наезд собираются из него.
+ */
+const states = [];
+/** Живые отрезки: их границы в шкале записи, чтобы композиция взяла нужный кусок. */
+const liveRanges = [];
 
-/** Что случилось на каждом шаге: сколько ждали готовности и чем ожидание кончилось. */
-const stepReport = [];
-/** Какому шагу принадлежит якорь — чтобы замечание называло шаг, а не селектор. */
-const selectorStep = new Map();
-let currentStepN = 0;
-const watchFor = (selector) => {
-  if (!selector) return;
-  if (!selectorStep.has(selector)) selectorStep.set(selector, currentStepN);
-  tracker.watch(selector);
+/** Часы съёмки в секундах. Простой отсчёт — у состояний своей шкалы нет. */
+const sinceStart = () => (recordingFrom ? (Date.now() - recordingFrom) / 1000 : 0);
+
+/** Якоря текущего шага: селекторы, в которые будет целиться камера. */
+let stepAnchors = [];
+const noteAnchor = (selector) => {
+  if (selector && !stepAnchors.includes(selector)) stepAnchors.push(selector);
 };
+
+// Рекордер нужен только живым планам — и только чтобы знать шкалу времени записи.
+const rec = hasLive ? { started: null } : null;
 let recordingFrom = null;
 let failed = null;
 let stopped = false;
@@ -197,9 +205,8 @@ try {
   await dismissDevOverlay(page);
   // Вход и первая загрузка в кадр не попадают: запись начинается после них.
   await waitUntilSettled(page, { waitFor: cfg.ready || null, timeout: 30000 });
-  await rec.start();
-  tracker.start();
   recordingFrom = Date.now();
+  if (rec) rec.started = recordingFrom;
   streamFrames();
 
   for (const step of scenario.steps) {
@@ -207,10 +214,10 @@ try {
     // Проверяем между шагами: прерывать посреди действия — значит оставить браузер
     // в середине формы и получить кадр, который потом никому не объяснить.
     if (await shouldStop()) { stopped = true; break; }
-    currentStepN = step.n;
+    stepAnchors = [];
     await setStep(step.n, { state: 'running' });
     await setStatus({ state: 'busy', text: step.label, step: step.n, of: scenario.steps.length });
-    timeline.events.push({ t: stamp(), kind: 'caption', label: step.label, n: step.n,
+    timeline.events.push({ t: sinceStart(), kind: 'caption', label: step.label, n: step.n,
                            diagram: step.diagram || null });
     const t0 = Date.now();
     try {
@@ -224,19 +231,31 @@ try {
       // Ждём готовности содержимым, а не часами. Раньше здесь стоял waitForSelector,
       // и он проверял признак ПОСЛЕ паузы шага — то есть ничем не управлял: пауза всё
       // равно отсчитывалась по часам, и скелетоны успевали попасть в кадр.
-      const settleFrom = stamp();
-      const settle = await waitUntilSettled(page, { waitFor: step.expect, timeout: 30000 });
-      stepReport.push({
-        n: step.n, label: step.label, settle,
-        loadingFrom: settleFrom, loadingTo: stamp(),
-      });
+      const mode = step.mode === 'live' ? 'live' : 'static';
+      const liveFrom = sinceStart();
 
-      // Шаг обязан занять свою длительность: по ней посчитан хронометраж и разложена
-      // озвучка. Действия обычно быстрее — остаток доигрываем паузой. В стадии 1
-      // длительность ещё назначается человеком; выводить её из действия будет
-      // раскадровка, см. specs/2026-08-01-production-design.md.
+      if (mode === 'static') {
+        // Состояние снимается ПОСЛЕ действий: камере нужен результат, а не подводка.
+        // Ожидание готовности, догрузка ленивых картинок и слой липких — внутри.
+        const state = await captureState(page, {
+          id: `p${String(step.n).padStart(2, '0')}`,
+          dir: STATES,
+          waitFor: step.expect,
+          anchors: stepAnchors,
+        });
+        states.push({ ...state, plan: step.n, label: step.label, mode });
+      } else {
+        // Живому плану снимок не поможет: содержание в самом движении. Ждём готовности
+        // и запоминаем границы отрезка — композиция возьмёт из записи именно его.
+        const settle = await waitUntilSettled(page, { waitFor: step.expect, timeout: 30000 });
+        states.push({ id: `p${String(step.n).padStart(2, '0')}`, plan: step.n,
+                      label: step.label, mode, settle, viewport: VIEWPORT, scale: 1,
+                      sticky: [], anchors: [], layer: null, size: null });
+      }
+
       const left = step.seconds * 1000 - (Date.now() - t0);
       if (left > 0) await page.waitForTimeout(left);
+      if (mode === 'live') liveRanges.push({ plan: step.n, from: liveFrom, to: sinceStart() });
       await setStep(step.n, { state: 'done', took: Math.round((Date.now() - t0) / 1000) });
     } catch (e) {
       failed = await explainFailure(page, step, e);
@@ -248,59 +267,51 @@ try {
   alive = false;
   await new Promise((r) => setTimeout(r, 400));
 
-  const anchors = tracker.stop();
-  const take = recordingFrom ? await rec.stop() : null;
+  // Живая запись дописывается только после закрытия контекста — забрать путь надо до.
+  const video = hasLive ? page.video() : null;
   await context.close();
   await browser.close();
-  const file = take ? take.file : null;
+  const file = video ? await video.path() : null;
 
-  // Треки якорей — новые данные; hits остаются ради нынешнего монтажа, который ещё
-  // работает на них. Берём первое положение, реально попавшее в кадр: раньше сюда
-  // писалась координата до прокрутки, и камера наезжала мимо.
-  for (const a of anchors) {
-    const seen = a.rects.find((r) => r.w > 0 && r.h > 0
-      && r.x < VIEWPORT.width && r.y < VIEWPORT.height && r.x + r.w > 0 && r.y + r.h > 0);
-    if (seen) {
-      hits.push({ t: seen.t, x: Math.round(seen.x + seen.w / 2),
-                  y: Math.round(seen.y + seen.h / 2),
-                  w: Math.round(seen.w), h: Math.round(seen.h) });
+  // hits остаются ради нынешнего монтажа, который ещё работает на них: берём центр
+  // якоря из снятого состояния, приведённый к шкале вьюпорта.
+  for (const st of states) {
+    for (const a of st.anchors || []) {
+      if (!a.rect) continue;
+      const k = st.scale || 1;
+      hits.push({
+        t: 0, plan: st.plan,
+        x: Math.round((a.rect.x + a.rect.w / 2) / k),
+        y: Math.round((a.rect.y + a.rect.h / 2) / k),
+        w: Math.round(a.rect.w / k), h: Math.round(a.rect.h / k),
+      });
     }
   }
-  hits.sort((a, b) => a.t - b.t);
 
-  if (take?.scalePick) {
-    console.log(`масштаб съёмки ${take.scalePick.scale}× `
-      + `(${take.scalePick.ms} мс на кадр при бюджете ${take.scalePick.budget})`);
-  }
-  timeline.scale = take ? take.scale : 1;
-  timeline.durationInSeconds = take ? take.seconds : 0;
-  timeline.frames = take ? take.frames : 0;
+  timeline.durationInSeconds = recordingFrom ? (Date.now() - recordingFrom) / 1000 : 0;
   timeline.video = file;
+  timeline.states = states.length;
   fs.writeFileSync(inProject('timeline.json'), JSON.stringify(timeline, null, 2));
 
-  if (take) {
-    // currentTarget() отдаёт разобранную цель съёмки, а не имя каталога.
-    const target = currentTarget() || {};
-    const takeData = {
-      ...take,
-      steps: stepReport,
-      anchors: anchors.map((a) => ({ ...a, step: selectorStep.get(a.selector) ?? null })),
-      diffs: [],
-      cuts: [],
-      jumpThreshold: target.jumpThreshold,
-      loading: stepReport
-        .filter((r) => r.settle.waitedMs > 400)
-        .map((r) => ({ from: r.loadingFrom, to: r.loadingTo, step: r.n })),
-    };
-    fs.writeFileSync(inProject('take.json'), JSON.stringify(takeData, null, 2));
+  // Пути к снимкам — относительные: проект переносится между машинами вместе с данными,
+  // а абсолютный путь пережил бы перенос ровно до первого открытия.
+  const rel = (f) => (f ? path.relative(inProject('.'), f) : null);
+  const manifest = {
+    viewport: VIEWPORT,
+    seconds: Number(timeline.durationInSeconds.toFixed(2)),
+    live: file ? { video: rel(file), ranges: liveRanges } : null,
+    states: states.map((st) => ({ ...st, body: rel(st.body), layer: rel(st.layer) })),
+  };
+  const issues = checkStates(states);
+  manifest.issues = issues;
+  fs.writeFileSync(inProject('states.json'), JSON.stringify(manifest, null, 2));
 
-    const report = inspect(takeData);
-    if (!report.ok) {
-      console.error('Замечания к дублю:');
-      for (const i of report.issues) console.error(`  · ${i.text}`);
-    }
-    timeline.issues = report.issues;
-    fs.writeFileSync(inProject('timeline.json'), JSON.stringify(timeline, null, 2));
+  const staticCount = states.filter((st) => st.mode === 'static').length;
+  console.log(`состояний: ${staticCount} статичных`
+    + (states.length - staticCount ? `, ${states.length - staticCount} живых` : ''));
+  if (issues.length) {
+    console.error('Замечания к съёмке:');
+    for (const i of issues) console.error(`  · ${i.text}`);
   }
 
   if (stopped) {
