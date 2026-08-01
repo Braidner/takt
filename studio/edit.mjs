@@ -49,6 +49,16 @@ const silent = process.argv.includes('--silent');
  * не по чему.
  */
 const drift = process.argv.includes('--drift');
+/** Адрес на финальной плашке: ролик уезжает в ленту, и зритель должен знать, куда идти. */
+const endUrl = (() => {
+  const i = process.argv.indexOf('--end-url');
+  return i !== -1 ? process.argv[i + 1] : null;
+})();
+/** Заголовок ролика можно задать явно: имя проекта — рабочее, а на заставке нужен показной. */
+const titleArg = (() => {
+  const i = process.argv.indexOf('--title');
+  return i !== -1 ? process.argv[i + 1] : null;
+})();
 
 const timeline = JSON.parse(fs.readFileSync(inProject('timeline.json'), 'utf8'));
 const master = inProject('movie.mp4');
@@ -97,8 +107,8 @@ const project = (() => {
 const overlays = await renderOverlays({
   dir: work,
   captions,
-  slate: { title: project.title || 'Демонстрация', subtitle: null },
-  end: { title: project.title || 'Демонстрация', url: null },
+  slate: { title: titleArg || project.title || 'Демонстрация', subtitle: null },
+  end: { title: titleArg || project.title || 'Демонстрация', url: endUrl },
   viewport: timeline.viewport,
 });
 

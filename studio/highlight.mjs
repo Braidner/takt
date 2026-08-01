@@ -80,7 +80,10 @@ const CLIP = 3.2;                 // длина одного куска: кор�
 const candidates = [];
 
 for (const h of hits) {
-  candidates.push({ from: Math.max(0, h.t - 1.1), weight: 3, label: labelAt(h.t) });
+  // Кусок берём ПОСЛЕ действия, а не до него. В полном ролике ценна подводка — видно,
+  // куда идёт рука. В хайлайтах ценен результат: клик обычно меняет экран, и секунда
+  // до него — это старый экран плюс загрузка нового, то есть пустой кадр в ленте.
+  candidates.push({ from: Math.min(DUR - 1.8, h.t + 1.0), weight: 3, label: labelAt(h.t + 1.0) });
 }
 for (const s of scenes) {
   candidates.push({ from: s.from + 0.35, weight: 2, label: s.label });
@@ -121,13 +124,28 @@ fs.mkdirSync(work, { recursive: true });
 const parts = [];
 for (const [i, p] of picked.entries()) {
   const file = path.join(work, `part-${String(i + 1).padStart(2, '0')}.mp4`);
+  /**
+   * Вертикаль: кадр целиком по центру, а фон — его же размытая копия.
+   *
+   * Кроп в 9:16 казался разумнее (кадр крупнее, полей нет), но интерфейс — не
+   * фотография: центр экрана у него сплошь и рядом пустой, а смысл живёт по краям.
+   * На витрине жанра центральная полоса дала чёрный прямоугольник. Вписанный кадр
+   * меньше, зато на нём видно то, ради чего снимали, а размытый фон закрывает поля
+   * и не выглядит браком.
+   */
   const vf = VERTICAL
-    // Берём вертикальную полосу вокруг центра действия, потом мягко подтягиваем масштаб.
-    ? `crop=ih*9/16:ih:(iw-ih*9/16)/2:0,scale=${W}:${H},setsar=1,fps=${FPS}`
+    ? `split=2[bg][fg];`
+      + `[bg]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},`
+      + `gblur=sigma=42,eq=brightness=-0.16[bgb];`
+      // Кадр берём на 18% шире экрана и подрезаем по бокам: у интерфейса с краёв
+      // обычно поля, а вписанный «в притык» кадр на телефоне мелковат.
+      + `[fg]scale=${Math.round(W * 1.18)}:-2,crop=${W}:ih:(iw-${W})/2:0[fgs];`
+      + `[bgb][fgs]overlay=(W-w)/2:(H-h)/2,setsar=1,fps=${FPS}`
     : `scale=${W}:${H}:force_original_aspect_ratio=decrease,`
       + `pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=0x0b0e14,setsar=1,fps=${FPS}`;
   await ff(['-ss', p.from.toFixed(2), '-t', (p.to - p.from).toFixed(2), '-i', master,
-            '-vf', vf, '-an', '-c:v', 'libx264', '-preset', 'fast', '-crf', '18', file]);
+            ...(VERTICAL ? ['-filter_complex', vf] : ['-vf', vf]),
+            '-an', '-c:v', 'libx264', '-preset', 'fast', '-crf', '18', file]);
   parts.push({ ...p, file });
 }
 
@@ -186,9 +204,14 @@ const still = (f) => ['-loop', '1', '-framerate', String(FPS), '-t', TOTAL.toFix
 for (const [i, c] of overlays.captions.entries()) {
   inputs2.push(...still(c.file));
   const idx = i + 1;
-  // Титр в вертикали живёт выше: нижнюю треть занимают интерфейсы приложений.
-  const y = VERTICAL ? Math.round(H * 0.62) - 1080 : 0;
-  filters2.push(`[${idx}:v]format=rgba,scale=${W}:-1,`
+  // Титр отрисован под 1920×1080. В вертикали его масштабируем по ширине кадра и
+  // сажаем под вписанное видео — там пустое место, и текст не закрывает содержимое.
+  // Титр отрисован под 1920×1080. В вертикали масштабируем по ширине кадра и сажаем
+  // в нижнюю треть — под вписанным видео там пустое поле, и текст ничего не закрывает.
+  const scaled = VERTICAL ? `scale=${W}:-2,` : '';
+  const capH = Math.round(W * 1080 / 1920);
+  const y = VERTICAL ? Math.round(H * 0.72) - capH : 0;
+  filters2.push(`[${idx}:v]format=rgba,${scaled}`
     + `fade=t=in:st=${c.from.toFixed(2)}:d=0.3:alpha=1,`
     + `fade=t=out:st=${(c.to - 0.3).toFixed(2)}:d=0.3:alpha=1[t${i}]`);
   filters2.push(`${v}[t${i}]overlay=0:${VERTICAL ? y : 0}:`
