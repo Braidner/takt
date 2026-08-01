@@ -62,27 +62,6 @@ const captions = timeline.events.filter((e) => e.kind === 'caption');
  * Вырезаем select'ом по времени, а не нарезкой и склейкой: склейка потребовала бы
  * перекодировать каждый кусок отдельно и потерять качество там, где его и так мало.
  */
-const takePath = inProject('take.json');
-const loading = (() => {
-  try {
-    const take = JSON.parse(fs.readFileSync(takePath, 'utf8'));
-    // Мелкие ожидания не режем: склейка на них заметнее, чем полсекунды неподвижности.
-    return (take.loading || []).filter((l) => l.to - l.from > 0.7);
-  } catch { return []; }
-})();
-
-const cutFilter = loading.length
-  ? [
-      `select='${loading.map((l) => `not(between(t,${l.from.toFixed(2)},${l.to.toFixed(2)}))`).join('*')}'`,
-      'setpts=N/FRAME_RATE/TB',
-    ].join(',')
-  : null;
-
-if (cutFilter) {
-  const total = loading.reduce((s2, l) => s2 + (l.to - l.from), 0);
-  console.log(`вырезаю загрузку: ${loading.length} кусков, ${total.toFixed(1)} с`);
-}
-
 /**
  * Начало записи обрезается, и это обязательный шаг, а не улучшение.
  *
@@ -95,6 +74,45 @@ const probe = await run('ffprobe', ['-v', 'error', '-show_entries', 'format=dura
                                     '-of', 'csv=p=0', timeline.video]);
 const rawDuration = Number(probe.stdout.trim());
 const offset = Math.max(0, rawDuration - timeline.durationInSeconds);
+
+const takePath = inProject('take.json');
+const loading = (() => {
+  try {
+    const take = JSON.parse(fs.readFileSync(takePath, 'utf8'));
+    // Мелкие ожидания не режем: склейка на них заметнее, чем полсекунды неподвижности.
+    return (take.loading || []).filter((l) => l.to - l.from > 0.7);
+  } catch { return []; }
+})();
+
+/**
+ * Разметка загрузки годится, только если она лежит в шкале самой записи.
+ *
+ * Найдено сборкой: интервалы пишутся по часам съёмки, а длительность записи считает
+ * кодировщик по временам кадров, и эти шкалы могут разъехаться. Тогда select вырежет
+ * не тот кусок — молча и правдоподобно. Лучше не вырезать ничего, чем вырезать мимо.
+ */
+const takeSeconds = (() => {
+  try { return JSON.parse(fs.readFileSync(takePath, 'utf8')).seconds || 0; } catch { return 0; }
+})();
+// Шкалы должны совпадать: интервалы размечены по часам съёмки, а вырезаем мы из записи.
+const fits = takeSeconds > 0 && Math.abs(takeSeconds - rawDuration) < 1.5;
+if (loading.length && !fits) {
+  console.log(`разметка загрузки не в шкале записи (съёмка ${takeSeconds.toFixed(1)} с `
+    + `против записи ${rawDuration.toFixed(1)} с) — не вырезаю, иначе срежу не то`);
+}
+
+const cutFilter = fits && loading.length
+  ? [
+      `select='${loading.map((l) => `not(between(t,${l.from.toFixed(2)},${l.to.toFixed(2)}))`).join('*')}'`,
+      'setpts=N/FRAME_RATE/TB',
+    ].join(',')
+  : null;
+
+if (cutFilter) {
+  const total = loading.reduce((s2, l) => s2 + (l.to - l.from), 0);
+  console.log(`вырезаю загрузку: ${loading.length} кусков, ${total.toFixed(1)} с`);
+}
+
 
 await api('/api/status', { state: 'busy', text: 'Собираю ролик', step: null, of: null });
 
