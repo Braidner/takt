@@ -5,6 +5,7 @@
   "description": "Takt — студия демонстрационных роликов: сценарий по описанию, съёмка в браузере, монтаж и озвучка клонированным голосом",
   "scripts": {
     "takt": "node cli.mjs",
+    "test": "node --test --test-timeout=30000 \"test/**/*.test.mjs\"",
     "render": "remotion render Demo out/movie.mp4 --codec h264 --crf 16"
   },
   "dependencies": {
