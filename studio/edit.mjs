@@ -40,6 +40,15 @@ const W = 1920, H = 1080, FPS = 30;
 
 const noZoom = process.argv.includes('--no-zoom');
 const silent = process.argv.includes('--silent');
+/**
+ * Дрейф — медленное движение камеры по статичному кадру.
+ *
+ * Нужен там, где действий мало, а смотреть есть на что: витрина с постерами, дашборд,
+ * длинная страница. Неподвижный кадр в рекламном ролике читается как стоп-кадр, даже
+ * если на нём происходит загрузка. Наезд по клику эту задачу не решает — кликать там
+ * не по чему.
+ */
+const drift = process.argv.includes('--drift');
 
 const timeline = JSON.parse(fs.readFileSync(inProject('timeline.json'), 'utf8'));
 const master = inProject('movie.mp4');
@@ -104,8 +113,35 @@ const LEAD = 0.9;        // сколько секунды камера подъ�
 const HOLD = 1.9;        // сколько держит план после
 const ZOOM = 1.42;       // глубже 1.6 на записи 1440p уже видно мягкость текста
 
+/**
+ * Кадрирование считаем в координатах ЗАПИСИ, а не готового кадра: телеметрия писала
+ * позиции в вьюпорте съёмки, и пересчёт «на глаз» промахивался бы тем сильнее, чем
+ * дальше край экрана. Объявлено здесь, до планов камеры: дрейф считает точки от них.
+ */
+const vw = timeline.viewport?.width || 1440;
+const vh = timeline.viewport?.height || 810;
+
 const shots = [];
-if (!noZoom) {
+
+/**
+ * Дрейф раскладывается по сценам: каждая получает своё направление, чтобы соседние
+ * планы не ехали одинаково — одинаковое движение подряд выглядит как заедание.
+ */
+if (drift) {
+  const scenes = captions.length ? captions : [{ from: 0, to: DUR }];
+  scenes.forEach((sc, i) => {
+    const len = sc.to - sc.from;
+    if (len < 2.2) return;
+    // Чередуем: приближение к разным третям кадра. Величина маленькая — дрейф
+    // должен ощущаться, а не замечаться.
+    const targets = [[0.38, 0.42], [0.62, 0.5], [0.5, 0.62], [0.44, 0.38]];
+    const [nx, ny] = targets[i % targets.length];
+    shots.push({ from: sc.from, to: sc.to, x: nx * vw, y: ny * vh,
+                 zoom: 1.14, slow: true });
+  });
+}
+
+if (!noZoom && !drift) {
   for (const h of hits) {
     const from = Math.max(0, h.t - LEAD);
     const to = Math.min(DUR, h.t + HOLD);
@@ -123,28 +159,22 @@ if (!noZoom) {
   }
 }
 
-/**
- * Кадрирование считаем в координатах ЗАПИСИ, а не готового кадра: телеметрия писала
- * позиции в вьюпорте съёмки, и пересчёт «на глаз» промахивался бы тем сильнее, чем
- * дальше край экрана.
- */
-const vw = timeline.viewport?.width || 1440;
-const vh = timeline.viewport?.height || 810;
-
 const expr = [];
 if (shots.length) {
   // Кусочная функция масштаба и центра: между планами — плавный переход по времени.
   const z = ['1'];
   const cx = ['0.5'], cy = ['0.5'];
   for (const s of shots) {
-    const inT = 0.55;   // разгон и торможение камеры
+    const Z = s.zoom || ZOOM;
+    // У дрейфа разгон во всю длину плана: он и есть движение, а не подъезд к точке.
+    const inT = s.slow ? Math.min(1.6, (s.to - s.from) * 0.45) : 0.55;
     const a = s.from, b = s.from + inT, c = s.to - inT, d = s.to;
     const nx = Math.max(0.12, Math.min(0.88, s.x / vw));
     const ny = Math.max(0.14, Math.min(0.86, s.y / vh));
     // between() даёт ступеньки, lerp внутри — плавность.
-    z.unshift(`if(between(t,${a},${b}), 1+(${ZOOM}-1)*(t-${a})/${inT},`
-      + `if(between(t,${b},${c}), ${ZOOM},`
-      + `if(between(t,${c},${d}), ${ZOOM}-(${ZOOM}-1)*(t-${c})/${inT}, `);
+    z.unshift(`if(between(t,${a},${b}), 1+(${Z}-1)*(t-${a})/${inT},`
+      + `if(between(t,${b},${c}), ${Z},`
+      + `if(between(t,${c},${d}), ${Z}-(${Z}-1)*(t-${c})/${inT}, `);
     cx.unshift(`if(between(t,${a},${d}), ${nx.toFixed(4)}, `);
     cy.unshift(`if(between(t,${a},${d}), ${ny.toFixed(4)}, `);
   }
