@@ -89,6 +89,7 @@ const overlays = await renderOverlays({
   dir: work,
   captions,
   slate: { title: project.title || 'Демонстрация', subtitle: null },
+  end: { title: project.title || 'Демонстрация', url: null },
   viewport: timeline.viewport,
 });
 
@@ -227,11 +228,49 @@ filters.push(`[${vigIdx}:v]format=rgba[vig]`);
 filters.push(`${v}[vig]overlay=0:0[vout]`);
 v = '[vout]';
 
-const silentOut = path.join(work, 'picture.mp4');
+const body = path.join(work, 'body.mp4');
 console.log('  собираю картинку…');
 await ff([...inputs, '-filter_complex', filters.join(';'), '-map', v,
           '-c:v', 'libx264', '-preset', 'medium', '-crf', '19',
-          '-pix_fmt', 'yuv420p', '-r', String(FPS), silentOut]);
+          '-pix_fmt', 'yuv420p', '-r', String(FPS), body]);
+
+/**
+ * Заставка и финальная плашка.
+ *
+ * Ролик без начала и конца выглядит куском чужой записи: непонятно, что это было и
+ * куда идти. Две с половиной секунды в начале и две в конце — цена узнаваемости.
+ *
+ * Клеим кроссфейдом, а не встык: резкая склейка на чёрном читается как обрыв файла.
+ */
+const SLATE = 2.6, END = 2.2, X = 0.5;
+console.log('  клею заставку и финал…');
+
+const makeCard = async (png, seconds, file) => {
+  await ff(['-f', 'lavfi', '-t', seconds.toFixed(2), '-i', `color=c=0x0b0e14:s=${W}x${H}:r=${FPS}`,
+            '-loop', '1', '-framerate', String(FPS), '-t', seconds.toFixed(2), '-i', png,
+            '-filter_complex', '[1:v]format=rgba[c];[0:v][c]overlay=0:0,'
+              + `fade=t=in:st=0:d=0.4,fade=t=out:st=${(seconds - 0.5).toFixed(2)}:d=0.5[o]`,
+            '-map', '[o]', '-c:v', 'libx264', '-preset', 'medium', '-crf', '19',
+            '-pix_fmt', 'yuv420p', file]);
+  return file;
+};
+
+const slateFile = await makeCard(overlays.slate, SLATE, path.join(work, 'slate.mp4'));
+const endFile = await makeCard(overlays.end, END, path.join(work, 'end.mp4'));
+
+const silentOut = path.join(work, 'picture.mp4');
+await ff(['-i', slateFile, '-i', body, '-i', endFile,
+          '-filter_complex',
+          `[0:v][1:v]xfade=transition=fade:duration=${X}:offset=${(SLATE - X).toFixed(2)}[a];`
+          + `[a][2:v]xfade=transition=fade:duration=${X}:`
+          + `offset=${(SLATE - X + DUR - X).toFixed(2)}[o]`,
+          '-map', '[o]', '-c:v', 'libx264', '-preset', 'medium', '-crf', '19',
+          '-pix_fmt', 'yuv420p', silentOut]);
+
+// Заставка сдвинула всё содержимое — щелчки должны переехать вместе с картинкой.
+const SHIFT = SLATE - X;
+const soundHits = hits.map((h) => ({ ...h, t: h.t + SHIFT }));
+const TOTAL = SLATE - X + DUR - X + END;
 
 // 6. Звук.
 let out = inProject('movie-cut.mp4');
@@ -239,7 +278,7 @@ if (silent) {
   fs.copyFileSync(silentOut, out);
 } else {
   console.log('  накладываю звук…');
-  await buildSound({ video: silentOut, out, hits, duration: DUR, work });
+  await buildSound({ video: silentOut, out, hits: soundHits, duration: TOTAL, work });
 }
 
 const { stdout: sizeOut } = await run('ffprobe', ['-v', 'error', '-show_entries',

@@ -92,6 +92,27 @@ const vignetteHTML = () => `
          rgba(0,0,0,0) 55%, rgba(0,0,0,0.28) 82%, rgba(0,0,0,0.52) 100%); }
 </style><div class="v"></div>`;
 
+/**
+ * Финальная плашка: логотип продукта и адрес.
+ *
+ * Ролик уезжает в чужую ленту, где его смотрят без контекста. Кадр, на котором
+ * видно, о чём это было и куда идти, стоит двух секунд хронометража.
+ */
+const endHTML = (title, url) => `
+<!doctype html><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; background: transparent; }
+  body { width: 1920px; height: 1080px; display: grid; place-content: center;
+         justify-items: center; gap: 26px; background: rgba(9,11,16,0.92); }
+  h2 { margin: 0; font: 700 84px/1.1 'Unbounded', sans-serif; color: #f4f6fa;
+       letter-spacing: -0.03em; text-align: center; max-width: 1500px; }
+  .url { font: 500 34px/1 'JetBrains Mono', monospace; color: #56b6ff; }
+  .rule { width: 140px; height: 4px; border-radius: 2px;
+          background: linear-gradient(96deg, #0162e4, #089efb 45%, #00e0b8); }
+</style>
+<h2>${title}</h2><div class="rule"></div>${url ? `<div class="url">${url}</div>` : ''}`;
+
 /** Курсор: рисуем сами, потому что headless-съёмка его не пишет. */
 const cursorHTML = () => `
 <!doctype html><meta charset="utf-8">
@@ -114,7 +135,7 @@ const cursorHTML = () => `
  * Один запуск на весь ролик: подъём Chromium стоит секунду, и делать это на каждый
  * титр значило бы платить её десять раз подряд.
  */
-export async function renderOverlays({ dir, captions, slate, viewport }) {
+export async function renderOverlays({ dir, captions, slate, end, viewport }) {
   fs.mkdirSync(dir, { recursive: true });
   const browser = await chromium.launch();
   const page = await browser.newPage({
@@ -140,6 +161,11 @@ export async function renderOverlays({ dir, captions, slate, viewport }) {
   if (slate) {
     out.slate = path.join(dir, 'slate.png');
     await shot(slateHTML(slate.title, slate.subtitle), out.slate);
+  }
+
+  if (end) {
+    out.end = path.join(dir, 'end.png');
+    await shot(endHTML(end.title, end.url), out.end);
   }
 
   out.vignette = path.join(dir, 'vignette.png');
