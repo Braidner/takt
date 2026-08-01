@@ -17,27 +17,25 @@
  * кадра. Постоянные 30 к/с делает кодировщик по этим отметкам: неровный захват не искажает
  * темп движения, а провалы честно видит проверка пропусков.
  *
- * ПОЧЕМУ МАСШТАБ ИЗМЕРЯЕТСЯ, А НЕ ЗАДАН. Замер на синтетической странице обещал 28,9 мс
- * на кадр в 2× — и оказался нерепрезентативным. На живом Mission Control тот же снимок
- * стоит 59,2 мс, то есть 16,9 к/с: держать тридцать в честном 2× нельзя. Цена зависит от
- * страницы и машины, поэтому единственная честная константа — не масштаб, а требуемая
- * частота. Перед записью пробуем масштабы по убыванию и берём наибольший, который в неё
- * укладывается: на лёгкой странице выйдет 2×, на тяжёлой — 1,5×.
+ * ПОЧЕМУ page.screenshot, А НЕ СЫРОЙ CDP. Сырой `Page.captureScreenshot` быстрее на
+ * пятую часть, и первая версия брала его. На живом прогоне это дало намертво висящий
+ * захват: сырой цикл идёт мимо планировщика Playwright и конкурирует с его же действиями
+ * на той же странице — сначала с живым экраном студии, потом с пробами якорей. Оба раза
+ * снимок переставал возвращаться совсем, без ошибки. Одно соединение и один планировщик
+ * дороже, но конкурировать в нём нечему.
+ *
+ * ЧЕГО ЭТОТ РЕКОРДЕР НЕ УМЕЕТ. Множитель задаётся `deviceScaleFactor` контекста и на лету
+ * не меняется. Замер на живом Mission Control: снимок в 2× стоит 59,2 мс — это 16,9 к/с
+ * при целевых тридцати. Недостачу кодировщик добивает повтором кадров, то есть движение
+ * теряет плавность ровно там, где её обещали. Поэтому рекордер пишет в `capturedFps`,
+ * сколько реально вышло, — решение о компромиссе между резкостью и плавностью принимается
+ * по этому числу, а не вслепую.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 
 export class Recorder {
-  /** Масштабы по убыванию: берём первый, который укладывается в требуемую частоту. */
-  static SCALES = [2, 1.5, 1.25, 1];
-
-  /**
-   * Запас к бюджету кадра. Без него выбранный масштаб держится ровно на грани, и первая
-   * же тяжёлая страница роняет частоту.
-   */
-  static HEADROOM = 0.85;
-
   constructor(page, { dir, fps = 30, viewport, scale = null, quality = 90 } = {}) {
     this.page = page;
     this.dir = dir;
@@ -60,52 +58,25 @@ export class Recorder {
   async start() {
     fs.rmSync(this.framesDir, { recursive: true, force: true });
     fs.mkdirSync(this.framesDir, { recursive: true });
-    this.cdp = await this.page.context().newCDPSession(this.page);
-    if (this.scale === null) this.scale = await this.#pickScale();
     this.t0 = Date.now();
     this.running = true;
     this.loop = this.#capture();
   }
 
-  /** Наибольший масштаб, укладывающийся в бюджет кадра на ЭТОЙ странице и машине. */
-  async #pickScale() {
-    const budget = (1000 / this.fps) * Recorder.HEADROOM;
-    const probe = path.join(this.framesDir, 'probe.jpg');
-    for (const scale of Recorder.SCALES) {
-      const t0 = Date.now();
-      // Меряем ВЕСЬ виток, вместе с записью кадра на диск. Первая версия мерила только
-      // снимок и промахивалась на треть: 15,7 мс в пробе против 22,8 мс на деле.
-      for (let i = 0; i < 3; i++) {
-        const { data } = await this.#shoot(scale);
-        await fs.promises.writeFile(probe, Buffer.from(data, 'base64'));
-      }
-      const ms = (Date.now() - t0) / 3;
-      if (ms <= budget || scale === 1) {
-        this.scalePick = { scale, ms: Number(ms.toFixed(1)), budget: Number(budget.toFixed(1)) };
-        fs.rmSync(probe, { force: true });
-        return scale;
-      }
-    }
-    return 1;
-  }
-
-  #shoot(scale) {
-    return this.cdp.send('Page.captureScreenshot', {
-      format: 'jpeg',
-      quality: this.quality,
-      optimizeForSpeed: true,
-      // clip.scale — единственный способ получить настоящий множитель: и скринкаст, и
-      // снимок без clip отдают CSS-пиксели, сколько бы ни стоял deviceScaleFactor.
-      clip: { x: 0, y: 0, width: this.viewport.width, height: this.viewport.height, scale },
-      fromSurface: true,
-    });
+  /**
+   * Один кадр. Множитель задаётся `deviceScaleFactor` контекста, а не параметром снимка:
+   * page.screenshot честно отдаёт плотность контекста, в отличие от скринкаста.
+   */
+  async #shoot() {
+    const buf = await this.page.screenshot({ type: 'jpeg', quality: this.quality });
+    return { data: buf };
   }
 
   async #capture() {
     while (this.running) {
       let data;
       try {
-        ({ data } = await this.#shoot(this.scale));
+        ({ data } = await this.#shoot());
         this.fails = 0;
       } catch (e) {
         // Страница между переходами снимку недоступна — пропущенный кадр безобиднее
@@ -126,9 +97,9 @@ export class Recorder {
       // Последний кадр отдаём наружу: живой экран студии показывает его вместо того,
       // чтобы снимать свой. Два потока снимков конкурируют за один surface браузера, и
       // тогда снимок рекордера просто не возвращается — процесс жив, а кадров нет.
-      this.latest = data;
+      this.latest = data.toString('base64');
       const file = path.join(this.framesDir, `f-${String(this.frameNo).padStart(6, '0')}.jpg`);
-      await fs.promises.writeFile(file, Buffer.from(data, 'base64'));
+      await fs.promises.writeFile(file, data);
       this.frameTimes.push(t);
       this.frameNo += 1;
     }
@@ -149,7 +120,11 @@ export class Recorder {
       viewport: this.viewport,
       frames: this.frameNo,
       frameTimes: this.frameTimes,
-      scalePick: this.scalePick || null,
+      // Сколько кадров в секунду реально вышло. Если заметно ниже целевой частоты,
+      // кодировщик добьёт её повтором кадров — и это будет видно как подёргивание.
+      capturedFps: this.frameTimes.length > 1
+        ? Number((this.frameNo / (this.frameTimes.at(-1) / 1000)).toFixed(1))
+        : 0,
       seconds: this.frameTimes.length
         ? Number((this.frameTimes.at(-1) / 1000).toFixed(3))
         : 0,

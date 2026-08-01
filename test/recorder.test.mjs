@@ -77,25 +77,10 @@ test('временные кадры убираются, остаётся тол�
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('масштаб выбирается замером, а не константой', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'takt-rec-'));
-  const browser = await chromium.launch();
-  const viewport = { width: 720, height: 406 };
-  const page = await browser.newPage({ viewport, deviceScaleFactor: 2 });
-  await page.setContent('<body style="margin:0;background:#123"><h1>кадр</h1></body>');
-
-  // scale не задан — рекордер обязан подобрать его сам и объяснить выбор.
-  const rec = new Recorder(page, { dir, fps: 30, viewport });
-  await rec.start();
-  await page.waitForTimeout(700);
-  const take = await rec.stop();
-  await browser.close();
-
-  assert.ok(Recorder.SCALES.includes(take.scale), `выбран странный масштаб ${take.scale}`);
-  assert.ok(take.scalePick, 'выбор масштаба не объяснён');
-  assert.ok(take.scalePick.ms > 0);
-  assert.equal(take.scalePick.budget, Number(((1000 / 30) * Recorder.HEADROOM).toFixed(1)));
-
+test('реальная частота захвата записана — по ней видно компромисс', async () => {
+  const { take, dir } = await record(1.5);
+  assert.ok(take.capturedFps > 0, 'частота захвата не записана');
+  assert.ok(take.capturedFps < 200, `подозрительная частота ${take.capturedFps}`);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -110,7 +95,7 @@ test('подряд идущие отказы снимка не дают тихо
   await rec.start();
   // Ломаем снимок насовсем — так вело себя первое падение: кадры не писались,
   // а процесс выглядел работающим и крутился впустую.
-  rec.cdp.send = async () => { throw new Error('сломано намеренно'); };
+  page.screenshot = async () => { throw new Error('сломано намеренно'); };
   await page.waitForTimeout(4000);
 
   await assert.rejects(() => rec.stop(), /50 раз подряд/);
