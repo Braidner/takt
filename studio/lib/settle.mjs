@@ -19,6 +19,20 @@ export const STABLE_ENOUGH = 0.005;
 export const SAMPLE_MS = 250;
 
 /**
+ * Сколько ждём тишины в сети, прежде чем перестать её требовать.
+ *
+ * Проверено на живом стенде: Mission Control держит постоянные соединения, поэтому
+ * `networkidle` у него не наступает никогда. Как ОБЯЗАТЕЛЬНОЕ условие сетевая тишина
+ * неприменима к любому приложению с живым каналом — а таких большинство, и Takt ставят
+ * именно на них. Первая версия этого модуля висела по тридцать секунд на каждом шаге.
+ *
+ * Поэтому сеть — условие вспомогательное: полторы секунды оно ускоряет решение, дальше
+ * ответ дают признак готовности и неподвижность картинки. Они и отвечают на настоящий
+ * вопрос «дорисовался ли экран», тогда как тишина в сети — лишь косвенный его признак.
+ */
+export const NETWORK_GRACE_MS = 1500;
+
+/**
  * Готов ли экран.
  *
  * Порядок проверок — от самого содержательного к самому косвенному, и это не
@@ -53,10 +67,11 @@ export async function waitUntilSettled(page, { waitFor = null, timeout = 30000 }
       ? await page.locator(waitFor).first().isVisible().catch(() => false)
       : null;
 
-    const networkIdle = await page
-      .waitForLoadState('networkidle', { timeout: SAMPLE_MS })
-      .then(() => true)
-      .catch(() => false);
+    // После грации сеть перестаёт быть требованием — см. NETWORK_GRACE_MS.
+    const networkIdle = Date.now() - t0 > NETWORK_GRACE_MS
+      ? true
+      : await page.waitForLoadState('networkidle', { timeout: SAMPLE_MS })
+          .then(() => true).catch(() => false);
 
     const shot = await page.screenshot({ type: 'jpeg', quality: 50 }).catch(() => null);
     // Между переходами страница бывает недоступна для снимка — это само по себе

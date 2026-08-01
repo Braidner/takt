@@ -88,3 +88,27 @@ test('не сошлось за отведённое время — возвра�
 
   await browser.close();
 });
+
+test('живая сеть не блокирует навсегда: после грации условие снимается', async () => {
+  // Mission Control держит постоянные соединения — networkidle у него не наступает
+  // никогда. Первая версия висела на этом по тридцать секунд на каждом шаге.
+  const browser = await chromium.launch();
+  const page = await browser.newPage({ viewport: { width: 300, height: 200 } });
+  await page.setContent(`
+    <body style="margin:0;background:#111">
+      <div id="ready" style="width:300px;height:200px;background:#2a2a2a"></div>
+      <script>
+        // Бесконечный поток запросов — ровно то, что делает живое приложение.
+        setInterval(() => fetch('data:text/plain,тик').catch(() => {}), 60);
+      </script>
+    </body>`);
+
+  const t0 = Date.now();
+  const r = await waitUntilSettled(page, { waitFor: '#ready', timeout: 12000 });
+  const elapsed = Date.now() - t0;
+
+  assert.equal(r.reason, null, `не сошлось: ${r.reason}`);
+  assert.ok(elapsed < 6000, `ждал ${elapsed} мс — сеть всё ещё блокирует`);
+
+  await browser.close();
+});

@@ -53,6 +53,37 @@ const OUT = inProject('movie.mp4');
 const captions = timeline.events.filter((e) => e.kind === 'caption');
 
 /**
+ * Интервалы загрузки вырезаются из мастера.
+ *
+ * Съёмка знает, когда экран был не готов: ожидание идёт по содержимому и возвращает,
+ * сколько ждали. Эти куски — скелетоны и пустые витрины — в ролике не нужны никому,
+ * а раньше они попадали в кадр и были главной претензией к качеству.
+ *
+ * Вырезаем select'ом по времени, а не нарезкой и склейкой: склейка потребовала бы
+ * перекодировать каждый кусок отдельно и потерять качество там, где его и так мало.
+ */
+const takePath = inProject('take.json');
+const loading = (() => {
+  try {
+    const take = JSON.parse(fs.readFileSync(takePath, 'utf8'));
+    // Мелкие ожидания не режем: склейка на них заметнее, чем полсекунды неподвижности.
+    return (take.loading || []).filter((l) => l.to - l.from > 0.7);
+  } catch { return []; }
+})();
+
+const cutFilter = loading.length
+  ? [
+      `select='${loading.map((l) => `not(between(t,${l.from.toFixed(2)},${l.to.toFixed(2)}))`).join('*')}'`,
+      'setpts=N/FRAME_RATE/TB',
+    ].join(',')
+  : null;
+
+if (cutFilter) {
+  const total = loading.reduce((s2, l) => s2 + (l.to - l.from), 0);
+  console.log(`вырезаю загрузку: ${loading.length} кусков, ${total.toFixed(1)} с`);
+}
+
+/**
  * Начало записи обрезается, и это обязательный шаг, а не улучшение.
  *
  * Playwright пишет видео с момента создания контекста, то есть захватывает открытие
@@ -73,6 +104,7 @@ const args = [
   // потому что дальше идёт перекодирование.
   ...(offset > 0.3 ? ['-ss', offset.toFixed(2)] : []),
   '-i', timeline.video,
+  ...(cutFilter ? ['-vf', cutFilter] : []),
   '-c:v', 'libx264', '-preset', 'medium', '-crf', '20',
   // Ключевой кадр каждые две секунды: перемотка по таймкодам замечаний — основной
   // способ работы с роликом, а без частых ключевых кадров она прыгает мимо.

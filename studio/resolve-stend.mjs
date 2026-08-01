@@ -53,7 +53,10 @@ export function readConfig() {
   // их между роликами — самая дорогая ошибка, потому что обнаруживается она уже в кадре.
   const target = currentTarget();
   if (!target?.url) return base;
-  return { ...base, stend: target.url, creds: { ...(base.creds || {}), ...(target.creds || {}) } };
+  // ready — признак загруженного интерфейса: по нему съёмка ждёт содержимое,
+  // а не отсчитывает паузу по часам.
+  return { ...base, stend: target.url, ready: target.ready || null,
+           creds: { ...(base.creds || {}), ...(target.creds || {}) } };
 }
 
 export function saveConfig(patch) {
