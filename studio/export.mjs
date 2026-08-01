@@ -36,13 +36,24 @@ fs.mkdirSync(dest, { recursive: true });
 const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const copied = [];
 
-// Озвученный ролик предпочтительнее немого: если он есть, человек хотел именно его.
-for (const [src, as] of [['movie-vo.mp4', 'ролик.mp4'], ['movie.mp4', 'ролик-без-звука.mp4']]) {
+/**
+ * Версии ролика по убыванию готовности: смонтированный с озвучкой лучше просто
+ * смонтированного, тот лучше мастера. Первый найденный становится «роликом», а
+ * короткие версии едут отдельными файлами — они не замена, а другой жанр.
+ */
+for (const [src, as] of [['movie-cut.mp4', 'ролик.mp4'],
+                         ['movie-vo.mp4', 'ролик.mp4'],
+                         ['movie.mp4', 'ролик.mp4']]) {
   const from = inProject(src);
-  if (fs.existsSync(from) && !copied.some((c) => c.startsWith('ролик.'))) {
+  if (fs.existsSync(from) && !copied.includes('ролик.mp4')) {
     fs.copyFileSync(from, path.join(dest, as));
     copied.push(as);
   }
+}
+for (const [src, as] of [['movie-short.mp4', 'хайлайты.mp4'],
+                         ['movie-short-vertical.mp4', 'хайлайты-вертикальные.mp4']]) {
+  const from = inProject(src);
+  if (fs.existsSync(from)) { fs.copyFileSync(from, path.join(dest, as)); copied.push(as); }
 }
 
 if (scenario?.steps?.length) {
