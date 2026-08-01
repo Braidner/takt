@@ -86,3 +86,51 @@ export function inspect(take) {
   ];
   return { ok: issues.length === 0, issues };
 }
+
+/* ── проверки состояний ─────────────────────────────────────────────── */
+
+/**
+ * Состояния проверяются иначе, чем поток: у снимка нет частоты и нет склеек, зато есть
+ * вопросы, которых у записи не было — попал ли якорь в снимок и не уехала ли липкая
+ * шапка в тело страницы.
+ */
+export function checkStates(states) {
+  const out = [];
+  for (const s of states) {
+    const where = `план ${s.plan}${s.label ? ` «${s.label}»` : ''}`;
+
+    if (s.settle && s.settle.reason) {
+      out.push({ kind: 'загрузка', step: s.plan,
+        text: `${where}: экран не успокоился за ${(s.settle.waitedMs / 1000).toFixed(1)} с — `
+            + `${s.settle.reason}` });
+    }
+
+    // Страница короче одного экрана — почти всегда значит, что она не догрузилась.
+    if (s.size && s.viewport && s.size.h < s.viewport.height * s.scale) {
+      out.push({ kind: 'пусто', step: s.plan,
+        text: `${where}: страница ${s.size.h} px — короче экрана, похоже не догрузилась` });
+    }
+
+    // Липкие нашли, а снять слой не удалось: панорама поедет вместе с шапкой.
+    if (s.sticky && s.sticky.length && !s.layer) {
+      out.push({ kind: 'слой', step: s.plan,
+        text: `${where}: закреплённых элементов ${s.sticky.length}, а слой не снят — `
+            + 'шапка поедет вместе со страницей' });
+    }
+
+    for (const a of s.anchors || []) {
+      if (!a.rect) {
+        out.push({ kind: 'якорь', step: s.plan,
+          text: `${where}: цель «${a.selector}» не найдена — наезд не построен` });
+        continue;
+      }
+      const outside = s.size && (a.rect.y > s.size.h || a.rect.x > s.size.w
+        || a.rect.y + a.rect.h < 0 || a.rect.x + a.rect.w < 0);
+      if (outside) {
+        out.push({ kind: 'якорь', step: s.plan,
+          text: `${where}: цель «${a.selector}» за пределами снимка — наезд не построен` });
+      }
+    }
+  }
+  return out;
+}
