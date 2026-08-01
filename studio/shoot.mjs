@@ -48,7 +48,6 @@ const setStatus = (patch) => api('/api/status', patch);
 const shouldStop = () =>
   fetch(`${base}/api/control?token=${info.token}`).then((r) => r.json())
     .then((d) => Boolean(d.stop)).catch(() => false);
-
 const scenario = await fetch(`${base}/api/scenario`).then((r) => r.json());
 if (!scenario?.steps?.length) {
   console.error('Сценарий пуст: снимать нечего');
@@ -68,7 +67,6 @@ const OUT = inProject('takes');
 fs.mkdirSync(OUT, { recursive: true });
 
 const VIEWPORT = { width: 1440, height: 810 };
-
 const browser = await chromium.launch();
 const context = await browser.newContext({
   viewport: VIEWPORT,
@@ -87,13 +85,16 @@ await page.addInitScript((p) => {
 
 // Живой экран идёт своим ритмом и не ждёт шагов: иначе на длинном шаге картинка
 // замирает, и человек не может отличить «идёт работа» от «всё повисло».
+//
+// Кадр берётся У РЕКОРДЕРА, а не снимается отдельно. Свой снимок здесь стоил дорого:
+// два потока снимков конкурируют за один surface браузера, и снимок рекордера переставал
+// возвращаться вовсе — процесс жив, каталог кадров создан, кадров ноль, в логе пусто.
 let alive = true;
 const streamFrames = async () => {
   while (alive) {
-    try {
-      const shot = await page.screenshot({ type: 'jpeg', quality: 45 });
-      await api('/api/frame', { frame: `data:image/jpeg;base64,${shot.toString('base64')}` });
-    } catch { /* страница между переходами — пропускаем кадр */ }
+    if (rec.latest) {
+      await api('/api/frame', { frame: `data:image/jpeg;base64,${rec.latest}` });
+    }
     await new Promise((r) => setTimeout(r, 350));
   }
 };

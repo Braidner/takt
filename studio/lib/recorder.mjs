@@ -116,6 +116,10 @@ export class Recorder {
         continue;
       }
       const t = Date.now() - this.t0;
+      // Последний кадр отдаём наружу: живой экран студии показывает его вместо того,
+      // чтобы снимать свой. Два потока снимков конкурируют за один surface браузера, и
+      // тогда снимок рекордера просто не возвращается — процесс жив, а кадров нет.
+      this.latest = data;
       const file = path.join(this.framesDir, `f-${String(this.frameNo).padStart(6, '0')}.jpg`);
       await fs.promises.writeFile(file, Buffer.from(data, 'base64'));
       this.frameTimes.push(t);
