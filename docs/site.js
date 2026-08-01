@@ -25,10 +25,10 @@ const RU = {
   s1p: "«Показать, как создать домен, добавить маршрут и запустить». Агент разведывает "
     + "интерфейс и собирает сценарий: шаги, титры, хронометраж. Вы правите его до съёмки — "
     + "перетаскиванием, без ожидания.",
-  s2h: "Съёмка — headless, с живым экраном",
-  s2p: "Playwright проходит сценарий в браузере и пишет телеметрию: что нажато и когда. "
-    + "В студии виден живой экран и прогресс по шагам — видно, что происходит и где "
-    + "застряло. Машина остаётся свободной.",
+  s2h: "Съёмка и монтаж — по данным, а не на глаз",
+  s2p: "Playwright проходит сценарий в браузере и пишет телеметрию: что нажато, когда и "
+    + "в какой точке экрана. По ней монтаж наводит камеру и рисует курсор — экранные "
+    + "рекордеры это угадывают и промахиваются. Съёмка идёт headless, машина свободна.",
   s3h: "Правки — метками на таймлайне",
   s3p: "Смотрите ролик и ставите замечания по таймкодам: «пауза длинная», «переозвучить», "
     + "«показать схему». Агент разбирает их по стоимости и показывает план до работы: "
@@ -45,6 +45,9 @@ const RU = {
   tr2n: "Реплика", tr2w: "«звучит скомканно»", tr2c: "пересинтез одной фразы",
   tr3n: "Схема", tr3w: "врезка поверх паузы", tr3c: "сборка без съёмки",
   tr4n: "Кадр", tr4w: "меняется происходящее на экране", tr4c: "пересъёмка одной сцены",
+  lead2b: "Монтаж — отдельный шаг: камера наводится на действия по координатам из съёмки, "
+    + "курсор рисуется поверх, титры и звук собираются заново. Рядом с полным роликом "
+    + "собирается короткая версия для ленты — вертикальная тоже.",
   altTimeline: "Таймлайн студии: дорожки шагов, схем, правок и голоса с плейхедом",
   capTimeline: "Дорожки таймлайна: шаги — факт съёмки, остальное — намерения",
 
@@ -89,10 +92,10 @@ const EN = {
   s1p: "“Show how to create a domain, add a route and start it.” The agent scouts the "
     + "interface and drafts the script: steps, captions, timing. You edit it before the "
     + "shoot — by dragging, with no waiting.",
-  s2h: "Shooting — headless, with a live screen",
-  s2p: "Playwright walks the script in a browser and records telemetry: what was clicked "
-    + "and when. The studio shows a live screen and per-step progress — you see what's "
-    + "happening and where it got stuck. Your machine stays free.",
+  s2h: "Shooting and editing — from data, not guesswork",
+  s2p: "Playwright walks the script in a browser and records telemetry: what was clicked, "
+    + "when, and where on screen. The editor aims the camera and draws the cursor from it — "
+    + "screen recorders guess this and miss. Shooting is headless, your machine stays free.",
   s3h: "Edits — as timeline markers",
   s3p: "Watch the take and drop notes at timecodes: “pause too long”, “re-voice this”, "
     + "“show a diagram”. The agent sorts them by cost and shows the plan before working: "
@@ -109,6 +112,9 @@ const EN = {
   tr2n: "Line", tr2w: "“sounds mumbled”", tr2c: "re-synth one phrase",
   tr3n: "Diagram", tr3w: "an inset over a pause", tr3c: "build, no shooting",
   tr4n: "Frame", tr4w: "what happens on screen changes", tr4c: "reshoot one scene",
+  lead2b: "Editing is a separate step: the camera aims at actions using coordinates from "
+    + "the shoot, the cursor is drawn on top, captions and sound are rebuilt. A short cut "
+    + "for feeds is produced alongside the full one — vertical too.",
   altTimeline: "Studio timeline: tracks for steps, diagrams, notes and voice, with a playhead",
   capTimeline: "Timeline tracks: steps are the fact of the shoot, the rest are intents",
 
