@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Takt · стадия 1: съёмка без брака</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;600;800&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme: dark;
+  --brand-blue: oklch(0.533 0.212 259.6);
+  --brand-sky:  oklch(0.678 0.174 246.2);
+  --brand-cyan: oklch(0.754 0.128 203.8);
+  --brand-teal: oklch(0.809 0.154 173.6);
+  --bg:            oklch(0.17 0.012 265);
+  --surface:       oklch(0.213 0.014 265);
+  --surface-raised:oklch(0.253 0.016 265);
+  --line:          oklch(0.32 0.016 265);
+  --line-strong:   oklch(0.42 0.018 265);
+  --ink:       oklch(0.96 0.004 265);
+  --ink-muted: oklch(0.78 0.012 265);
+  --ink-dim:   oklch(0.63 0.014 265);
+  --rec:       oklch(0.66 0.19 25);
+  --amber:     oklch(0.8 0.13 85);
+  --font-display:"Unbounded", system-ui, sans-serif;
+  --font-body:"Golos Text", system-ui, sans-serif;
+  --font-mono:"JetBrains Mono", ui-monospace, monospace;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --gut: clamp(20px, 5vw, 40px);
+}
+*{box-sizing:border-box;margin:0}
+html{-webkit-text-size-adjust:100%;overflow-x:clip}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);
+  font-size:1.0625rem;line-height:1.7;-webkit-font-smoothing:antialiased;
+  overflow-x:clip;padding-bottom:110px}
+.wrap{max-width:920px;margin:0 auto;padding:0 var(--gut)}
+p{margin:0 0 20px;color:var(--ink-muted);text-wrap:pretty;max-width:70ch}
+p strong{color:var(--ink);font-weight:600}
+code{font-family:var(--font-mono);font-size:.85em;
+  background:color-mix(in oklch,var(--surface-raised) 80%,transparent);
+  border:1px solid color-mix(in oklch,var(--line) 70%,transparent);
+  padding:.1em .38em;border-radius:5px;color:oklch(0.88 0.03 220);white-space:nowrap}
+ul{margin:0 0 20px;padding-left:0;list-style:none;max-width:70ch}
+ul li{position:relative;padding-left:26px;margin-bottom:11px;color:var(--ink-muted)}
+ul li::before{content:'';position:absolute;left:6px;top:.72em;width:6px;height:6px;
+  border-radius:1px;background:var(--brand-sky);opacity:.75}
+
+header{padding:clamp(64px,10vh,104px) 0 10px}
+h1{font-family:var(--font-display);font-weight:800;
+  font-size:clamp(1.9rem,5vw,3.3rem);line-height:1.05;letter-spacing:-.038em;
+  text-wrap:balance;margin-bottom:24px}
+.lede{font-size:clamp(1.05rem,2vw,1.28rem);line-height:1.6;color:var(--ink-muted);max-width:56ch}
+.stamp{margin-top:34px;padding-top:20px;border-top:1px solid var(--line);
+  font-family:var(--font-mono);font-size:.78rem;color:var(--ink-dim)}
+
+.perf{height:22px;margin:clamp(56px,8vw,88px) 0 0;
+  background-image:radial-gradient(var(--line) 1.6px, transparent 1.7px);
+  background-size:22px 22px;background-position:0 50%;opacity:.6}
+
+h2{font-family:var(--font-display);font-weight:600;
+  font-size:clamp(1.42rem,3.1vw,2rem);line-height:1.15;letter-spacing:-.03em;
+  margin:42px 0 18px;text-wrap:balance}
+h3{font-weight:600;font-size:1.16rem;line-height:1.35;letter-spacing:-.015em;
+  margin:36px 0 12px;color:var(--ink)}
+
+.stats{display:grid;gap:12px;margin:28px 0;
+  grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px}
+.stat b{display:block;font-family:var(--font-mono);font-size:1.7rem;line-height:1;
+  color:var(--brand-cyan);letter-spacing:-.02em;margin-bottom:8px}
+.stat span{font-size:.86rem;color:var(--ink-dim);line-height:1.4;display:block}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  padding:clamp(18px,3vw,26px);margin:26px 0}
+.panel>:last-child{margin-bottom:0}
+.panel--lead{border-color:color-mix(in oklch,var(--brand-sky) 42%,var(--line));
+  background:linear-gradient(168deg,color-mix(in oklch,var(--brand-blue) 13%,var(--surface)),var(--surface) 62%)}
+.panel--warn{border-color:color-mix(in oklch,var(--amber) 34%,var(--line));
+  background:linear-gradient(168deg,color-mix(in oklch,var(--amber) 9%,var(--surface)),var(--surface) 62%)}
+.panel h3:first-child{margin-top:0}
+.pull{font-family:var(--font-display);font-weight:500;
+  font-size:clamp(1.1rem,2.3vw,1.45rem);line-height:1.35;letter-spacing:-.025em;
+  color:var(--ink);max-width:30ch}
+
+.scroll{overflow-x:auto;margin:24px 0;border:1px solid var(--line);border-radius:12px}
+table{border-collapse:collapse;width:100%;min-width:600px;font-size:.93rem}
+th,td{text-align:left;padding:13px 17px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-dim);font-weight:600;background:color-mix(in oklch,var(--surface) 60%,transparent)}
+td{color:var(--ink-muted)}
+tbody tr:last-child td{border-bottom:none}
+td.k{color:var(--ink);font-weight:500}
+.was{color:var(--rec)} .now{color:var(--brand-teal)} .mid{color:var(--amber)}
+.n{font-family:var(--font-mono);font-size:.92em;white-space:nowrap}
+
+.commits{list-style:none;padding:0;margin:26px 0}
+.commits li{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:baseline;
+  padding:13px 0;border-bottom:1px solid var(--line);margin:0}
+.commits li::before{display:none}
+.commits li:last-child{border-bottom:none}
+.commits .sha{font-family:var(--font-mono);font-size:.78rem;color:var(--brand-sky)}
+.commits .msg{color:var(--ink);font-size:.97rem;line-height:1.4}
+.commits .msg em{display:block;color:var(--ink-dim);font-style:normal;font-size:.86rem;margin-top:3px}
+
+.road{list-style:none;padding:0;margin:26px 0;counter-reset:r}
+.road li{counter-increment:r;position:relative;padding:0 0 24px 50px;margin:0;
+  border-left:1px solid var(--line);margin-left:14px}
+.road li::before{content:counter(r);position:absolute;left:-14px;top:-2px;
+  width:28px;height:28px;border-radius:50%;background:var(--surface-raised);
+  border:1px solid color-mix(in oklch,var(--brand-sky) 45%,var(--line));
+  color:var(--brand-sky);font-family:var(--font-mono);font-size:.75rem;
+  display:grid;place-items:center}
+.road li:last-child{border-left-color:transparent;padding-bottom:0}
+.road b{display:block;font-size:1.04rem;margin-bottom:4px;letter-spacing:-.015em;color:var(--ink)}
+.road span{color:var(--ink-muted);font-size:.94rem;line-height:1.55;display:block}
+.road .tag{display:inline-block;font-family:var(--font-mono);font-size:.68rem;
+  letter-spacing:.08em;text-transform:uppercase;padding:4px 9px;border-radius:5px;margin-top:8px}
+.t-done{background:color-mix(in oklch,var(--brand-teal) 18%,transparent);color:var(--brand-teal)}
+.t-next{background:color-mix(in oklch,var(--brand-sky) 18%,transparent);color:var(--brand-sky)}
+.t-later{background:color-mix(in oklch,var(--line-strong) 40%,transparent);color:var(--ink-dim)}
+
+footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--line);
+  font-family:var(--font-mono);font-size:.75rem;line-height:1.9;color:var(--ink-dim)}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Съёмка без брака:<br>что сделано и где встало</h1>
+  <p class="lede">Стадия 1 из четырёх. Причины всех трёх дефектов найдены в коде и устранены,
+  библиотека закрыта тестами. Но проверка на живом стенде вскрыла новую проблему —
+  частоту захвата, — и стадию я закрытой не считаю. Ниже честно: что работает,
+  что нет и какое решение принимать следующим.</p>
+  <p class="stamp">1 августа 2026 · ветка production-pipeline · 59 тестов</p>
+</header>
+
+<div class="stats">
+  <div class="stat"><b>59</b><span>тестов, все зелёные. До сегодня в проекте не было ни одного</span></div>
+  <div class="stat"><b>13</b><span>коммитов, по одному на задачу</span></div>
+  <div class="stat"><b>2880×1620</b><span>разрешение достигнуто, проверено на стенде</span></div>
+  <div class="stat"><b style="color:var(--rec)">6,2</b><span>кадра в секунду захвата при целевых 30 — главная нерешённая проблема</span></div>
+</div>
+
+<div class="perf"></div>
+
+<h2>Три претензии и их причины</h2>
+
+<p>Каждая нашлась в данных проекта <code>mc-медиа</code>, а не в рассуждениях.</p>
+
+<h3>Зум в пустоту</h3>
+<p>В телеметрии третье действие записано как <code>x=177, y=3673</code> при высоте кадра 810.
+Координата снималась <code>boundingBox()</code> <strong>до</strong> клика, а Playwright перед
+кликом сам прокручивает страницу к элементу — записана позиция до прокрутки. Монтаж упирал
+такую цель в нижний край и наезжал туда, где уже другой экран; курсор рисовался на y ≈ 4900,
+то есть не рисовался вовсе. <strong>Ошибки не было ни одной.</strong></p>
+<p>Теперь вместо точки снимается трек: положение элемента всё время плана, десять проб в
+секунду, первая — сразу после клика. Камера следует за элементом. Ушёл из кадра — это видно
+в треке, наезд не строится, а проверка называет шаг.</p>
+
+<h3>Обновления страницы в кадре</h3>
+<p>Сценарий ждал часами: <code>{"goto":"media"},{"wait":5000}</code>. Поле <code>expect</code>
+в шагах было, но проверялось <em>после</em> паузы и потому ничем не управляло. Теперь ожидание
+идёт по содержимому — признак готовности, сетевой покой, неподвижность картинки, — и время
+ожидания вырезается из мастера.</p>
+
+<h3>Дёрганый экран</h3>
+<p>Три слоя сразу: прокрутка сделана <code>PageDown</code>, то есть перекладыванием страницы за
+один кадр; запись шла 25 к/с и тянулась монтажом до 30 дублированием; VP8 на 505–716 кбит/с
+рассыпался ровно на движении. Все три устранены.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Что</th><th>Было</th><th>Стало</th></tr></thead>
+<tbody>
+<tr><td class="k">Разрешение</td><td class="was n">1440×810, CSS-пиксели</td><td class="now n">2880×1620, честный 2×</td></tr>
+<tr><td class="k">Кодек мастера</td><td class="was n">VP8, 505–716 кбит/с</td><td class="now n">x264 crf 16</td></tr>
+<tr><td class="k">Частота</td><td class="was n">25 к/с → 30 дублированием</td><td class="now n">30 к/с по отметкам времени</td></tr>
+<tr><td class="k">Прокрутка</td><td class="was">PageDown, прыжок за кадр</td><td class="now">600 px/с, разгон и торможение</td></tr>
+<tr><td class="k">Ожидание</td><td class="was">пауза по часам</td><td class="now">признак, сеть, неподвижность</td></tr>
+<tr><td class="k">Цель наезда</td><td class="was">одна точка до прокрутки</td><td class="now">трек после прокрутки</td></tr>
+<tr><td class="k">Контроль брака</td><td class="was">посмотреть готовый файл</td><td class="now">четыре автопроверки дубля</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="perf"></div>
+
+<h2>Как это устроено</h2>
+
+<p>Логика ушла из <code>shoot.mjs</code> в чистые функции, которые можно проверить без браузера
+и без стенда. Съёмка стала оркестратором над ними.</p>
+
+<div class="scroll">
+<table>
+<thead><tr><th>Модуль</th><th>Отвечает за</th><th>Чем проверен</th></tr></thead>
+<tbody>
+<tr><td class="k n">lib/frame-signature</td><td>сигнатура кадра 32×18 и мера различия</td><td class="n">7 тестов</td></tr>
+<tr><td class="k n">lib/settle</td><td>готов ли экран и почему нет</td><td class="n">10 тестов</td></tr>
+<tr><td class="k n">lib/scroll</td><td>кривая проезда, скорость, длительность</td><td class="n">9 тестов</td></tr>
+<tr><td class="k n">lib/anchors</td><td>треки якорей, видимость, выборка по времени</td><td class="n">12 тестов</td></tr>
+<tr><td class="k n">lib/inspect</td><td>четыре проверки дубля</td><td class="n">14 тестов</td></tr>
+<tr><td class="k n">lib/recorder</td><td>запись 2× и сборка в mp4</td><td class="n">4 теста</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="panel panel--lead">
+<p class="pull" style="margin-bottom:12px">Ни одной новой зависимости.</p>
+<p style="margin-bottom:0">Тесты на встроенном <code>node:test</code>, обработка кадров —
+на ffmpeg, который проекту и так нужен. Takt ставят чужие люди: каждая зависимость это
+вес установки у каждого из них.</p>
+</div>
+
+<h2>Четыре находки, полученные замером</h2>
+
+<p>Все четыре противоречили ожиданиям, и каждая стоила бы дня отладки по готовому файлу.</p>
+
+<ul>
+<li><strong>Скринкаст игнорирует <code>deviceScaleFactor</code>.</strong>
+При вьюпорте 720×405 и dsf = 2 <code>Page.startScreencast</code> прислал 720×405.
+<code>maxWidth</code>/<code>maxHeight</code> работают потолком, а не целью, а
+<code>Emulation.setDeviceMetricsOverride</code> не меняет ничего. Комментарий в старом
+<code>capture/lib/recorder.mjs</code> утверждал обратное — и для нынешнего Chromium неверен.</li>
+
+<li><strong>Настоящий 2× даёт только явный <code>clip.scale</code></strong> у
+<code>Page.captureScreenshot</code>: 2880×1620 за 28,9 мс. Именно так это делает и Remotion.</li>
+
+<li><strong>Снимать по таймеру нельзя.</strong> 28,9 мс при бюджете 33,3 мс — запас 13%,
+которого на живой странице не будет. Снимаем непрерывно с отметками времени, а постоянные
+30 к/с делает кодировщик демуксером <code>concat</code> с длительностью на каждый кадр.
+Неровный захват не искажает темп движения.</li>
+
+<li><strong><code>networkidle</code> неприменим как обязательное условие.</strong>
+Найдено прогоном на живом стенде: Mission Control держит постоянные соединения, тишина в сети
+не наступает никогда, и первая версия висела по тридцать секунд на каждом шаге. Сеть стала
+вспомогательным условием с грацией 1,5 с.</li>
+</ul>
+
+<div class="panel panel--warn">
+<h3>И одна грабля в самом инструменте</h3>
+<p style="margin-bottom:0">У асинхронного <code>execFile</code> нет опции <code>input</code> —
+она есть только у синхронных вариантов. Переданная, она <em>молча игнорируется</em>, и ffmpeg
+ждёт данных на stdin бесконечно: ни ошибки, ни вывода. Ровно тот класс молчаливых отказов,
+из-за которого мы и уходим от ffmpeg как компоновщика.</p>
+</div>
+
+<div class="perf"></div>
+
+<h2>Что закоммичено</h2>
+<ul class="commits"><li><span class="sha">f6dec5a</span><span class="msg">Спека продакшна: раскадровка, съёмка без брака, композиция в браузере</span></li><li><span class="sha">58c35f2</span><span class="msg">План стадии 1: съёмка без брака, семь задач с тестами вперёд</span></li><li><span class="sha">cac81e5</span><span class="msg">Сигнатура кадра: мера различия и каркас тестов</span></li><li><span class="sha">b461c6d</span><span class="msg">Ожидание по содержимому: три условия вместо паузы по часам</span></li><li><span class="sha">9751105</span><span class="msg">Прокрутка приёмом: разгон, торможение, скорость вместо PageDown</span></li><li><span class="sha">15e02cb</span><span class="msg">Треки якорей: положение цели во времени вместо одной точки</span></li><li><span class="sha">7a24778</span><span class="msg">Автопроверки дубля: загрузка, скачки, якори, пропуски кадров</span></li><li><span class="sha">aa0f2d8</span><span class="msg">Рекордер: настоящий 2x и 30 кадров вместо VP8 на 600 кбит/с</span></li><li><span class="sha">19f042b</span><span class="msg">Съёмка: скринкаст 2x, ожидание содержимым, плавная прокрутка, треки якорей</span></li><li><span class="sha">a812df4</span><span class="msg">Масштаб съёмки измеряется, а не задаётся константой</span></li><li><span class="sha">9186495</span><span class="msg">Живой экран берёт кадр у рекордера, а не снимает свой</span></li><li><span class="sha">a6e5e77</span><span class="msg">Треки якорей понимают селекторы Playwright, проба масштаба меряет весь виток</span></li><li><span class="sha">fa1a174</span><span class="msg">Рекордер снимает через Playwright, а не мимо него</span></li></ul>
+
+<div class="perf"></div>
+
+<h2>Проверка на живом стенде</h2>
+
+<div class="panel panel--warn">
+<p class="pull" style="margin-bottom:14px">Стадия 1 в заявленном виде не достигнута. Говорю прямо.</p>
+<p style="margin-bottom:0">Разрешение выросло, брак съёмки ушёл — но частота захвата упала до
+неприемлемой. Это не косметика: в таком виде ролик будет хуже прежнего.</p>
+</div>
+
+<h3>Что подтвердилось</h3>
+<div class="scroll">
+<table>
+<thead><tr><th>Проверка</th><th>Результат</th></tr></thead>
+<tbody>
+<tr><td class="k">Разрешение записи</td><td class="now n">2880×1620 — честный 2×</td></tr>
+<tr><td class="k">Кодек и битрейт</td><td class="now n">h264, 3,9 Мбит/с (было VP8, 0,6)</td></tr>
+<tr><td class="k">Ожидание содержимым</td><td class="now">0 таймаутов, шаги 2–7 по 530–694 мс</td></tr>
+<tr><td class="k">Треки якорей</td><td class="now">296 и 80 проб, все в кадре</td></tr>
+<tr><td class="k">Загрузка помечена</td><td class="now">7 интервалов, 29,3 с — вырезаются из мастера</td></tr>
+<tr><td class="k">Проверка «цель вне кадра»</td><td class="now">поймала шаг 6 — тот самый, что дал зум в пустоту</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Что провалилось</h3>
+<p><strong>Захват дал 6,2 кадра в секунду при целевых 30.</strong> Кодировщик добивает
+частоту повтором кадров, и движение превращается в слайд-шоу — хуже исходных 25 к/с.
+Причина: каждый кадр это полный <code>page.screenshot()</code> в 2880×1620 через
+планировщик Playwright, и параллельно с ним идут пробы якорей.</p>
+<p>Шаг 1 ждал готовности 25,5 секунды — начальная загрузка Mission Control тяжелее,
+чем ожидалось. Это не ошибка ожидания: оно отработало верно и честно пометило интервал
+к вырезанию.</p>
+
+<h3>Куда это ведёт</h3>
+<p>Развилка настоящая, и решать её надо числом, а не желанием. Резкость и плавность
+в нынешней схеме несовместимы:</p>
+<ul>
+<li><strong>Скринкаст</strong> — событийный и дешёвый, держит 30 к/с легко, но отдаёт
+CSS-пиксели: 1440×810 и никак иначе.</li>
+<li><strong>Снимки в 2×</strong> — 2880×1620, но 6–17 к/с в зависимости от того,
+что ещё работает на странице.</li>
+<li><strong>Средний путь, непроверенный:</strong> снимать вьюпорт поменьше
+(1280×720) при <code>deviceScaleFactor: 2</code> — это 2560×1440 и вдвое меньше
+работы, чем 2880×1620. Вёрстка при 1280 остаётся десктопной.</li>
+</ul>
+<p style="margin-bottom:0">Мой совет — измерить третий вариант первым делом в следующей
+сессии. Если он даст 25–30 к/с, стадия 1 закрывается им. Если нет — честный выбор
+в пользу плавности: скринкаст в 1×, а резкость добирать тем, что композиция во второй
+стадии не будет наезжать глубже единицы.</p>
+
+
+<div class="perf"></div>
+
+<h2>Дальше</h2>
+
+<ol class="road">
+  <li><b>Съёмка без брака</b>
+    <span>Рекордер 2×/30, ожидание содержимым, плавная прокрутка, треки якорей,
+    автопроверки, вырезание загрузки из мастера.</span>
+    <span class="tag t-done">сделано сегодня</span></li>
+
+  <li><b>Композиция в браузере</b>
+    <span>Кадр становится чистой функцией <code>render(фильм, кадр) → DOM</code> с двумя
+    приводами: скраббер студии и покадровый цикл. Мокап-рамка, кривые камеры, курсор по
+    траектории, анимация титров. За ffmpeg остаётся кодирование и звук.
+    Замерено: 24,9 мс на кадр, 45 секунд на минуту ролика.
+    Здесь же видео впервые становится тестируемым покадрово.</span>
+    <span class="tag t-next">следующая</span></li>
+
+  <li><b>Раскадровка как данные</b>
+    <span>Сценарий перестаёт быть плоским списком шагов с ручным <code>seconds: 8</code>.
+    План — цель, действие, эффекты и длительность, <em>выведенная</em> из действия, с
+    границами 3,5–9 секунд. Сценарист пишет сюжет прозой, режиссёр превращает его в планы.</span>
+    <span class="tag t-later">после второй</span></li>
+
+  <li><b>Студия: три точки контроля</b>
+    <span>Разведка → сюжет → раскадровка, каждая правится и перегенерируется. Дорожки
+    эффектов: камера, наложения, темп, склейки. Комментарии как вход перегенерации,
+    а не пометки на полях.</span>
+    <span class="tag t-later">после третьей</span></li>
+
+  <li><b>Публикация</b>
+    <span>Отправка готового ролика наружу. Отложена сознательно — сначала должно быть
+    что отправлять.</span>
+    <span class="tag t-later">отдельной спекой</span></li>
+</ol>
+
+<div class="panel">
+<h3>Честные границы</h3>
+<p>Стадия 1 чинит <em>дубль</em>. Монтаж пока прежний, на ffmpeg: мокап-рамки, кривых камеры
+и курсора по траектории ещё нет — они во второй стадии. Ритма тоже нет: длительности сцен
+по-прежнему назначаются человеком числом, это третья стадия.</p>
+<p style="margin-bottom:0">Не проверено: как свой покадровый привод поведёт себя на трёх
+тысячах кадров подряд. Прототип снимал девяносто. Это главный риск второй стадии,
+и смягчается он тем, что композиция пишется портируемой.</p>
+</div>
+
+<footer>
+  Takt · стадия 1 · 1 августа 2026<br>
+  Спека — specs/2026-08-01-production-design.md · план — specs/2026-08-01-production-stage1-plan.md
+</footer>
+
+</div>
+</body>
+</html>
