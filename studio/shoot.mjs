@@ -68,7 +68,6 @@ const OUT = inProject('takes');
 fs.mkdirSync(OUT, { recursive: true });
 
 const VIEWPORT = { width: 1440, height: 810 };
-const SCALE = 2;
 
 const browser = await chromium.launch();
 const context = await browser.newContext({
@@ -76,7 +75,7 @@ const context = await browser.newContext({
   // Вёрстка остаётся прежней, растёт только плотность отрисовки. Поднимать вместо этого
   // сам вьюпорт нельзя: интерфейс разложится как на широком мониторе, и после сжатия
   // в 1080p текст станет мельче, чем сейчас.
-  deviceScaleFactor: SCALE,
+  deviceScaleFactor: 2,
   locale: 'ru-RU',
   colorScheme: 'dark',
 });
@@ -153,7 +152,7 @@ async function runAction(a) {
   if (a.waitFor) await page.waitForSelector(a.waitFor, { timeout: 30000 });
 }
 
-const timeline = { scene: 'take', fps: 30, viewport: VIEWPORT, scale: SCALE,
+const timeline = { scene: 'take', fps: 30, viewport: VIEWPORT,
                    events: [], hits: [] };
 /** Точки действий: куда и когда пришёлся клик или ввод. Монтаж наводит по ним камеру. */
 const hits = timeline.hits;
@@ -161,7 +160,9 @@ const started = Date.now();
 
 // Запись и треки живут в одной шкале времени — шкале рекордера. Отдельный отсчёт
 // разъезжался бы с кадрами тем сильнее, чем дольше идёт съёмка.
-const rec = new Recorder(page, { dir: OUT, fps: 30, viewport: VIEWPORT, scale: SCALE });
+// Масштаб не задаём: рекордер подбирает его замером на этой же странице —
+// цена снимка зависит от приложения, и константа тут врёт (см. lib/recorder.mjs).
+const rec = new Recorder(page, { dir: OUT, fps: 30, viewport: VIEWPORT });
 const stamp = () => rec.now();
 const tracker = new AnchorTracker(page, VIEWPORT, stamp);
 
@@ -266,6 +267,11 @@ try {
   }
   hits.sort((a, b) => a.t - b.t);
 
+  if (take?.scalePick) {
+    console.log(`масштаб съёмки ${take.scalePick.scale}× `
+      + `(${take.scalePick.ms} мс на кадр при бюджете ${take.scalePick.budget})`);
+  }
+  timeline.scale = take ? take.scale : 1;
   timeline.durationInSeconds = take ? take.seconds : 0;
   timeline.frames = take ? take.frames : 0;
   timeline.video = file;

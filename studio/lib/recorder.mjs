@@ -13,17 +13,32 @@
  * ничего не меняет. Проверено замером — старый комментарий в capture/lib/recorder.mjs
  * утверждал обратное и был неверен для нынешнего Chromium.
  *
- * ПОЧЕМУ НЕ ПО ТАЙМЕРУ. Снимок в 2× стоит 28,9 мс при бюджете 33,3 мс на кадр — запас
- * 13%, которого на живой странице не будет. Поэтому снимаем непрерывно, как получается, и
- * запоминаем время каждого кадра. Постоянные 30 к/с делает кодировщик по этим отметкам:
- * неровный захват не искажает темп движения, а провалы честно видит проверка пропусков.
+ * ПОЧЕМУ НЕ ПО ТАЙМЕРУ. Снимаем непрерывно, как получается, и запоминаем время каждого
+ * кадра. Постоянные 30 к/с делает кодировщик по этим отметкам: неровный захват не искажает
+ * темп движения, а провалы честно видит проверка пропусков.
+ *
+ * ПОЧЕМУ МАСШТАБ ИЗМЕРЯЕТСЯ, А НЕ ЗАДАН. Замер на синтетической странице обещал 28,9 мс
+ * на кадр в 2× — и оказался нерепрезентативным. На живом Mission Control тот же снимок
+ * стоит 59,2 мс, то есть 16,9 к/с: держать тридцать в честном 2× нельзя. Цена зависит от
+ * страницы и машины, поэтому единственная честная константа — не масштаб, а требуемая
+ * частота. Перед записью пробуем масштабы по убыванию и берём наибольший, который в неё
+ * укладывается: на лёгкой странице выйдет 2×, на тяжёлой — 1,5×.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 
 export class Recorder {
-  constructor(page, { dir, fps = 30, viewport, scale = 2, quality = 90 } = {}) {
+  /** Масштабы по убыванию: берём первый, который укладывается в требуемую частоту. */
+  static SCALES = [2, 1.5, 1.25, 1];
+
+  /**
+   * Запас к бюджету кадра. Без него выбранный масштаб держится ровно на грани, и первая
+   * же тяжёлая страница роняет частоту.
+   */
+  static HEADROOM = 0.85;
+
+  constructor(page, { dir, fps = 30, viewport, scale = null, quality = 90 } = {}) {
     this.page = page;
     this.dir = dir;
     this.fps = fps;
@@ -46,33 +61,58 @@ export class Recorder {
     fs.rmSync(this.framesDir, { recursive: true, force: true });
     fs.mkdirSync(this.framesDir, { recursive: true });
     this.cdp = await this.page.context().newCDPSession(this.page);
+    if (this.scale === null) this.scale = await this.#pickScale();
     this.t0 = Date.now();
     this.running = true;
     this.loop = this.#capture();
+  }
+
+  /** Наибольший масштаб, укладывающийся в бюджет кадра на ЭТОЙ странице и машине. */
+  async #pickScale() {
+    const budget = (1000 / this.fps) * Recorder.HEADROOM;
+    for (const scale of Recorder.SCALES) {
+      const t0 = Date.now();
+      for (let i = 0; i < 3; i++) await this.#shoot(scale);
+      const ms = (Date.now() - t0) / 3;
+      if (ms <= budget || scale === 1) {
+        this.scalePick = { scale, ms: Number(ms.toFixed(1)), budget: Number(budget.toFixed(1)) };
+        return scale;
+      }
+    }
+    return 1;
+  }
+
+  #shoot(scale) {
+    return this.cdp.send('Page.captureScreenshot', {
+      format: 'jpeg',
+      quality: this.quality,
+      optimizeForSpeed: true,
+      // clip.scale — единственный способ получить настоящий множитель: и скринкаст, и
+      // снимок без clip отдают CSS-пиксели, сколько бы ни стоял deviceScaleFactor.
+      clip: { x: 0, y: 0, width: this.viewport.width, height: this.viewport.height, scale },
+      fromSurface: true,
+    });
   }
 
   async #capture() {
     while (this.running) {
       let data;
       try {
-        // clip.scale — единственный способ получить настоящий 2×: и скринкаст, и снимок
-        // без clip отдают CSS-пиксели, сколько бы ни стоял deviceScaleFactor.
-        ({ data } = await this.cdp.send('Page.captureScreenshot', {
-          format: 'jpeg',
-          quality: this.quality,
-          optimizeForSpeed: true,
-          clip: {
-            x: 0, y: 0,
-            width: this.viewport.width, height: this.viewport.height,
-            scale: this.scale,
-          },
-          captureBeyondViewport: true,
-          fromSurface: true,
-        }));
-      } catch {
+        ({ data } = await this.#shoot(this.scale));
+        this.fails = 0;
+      } catch (e) {
         // Страница между переходами снимку недоступна — пропущенный кадр безобиднее
-        // упавшей съёмки, а его отсутствие увидит проверка пропусков.
+        // упавшей съёмки. Но пауза и счётчик обязательны: без них подряд идущие отказы
+        // дают бесконечный тихий цикл, который выглядит как работающая съёмка и не
+        // пишет ни кадра. Ровно так и случилось на первом прогоне.
         if (!this.running) break;
+        this.fails = (this.fails || 0) + 1;
+        if (this.fails >= 50) {
+          this.running = false;
+          this.error = new Error(`Снимок экрана не удался 50 раз подряд: ${e.message}`);
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 50));
         continue;
       }
       const t = Date.now() - this.t0;
@@ -86,6 +126,7 @@ export class Recorder {
   async stop() {
     this.running = false;
     await this.loop;
+    if (this.error) throw this.error;
 
     await this.#encode();
     fs.rmSync(this.framesDir, { recursive: true, force: true });
@@ -97,6 +138,7 @@ export class Recorder {
       viewport: this.viewport,
       frames: this.frameNo,
       frameTimes: this.frameTimes,
+      scalePick: this.scalePick || null,
       seconds: this.frameTimes.length
         ? Number((this.frameTimes.at(-1) / 1000).toFixed(3))
         : 0,
