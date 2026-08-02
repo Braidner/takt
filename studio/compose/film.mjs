@@ -38,15 +38,50 @@ export function visibleSticky(bands, viewport) {
     && b.x < viewport.width && b.y < viewport.height);
 }
 
-/** Центр якоря в CSS-пикселях экрана: снимок вдвое плотнее, камера считает в CSS. */
-function anchorPoint(state, selector) {
+/** Прямоугольник якоря в CSS-пикселях экрана: снимок вдвое плотнее, кадр считает в CSS. */
+function anchorRect(state, selector) {
   const found = (state.anchors || []).find((a) => a.selector === selector && a.rect);
   if (!found) return null;
   const k = state.scale || 1;
   return {
-    x: Math.round((found.rect.x + found.rect.w / 2) / k),
-    y: Math.round((found.rect.y + found.rect.h / 2) / k),
+    x: Math.round(found.rect.x / k), y: Math.round(found.rect.y / k),
+    w: Math.round(found.rect.w / k), h: Math.round(found.rect.h / k),
   };
+}
+
+/** Центр якоря — то, во что целится камера. */
+function anchorPoint(state, selector) {
+  const r = anchorRect(state, selector);
+  return r ? { x: Math.round(r.x + r.w / 2), y: Math.round(r.y + r.h / 2) } : null;
+}
+
+/**
+ * Наложения плана: подсветить, указать, подписать, размыть.
+ *
+ * Целятся селектором, как и камера, и разрешаются здесь же — в одном месте, где
+ * намерение встречается с фактом. Не нашли якорь — наложения нет и план назван:
+ * стрелка, указывающая в пустоту, хуже, чем её отсутствие.
+ */
+function overlaysOf(storyboard, plan, state, issues) {
+  const out = [];
+  for (const e of storyboard.effects || []) {
+    if (e.plan !== plan.id || e.kind !== 'overlay') continue;
+    const rect = e.anchor ? anchorRect(state, e.anchor) : null;
+    if (e.anchor && !rect) {
+      issues.push({ plan: plan.id,
+        text: `«${plan.title.text}»: цель наложения «${e.anchor}» не попала в снимок` });
+      continue;
+    }
+    out.push({
+      id: e.id,
+      what: e.params?.what || 'spotlight',
+      text: e.params?.text || '',
+      rect,
+      from: e.at?.from ?? 0,
+      to: e.at?.to ?? plan.duration.seconds,
+    });
+  }
+  return out;
 }
 
 /** Сколько камера успеет проехать за своё окно — но не дальше, чем есть страница. */
@@ -152,6 +187,12 @@ export function buildFilm(manifest, storyboard) {
         // поверх него читается как тряска.
         camera: { kind: 'drift', from: 0, to: 0 },
         cursor: null,
+        tempo: (() => {
+          const fx = (storyboard.effects || [])
+            .find((e) => e.plan === plan.id && e.kind === 'tempo');
+          return fx ? { rate: fx.params?.rate ?? 1, from: fx.at?.from ?? 0,
+                        to: fx.at?.to ?? dur } : null;
+        })(),
         state: { sticky: [] },
         title: { text: plan.title.text, at: 0.15 },
         transition: cut ? { from: cut.at.from, to: cut.at.to, style: cut.params.style } : null,
@@ -169,6 +210,14 @@ export function buildFilm(manifest, storyboard) {
       .find((e) => e.plan === plan.id && e.kind === kind);
 
     const camera = cameraOf(forPlan('camera'), plan, state, issues);
+    // Темп меняет ход времени ВНУТРИ плана: длительность самого плана задаёт
+    // раскадровка, и растягивать её эффектом значило бы иметь две правды о
+    // хронометраже.
+    const tempoFx = forPlan('tempo');
+    const tempo = tempoFx
+      ? { rate: tempoFx.params?.rate ?? 1, from: tempoFx.at?.from ?? 0,
+          to: tempoFx.at?.to ?? plan.duration.seconds }
+      : null;
 
     // Курсор существует ради действия: без цели ему не к чему ехать и нечего нажимать.
     const point = plan.action?.selector ? anchorPoint(state, plan.action.selector) : null;
@@ -181,10 +230,11 @@ export function buildFilm(manifest, storyboard) {
     plans.push({
       id: plan.id,
       kind: 'state',
+      overlays: overlaysOf(storyboard, plan, state, issues),
       from: Math.round(at * 10) / 10,
       to: Math.round((at + dur) * 10) / 10,
       state: { ...state, sticky: visibleSticky(state.sticky, state.viewport) },
-      camera, cursor,
+      camera, cursor, tempo,
       title: { text: plan.title.text, at: 0.15 },
       transition: cut ? { from: cut.at.from, to: cut.at.to, style: cut.params.style } : null,
     });
@@ -200,6 +250,7 @@ export function buildFilm(manifest, storyboard) {
 
   return {
     fps: storyboard.fps || 30,
+    format: 'wide',
     screen: { w: manifest.viewport.width, h: manifest.viewport.height },
     title: storyboard.title || '',
     seconds: Math.round(at * 10) / 10,
@@ -211,7 +262,7 @@ export function buildFilm(manifest, storyboard) {
  * Хайлайты — отбор, а не обрезка: сначала действия (видно функциональность),
  * потом открывающий план (что это вообще), потом финал (к чему всё шло).
  */
-export function buildHighlightFilm(film, { seconds = 25 } = {}) {
+export function buildHighlightFilm(film, { seconds = 25, format = 'wide' } = {}) {
   // Карточки в отбор не идут: хайлайты отвечают «а что это вообще» за время, которое
   // человек готов потратить на незнакомый продукт в ленте, и тратить его на заставку
   // значит не ответить вовсе.
@@ -245,5 +296,7 @@ export function buildHighlightFilm(film, { seconds = 25 } = {}) {
                    : { from: CLIP - 0.35, to: CLIP, style: 'dissolve' } });
     at += CLIP;
   }
-  return { ...film, plans, clicks, seconds: Math.round(at * 10) / 10 };
+  // Формат живёт в плёнке, а не в приводе: сцена строится из неё, и знать про 9:16
+  // должен тот, кто её строит.
+  return { ...film, format, plans, clicks, seconds: Math.round(at * 10) / 10 };
 }

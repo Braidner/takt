@@ -153,7 +153,7 @@
       </div>
       <div class="inspector-rows">
         <label class="inspector-row">
-          <span data-i="fxMove">Движение</span>
+          <span class="fx-move-label" data-i="fxMove">Движение</span>
           <select class="fx-move">
             <option value="push" data-i="fx_push">наезд</option>
             <option value="pan" data-i="fx_pan">панорама</option>
@@ -167,6 +167,10 @@
         <label class="inspector-row fx-speed-row">
           <span data-i="fxSpeed">Скорость</span>
           <input class="fx-speed" type="number" min="100" max="2000" step="50">
+        </label>
+        <label class="inspector-row fx-text-row">
+          <span data-i="fxText">Текст</span>
+          <input class="fx-text" type="text" maxlength="60">
         </label>
         <label class="inspector-row">
           <span data-i="fxFrom">От</span>

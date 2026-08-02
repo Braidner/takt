@@ -5,7 +5,7 @@
  */
 import { buildFilm, buildHighlightFilm } from './film.mjs';
 import { composeFrame } from './frame.mjs';
-import { mountScene, applyFrame } from './apply.mjs';
+import { mountScene, applyFrame, FORMATS } from './apply.mjs';
 import { directStoryboard } from './director.mjs';
 
 const q = new URLSearchParams(location.search);
@@ -32,10 +32,12 @@ try {
   if (film.issues.length) console.warn('замечания композиции:', film.issues);
   // Хайлайты — та же композиция, другая плёнка: отбор планов вместо обрезки видео.
   if (q.get('highlight') === '1') {
-    film = buildHighlightFilm(film, { seconds: Number(q.get('seconds')) || 25 });
+    film = buildHighlightFilm(film, { seconds: Number(q.get('seconds')) || 25,
+                                      format: q.get('format') === 'vertical' ? 'vertical' : 'wide' });
   }
   const frames = Math.round(film.seconds * film.fps);
 
+  const SCENE = FORMATS[film.format] || FORMATS.wide;
   const scene = mountScene(document.getElementById('root'), film, '/project/');
 
   // Кадры листаются без сети: все снимки должны быть декодированы до ready,
@@ -103,6 +105,7 @@ try {
 
   window.__takt = { ready: true, seek, settled,
     film: { fps: film.fps, seconds: film.seconds, frames,
+            width: SCENE.w, height: SCENE.h,
             clicks: film.clicks, issues: film.issues,
             live: film.plans.some((p) => p.kind === 'live') } };
 
@@ -115,10 +118,10 @@ try {
       if (e.data?.type === 'takt:seek') seek(Math.round((e.data.t || 0) * film.fps));
     });
     const fitEmbed = () => {
-      const s = Math.min(innerWidth / 1920, innerHeight / 1080);
+      const s = Math.min(innerWidth / SCENE.w, innerHeight / SCENE.h);
       const frame = document.getElementById('frame');
       frame.style.transform = `scale(${s})`;
-      frame.style.height = `${1080 * s}px`;
+      frame.style.height = `${SCENE.h * s}px`;
     };
     fitEmbed();
     addEventListener('resize', fitEmbed);
@@ -160,10 +163,10 @@ try {
 
     // Человеку сцена ужимается под окно; приводу вывода — нет.
     const fit = () => {
-      const s = Math.min(1, innerWidth / 1920, (innerHeight - 60) / 1080);
+      const s = Math.min(1, innerWidth / SCENE.w, (innerHeight - 60) / SCENE.h);
       const frame = document.getElementById('frame');
       frame.style.transform = `scale(${s})`;
-      frame.style.height = `${1080 * s}px`;
+      frame.style.height = `${SCENE.h * s}px`;
     };
     fit();
     addEventListener('resize', fit);

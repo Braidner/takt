@@ -54,13 +54,32 @@ function cameraWindow(scale, ax, ay, { w, h }) {
   return { scale, x, y };
 }
 
+/**
+ * Ход времени внутри плана.
+ *
+ * Замедление, ускорение и стоп-кадр меняют не длительность плана — её задаёт
+ * раскадровка, — а то, как быстро внутри него идёт движение. Иначе о хронометраже
+ * было бы две правды: одна в раскадровке, другая в эффекте.
+ */
+function localTime(plan, raw) {
+  const tempo = plan.tempo;
+  if (!tempo || tempo.rate === 1) return raw;
+  if (raw <= tempo.from) return raw;
+  const прошло = Math.min(raw, tempo.to) - tempo.from;
+  // Стоп-кадр — это темп ноль: время внутри плана стоит, пока эффект длится.
+  const внутри = tempo.from + прошло * tempo.rate;
+  return raw <= tempo.to ? внутри : внутри + (raw - tempo.to);
+}
+
 function screenAt(film, plan, t) {
-  const local = clamp(t - plan.from, 0, plan.to - plan.from);
+  const local = localTime(plan, clamp(t - plan.from, 0, plan.to - plan.from));
   const cam = plan.camera;
 
   // Живой отрезок: вместо снимка кадр называет момент записи. Дальше его ставит
   // сцена, а привод вывода ждёт, пока видео этот момент действительно покажет.
   if (plan.kind === 'live') {
+    // У живого отрезка темп двигает точку записи: ускорение проматывает её быстрее,
+    // стоп-кадр держит на месте.
     return { plan: plan.id, live: true, opacity: 1,
              video: { t: Math.round((plan.videoFrom + local) * 1000) / 1000 },
              sticky: [], cursor: null,
@@ -92,7 +111,33 @@ function screenAt(film, plan, t) {
 
   return { plan: plan.id, opacity: 1, scrollY, camera,
            sticky: plan.state.sticky.map(({ x, y, w, h }) => ({ x, y, w, h })),
+           overlays: overlaysAt(plan, local, scrollY, film.screen),
            cursor: cursorAt(plan, local, film.screen) };
+}
+
+/**
+ * Наложения на текущий момент: только живые, с плавным появлением и уходом.
+ *
+ * Резко возникшая подсветка читается как сбой отрисовки, поэтому у наложения всегда
+ * есть проявление и угасание — четверть секунды с каждой стороны.
+ */
+const OVERLAY_FADE = 0.25;
+
+function overlaysAt(plan, local, scrollY, screen) {
+  const out = [];
+  for (const o of plan.overlays || []) {
+    if (local < o.from || local > o.to) continue;
+    // Выноска ставится с той стороны, где есть место: у цели под верхним краем она
+    // уходила за кадр и обрезалась вместе с текстом.
+    const сверху = o.rect ? (o.rect.y - scrollY) < screen.h * 0.42 : false;
+    const opacity = Math.min(
+      interpolate(local, [o.from, o.from + OVERLAY_FADE], [0, 1], { easing: easeInOut }),
+      interpolate(local, [o.to - OVERLAY_FADE, o.to], [1, 0], { easing: easeInOut }),
+    );
+    out.push({ id: o.id, what: o.what, text: o.text, rect: o.rect, opacity,
+               place: сверху ? 'below' : 'above' });
+  }
+  return out;
 }
 
 /** Курсор: приехать, нажать, погаснуть. Без него действие выглядит самопроизвольным. */

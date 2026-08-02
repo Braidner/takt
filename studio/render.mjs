@@ -22,6 +22,7 @@ import { buildSound } from './sound.mjs';
 const run = promisify(execFile);
 const silent = process.argv.includes('--silent');
 const highlight = process.argv.includes('--highlight');
+const vertical = process.argv.includes('--vertical');
 const seconds = (() => {
   const i = process.argv.indexOf('--seconds');
   return i !== -1 ? Number(process.argv[i + 1]) : 25;
@@ -46,7 +47,9 @@ if (!fs.existsSync(manifestPath)) {
 }
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
-const W = 1920, H = 1080;
+// Размер кадра приходит из плёнки: формат знает сцена, а не привод. Здесь только
+// начальное окно — точный размер выставляется, когда плёнка собрана.
+const W = vertical ? 1080 : 1920, H = vertical ? 1920 : 1080;
 const work = inProject('edit');
 fs.mkdirSync(work, { recursive: true });
 
@@ -56,11 +59,18 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: W, height: H } });
 const t0 = Date.now();
 try {
-  const hq = highlight ? `&highlight=1&seconds=${seconds}` : '';
+  const hq = highlight
+    ? `&highlight=1&seconds=${seconds}${vertical ? '&format=vertical' : ''}`
+    : '';
   await page.goto(`${base}/compose/player.html?render=1${hq}`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.__takt !== undefined, null, { timeout: 60000 });
   const film = await page.evaluate(() => window.__takt.film ?? { error: window.__takt.error });
   if (!film.frames) throw new Error(film.error || 'плёнка не собралась');
+  // Окно подгоняется под сцену: снимок должен быть кадром ролика один в один, без
+  // полей и без обрезки.
+  if (film.width && film.height && (film.width !== W || film.height !== H)) {
+    await page.setViewportSize({ width: film.width, height: film.height });
+  }
   // Замечания композиции печатаются до рендера, а не после: две минуты работы
   // впустую человек прощает хуже, чем строку предупреждения.
   for (const i of film.issues || []) console.error(`  · ${i.text}`);
@@ -95,7 +105,9 @@ try {
   await ffDone;
 
   const out = outArg ? path.resolve(outArg)
-    : inProject(highlight ? 'movie-short.mp4' : 'movie.mp4');
+    : inProject(highlight
+        ? (vertical ? 'movie-short-vertical.mp4' : 'movie-short.mp4')
+        : 'movie.mp4');
   if (silent) {
     fs.copyFileSync(body, out);
   } else {
