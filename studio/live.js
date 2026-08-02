@@ -39,6 +39,7 @@ const el = {
   cut: document.querySelector('.cut-run'),
   cuts: document.querySelector('.cuts'),
   sources: document.querySelector('.sources'),
+  inspector: document.querySelector('.inspector'),
   composeFrame: document.querySelector('.compose-frame'),
   short: document.querySelector('.short-run'),
   play: document.querySelector('.play'),
@@ -440,6 +441,12 @@ function renderBoard(next) {
   if (el.scriptCount) el.scriptCount.textContent = `${storyboard.plans.length} · ${mmss(DURATION)}`;
   renderRuler();
   renderTracks();
+  // Открытый инспектор перечитывается: сервер нормализовал правку, и показывать
+  // человеку его же ввод вместо принятого значения — самый тихий способ соврать.
+  if (openEffect) {
+    if (effectById(openEffect)) openInspector(openEffect);
+    else closeInspector();
+  }
 
   // Статус рядом с заголовком: пока черновик — съёмка не стартует, и человек должен
   // понимать, почему, не заглядывая в документацию.
@@ -461,6 +468,82 @@ function renderBoard(next) {
     if (el.shoot.disabled && !ready) trTitle(el.shoot, 'shootOffline');
     else { trTitle(el.shoot, null); el.shoot.title = ''; }
   }
+}
+
+/**
+ * Инспектор эффекта.
+ *
+ * Правка идёт в раскадровку, сервер её нормализует, композиция перечитывается —
+ * секунды вместо минут, потому что съёмка при этом не запускается. Любая правка
+ * помечает эффект ручным: перегенерация обязана обходить его стороной, иначе
+ * следующий заход режиссёра молча сотрёт работу человека.
+ */
+let openEffect = null;
+
+const MOVE_FIELDS = { push: ['depth'], pan: ['speed'], drift: [] };
+
+function effectById(id) {
+  return (storyboard?.effects || []).find((e) => e.id === id) || null;
+}
+
+function openInspector(id) {
+  const e = effectById(id);
+  if (!e || !el.inspector) return;
+  openEffect = id;
+  const plan = (storyboard?.plans || []).find((x) => x.id === e.plan);
+  el.inspector.hidden = false;
+  tr(el.inspector.querySelector('.inspector-title'), 'fxOn', { plan: plan?.title.text || e.plan });
+
+  const move = e.kind === 'transition' ? 'drift' : (e.params?.move || 'drift');
+  el.inspector.querySelector('.fx-move').value = move;
+  el.inspector.querySelector('.fx-depth').value = e.params?.depth ?? 1.26;
+  el.inspector.querySelector('.fx-speed').value = e.params?.speed ?? 600;
+  el.inspector.querySelector('.fx-from').value = e.at?.from ?? 0;
+  el.inspector.querySelector('.fx-to').value = e.at?.to ?? 0;
+  // Склейка своего движения не имеет: показывать ей поля камеры значит обещать
+  // правку, которой не будет.
+  el.inspector.querySelector('.fx-move').disabled = e.kind === 'transition';
+  el.inspector.querySelector('.inspector-auto').hidden = e.source !== 'manual';
+  syncInspectorFields();
+  renderTracks();
+}
+
+function closeInspector() {
+  openEffect = null;
+  if (el.inspector) el.inspector.hidden = true;
+  renderTracks();
+}
+
+/** Поля показываются по виду движения: у панорамы нет глубины, у наезда — скорости. */
+function syncInspectorFields() {
+  if (!el.inspector) return;
+  const move = el.inspector.querySelector('.fx-move').value;
+  const нужные = MOVE_FIELDS[move] || [];
+  el.inspector.querySelector('.fx-depth-row').hidden = !нужные.includes('depth');
+  el.inspector.querySelector('.fx-speed-row').hidden = !нужные.includes('speed');
+}
+
+async function saveInspector() {
+  const e = effectById(openEffect);
+  if (!e) return;
+  const move = el.inspector.querySelector('.fx-move').value;
+  const num = (sel) => Number(el.inspector.querySelector(sel).value);
+  const params = e.kind === 'transition'
+    ? { ...e.params }
+    : { move, ...(move === 'push' ? { depth: num('.fx-depth') } : {}),
+                ...(move === 'pan' ? { speed: num('.fx-speed') } : {}) };
+  const next = { ...e, params, source: 'manual',
+                 at: { from: num('.fx-from'), to: num('.fx-to') } };
+  const effects = (storyboard.effects || []).map((x) => (x.id === e.id ? next : x));
+  await pushBoard({ effects });
+}
+
+/** Вернуть автоматический: ручной эффект убирается, режиссёр ставит свой. */
+async function dropManualEffect() {
+  const e = effectById(openEffect);
+  if (!e) return;
+  closeInspector();
+  await pushBoard({ effects: (storyboard.effects || []).filter((x) => x.id !== e.id) });
 }
 
 /**
@@ -516,10 +599,14 @@ function renderTracks() {
       const move = e.kind === 'transition' ? e.params?.style : e.params?.move;
       tr(clip, `fx_${move}`);
       trTitle(clip, e.source === 'manual' ? 'fxManual' : `fx_${move}`);
+      clip.dataset.fx = e.id;
+      if (e.id === openEffect) clip.setAttribute('aria-current', 'true');
       clip.addEventListener('click', (ev) => {
         ev.stopPropagation();
         seek(from);
-        litStep(plan.n);
+        // Клик по эффекту ставит плейхед на его начало и открывает правку: смотреть
+        // наезд имеет смысл с того кадра, где он начинается.
+        openInspector(e.id);
       });
       fx.append(clip);
     }
@@ -1266,6 +1353,14 @@ async function boot() {
   });
 
   el.play?.addEventListener('click', togglePlay);
+  el.inspector?.addEventListener('change', (e) => {
+    if (e.target.classList.contains('fx-move')) syncInspectorFields();
+    saveInspector();
+  });
+  el.inspector?.querySelector('.inspector-close')
+    ?.addEventListener('click', closeInspector);
+  el.inspector?.querySelector('.inspector-auto')
+    ?.addEventListener('click', dropManualEffect);
   el.sources?.addEventListener('click', (e) => {
     const b = e.target.closest('.source-btn');
     if (b && !b.disabled) setSource(b.dataset.source);
