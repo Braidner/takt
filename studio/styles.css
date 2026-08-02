@@ -1275,6 +1275,21 @@ button, input, textarea, select { font: inherit; color: inherit; }
   .step-row.lit, .note.lit, .narration-line.lit { animation-duration: 0.01s; }
 }
 
+/* Адрес замечания: план или эффект рядом с таймкодом. Приглушён — это уточнение
+   к времени, а не второй заголовок. */
+.note-where {
+  font-size: var(--t-xs);
+  color: var(--ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 18ch;
+}
+
+/* Кнопки в столбик: «Применить» и «Пересобрать раскадровку» рядом не помещаются в
+   панель замечаний, а сокращать надписи нельзя — они называют разную работу. */
+.plan-actions { display: flex; flex-direction: column; gap: var(--sp-2); }
+
 /* Инспектор эффекта. Живёт под таймлайном, а не всплывающим окном: правка видна
    сразу в кадре, и человек смотрит то на поле, то на картинку — перекрывать её
    диалогом значило бы прятать единственную обратную связь. */

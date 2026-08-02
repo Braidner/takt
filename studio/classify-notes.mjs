@@ -62,6 +62,18 @@ const RULES = [
   },
 ];
 
+/**
+ * Замечание с адресом — вход перегенерации: режиссёр перечитывает его вместе с
+ * сюжетом и выдаёт новую раскадровку. Съёмка при этом не нужна, поэтому и минут
+ * втрое меньше пересборки с новым прогоном.
+ */
+const DIRECTED = {
+  kind: 'direct',
+  title: 'Перегенерация',
+  why: 'режиссёр пересоберёт раскадровку с учётом замечания',
+  minutes: 3,
+};
+
 const FALLBACK = {
   kind: 'unclear',
   title: 'Непонятно',
@@ -69,14 +81,24 @@ const FALLBACK = {
   minutes: null,
 };
 
-export function classifyNote(text) {
-  const t = String(text || '');
+/**
+ * Вид работы по замечанию.
+ *
+ * Принимает и строку, и само замечание с адресом. Адрес важнее слов: «слишком долго
+ * висит пустой экран» не содержит ни одного признака из правил, и без адреса такое
+ * замечание уходило в «непонятно» — а с адресом это внятная работа режиссёра над
+ * конкретным планом. Просьбу переснять адрес не перебивает: раскадровкой не добудешь
+ * состояние, которого не снимали.
+ */
+export function classifyNote(note) {
+  const t = String(typeof note === 'string' ? note : note?.text || '');
   for (const rule of RULES) {
     if (rule.test.test(t)) {
       const { test, ...rest } = rule;
       return rest;
     }
   }
+  if (typeof note === 'object' && (note?.plan || note?.effect)) return DIRECTED;
   return FALLBACK;
 }
 
@@ -88,15 +110,17 @@ export function classifyNote(text) {
  */
 export function planFor(notes) {
   const open = notes.filter((n) => n.status !== 'applied');
-  const items = open.map((n) => ({ ...n, ...classifyNote(n.text) }));
+  const items = open.map((n) => ({ ...n, ...classifyNote(n) }));
 
   const kinds = new Set(items.map((i) => i.kind));
   let minutes = 0;
   if (kinds.has('shoot')) minutes += 20;          // один прогон покрывает все такие правки
   if (kinds.has('voice')) minutes += 3;
   if (kinds.has('diagram')) minutes += 5;
+  // Перегенерация одна на все адресные замечания: режиссёр читает их разом.
+  if (kinds.has('direct')) minutes += 3;
   // Пересборка нужна в любом случае, кроме чистой пересъёмки — там она уже входит в срок.
-  if (kinds.has('edit') || (kinds.size && !kinds.has('shoot'))) minutes += 2;
+  if (kinds.has('edit') || (kinds.size && !kinds.has('shoot') && !kinds.has('direct'))) minutes += 2;
 
   return {
     items,

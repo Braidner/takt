@@ -48,6 +48,7 @@ const el = {
   planList: document.querySelector('.plan-list'),
   planCost: document.querySelector('.plan-cost'),
   planApply: document.querySelector('.plan-apply'),
+  planRegen: document.querySelector('.plan-regen'),
   inflight: document.querySelector('.script-actions .inflight'),
   inflightNotes: document.querySelector('.inflight-notes'),
   projectSelect: document.querySelector('.project-select'),
@@ -733,6 +734,7 @@ const EVENT_TITLES = {
   voice_prepare: 'evVoicePrepare',
   cut: 'evCut',
   short: 'evShort',
+  regen: 'evRegen',
 };
 
 /**
@@ -984,6 +986,7 @@ function syncCursor(t) {
  * увидеть эту разницу прежде, чем согласится ждать.
  */
 const PLAN_KINDS = {
+  direct: 'planDirect',
   shoot: 'planShoot',
   voice: 'planVoice',
   diagram: 'planDiagram',
@@ -1020,6 +1023,13 @@ async function renderPlan() {
   // Пересъёмка — единственное, что стоит десятки минут: об этом говорим прямо в кнопке.
   tr(el.planApply, plan.needsShooting ? 'planApplyShoot' : 'planApply');
   el.planApply.disabled = el.agent?.dataset.state === 'offline';
+  // Перегенерация предлагается только когда есть что перечитывать: замечание с
+  // адресом. Без него режиссёру нечего учитывать, и кнопка обещала бы работу,
+  // которая ничего не изменит.
+  if (el.planRegen) {
+    el.planRegen.hidden = !plan.items.some((i) => i.kind === 'direct');
+    el.planRegen.disabled = el.agent?.dataset.state === 'offline';
+  }
 }
 
 /**
@@ -1127,8 +1137,15 @@ function renderNotes(notes) {
     if (n.status === 'applied') art.dataset.status = 'applied';
     art.innerHTML = `<div class="note-head">
         <button class="time-chip" type="button">${mmss(n.t)}</button>
+        <span class="note-where"></span>
         <span class="note-kind"></span>
       </div><p class="note-body"></p>`;
+    // Адрес рядом с таймкодом: по нему видно, что именно переделывать, — время
+    // говорит лишь, куда смотреть.
+    const where = art.querySelector('.note-where');
+    const наплане = (storyboard?.plans || []).find((x) => x.id === n.plan);
+    if (наплане) tr(where, n.effect ? 'noteOnEffect' : 'noteOnPlan', { plan: наплане.title.text });
+    else where.hidden = true;
     tr(art.querySelector('.note-kind'),
        n.status === 'applied' ? 'kindApplied' : (kinds[n.kind] || 'kindEdit'));
     art.querySelector('.note-body').textContent = n.text;
@@ -1272,11 +1289,26 @@ async function boot() {
   seek(cursor);
   connect();
 
+  /**
+   * Адрес замечания — то, на что человек сейчас смотрит: открытый эффект или план
+   * под плейхедом. Без адреса «долго висит пустой экран» уходит в «непонятно», а с
+   * ним это внятная работа режиссёра над конкретным планом.
+   */
+  const noteAddress = () => {
+    if (openEffect) {
+      const e = effectById(openEffect);
+      if (e) return { plan: e.plan, effect: e.id };
+    }
+    const plan = (storyboard?.plans || [])
+      .find((x) => cursor >= x.at && cursor < x.at + x.duration.seconds);
+    return plan ? { plan: plan.id, effect: null } : { plan: null, effect: null };
+  };
+
   el.send?.addEventListener('click', async (e) => {
     e.preventDefault();
     const text = el.composer.value.trim();
     if (!text) return;
-    await post('/api/event', { type: 'note', t: cursor, text, kind: 'edit' });
+    await post('/api/event', { type: 'note', t: cursor, text, kind: 'edit', ...noteAddress() });
     el.composer.value = '';
   });
 
@@ -1345,6 +1377,11 @@ async function boot() {
     if (!title) return;
     await post('/api/projects', { title });
     location.reload();
+  });
+
+  el.planRegen?.addEventListener('click', async () => {
+    el.planRegen.disabled = true;
+    await post('/api/event', { type: 'regen', stage: 'storyboard' });
   });
 
   el.planApply?.addEventListener('click', async () => {

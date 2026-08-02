@@ -238,7 +238,13 @@
         <span class="plan-cost"></span>
       </div>
       <ul class="plan-list"></ul>
-      <button class="primary plan-apply" type="button" data-i="planApply">Применить</button>
+      <div class="plan-actions">
+        <button class="primary plan-apply" type="button" data-i="planApply">Применить</button>
+        <!-- Перегенерация: режиссёр перечитывает замечания вместе с сюжетом и выдаёт
+             новую раскадровку. Съёмка при этом не запускается. -->
+        <button class="ghost plan-regen" type="button" data-i="planRegen"
+                data-i-title="planRegenTitle">Пересобрать раскадровку</button>
+      </div>
     </div>
   </section>
 
