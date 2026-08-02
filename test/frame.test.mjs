@@ -17,7 +17,7 @@ const state = (over = {}) => ({
 
 const film = (plans, states) => buildFilm(
   { viewport: VIEWPORT, live: null, states },
-  directStoryboard(normalizeStoryboard({ title: 'Демо', plans }), states),
+  directStoryboard(normalizeStoryboard({ title: 'Демо', slate: false, plans }), states),
 );
 
 /** План на 7,2 с: панорама едет с 0,6 до 4,6 на дистанцию 2266. */

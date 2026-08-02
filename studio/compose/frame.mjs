@@ -58,6 +58,14 @@ function screenAt(film, plan, t) {
   const local = clamp(t - plan.from, 0, plan.to - plan.from);
   const cam = plan.camera;
 
+  // Карточка живёт своей жизнью: у неё нет ни снимка, ни камеры по нему — только
+  // текст, который проявляется и держится.
+  if (plan.kind === 'card') {
+    return { plan: plan.id, card: plan.card, opacity: 1,
+             text: plan.text, subtitle: plan.subtitle || null, url: plan.url || null,
+             appear: interpolate(local, [0, 0.5], [0, 1], { easing: easeInOut }) };
+  }
+
   let scrollY = 0;
   let camera = { scale: 1, x: 0, y: 0 };
 
