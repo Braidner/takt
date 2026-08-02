@@ -33,7 +33,7 @@ const COMMANDS = {
   shoot:    { file: 'studio/shoot.mjs',       help: 'снять по утверждённой раскадровке', studio: true },
   build:    { file: 'studio/build.mjs',       help: 'собрать ролик (статичный проект — композицией из состояний)', studio: true },
   edit:     { file: 'studio/edit.mjs',        help: 'смонтировать; статичный проект собирает та же композиция', studio: true },
-  highlight:{ file: 'studio/highlight.mjs',   help: 'короткая версия из лучших моментов (--vertical для сторис)', studio: true },
+  highlight:{ file: 'studio/highlight.mjs',   help: 'короткая версия из лучших моментов', studio: true },
   track:    { file: 'studio/build-track.mjs', help: 'собрать дикторскую дорожку и подмешать в ролик', studio: true },
   narrate:  { file: 'studio/narrate.py',      help: 'синтезировать реплики клонированным голосом', studio: true },
   voice:    { file: 'studio/prepare-voice.mjs', help: 'подготовить добавленный голос', studio: true },

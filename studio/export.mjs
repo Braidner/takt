@@ -37,12 +37,11 @@ const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart
 const copied = [];
 
 /**
- * Версии ролика по убыванию готовности: смонтированный с озвучкой лучше просто
- * смонтированного, тот лучше мастера. Первый найденный становится «роликом», а
- * короткие версии едут отдельными файлами — они не замена, а другой жанр.
+ * Версии ролика по убыванию готовности: с озвучкой лучше немого. Первый найденный
+ * становится «роликом», а хайлайты едут отдельным файлом — они не замена, а
+ * другой жанр.
  */
-for (const [src, as] of [['movie-cut.mp4', 'ролик.mp4'],
-                         ['movie-vo.mp4', 'ролик.mp4'],
+for (const [src, as] of [['movie-vo.mp4', 'ролик.mp4'],
                          ['movie.mp4', 'ролик.mp4']]) {
   const from = inProject(src);
   if (fs.existsSync(from) && !copied.includes('ролик.mp4')) {
@@ -50,8 +49,7 @@ for (const [src, as] of [['movie-cut.mp4', 'ролик.mp4'],
     copied.push(as);
   }
 }
-for (const [src, as] of [['movie-short.mp4', 'хайлайты.mp4'],
-                         ['movie-short-vertical.mp4', 'хайлайты-вертикальные.mp4']]) {
+for (const [src, as] of [['movie-short.mp4', 'хайлайты.mp4']]) {
   const from = inProject(src);
   if (fs.existsSync(from)) { fs.copyFileSync(from, path.join(dest, as)); copied.push(as); }
 }

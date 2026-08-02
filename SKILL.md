@@ -76,7 +76,7 @@ takt target        # адрес, вход, разведанные селекто
 | `retake` | переснять сцену или с плана | `references/shooting.md` |
 | `note` | замечание по таймкоду — принять, не выполняя сразу | `references/notes.md` |
 | `cut` | собрать ролик: камера, курсор, титры, звук | `takt build`, затем `references/editing.md` |
-| `short` | короткая версия из лучших моментов | `takt highlight` (`--vertical` для сторис) |
+| `short` | короткая версия из лучших моментов | `takt highlight` |
 | `apply` | применить накопленные замечания | `references/notes.md` |
 | `regen` | пересобрать раскадровку по комментариям | `references/notes.md` |
 | `narrate` | озвучить ролик | `references/voice.md` |
