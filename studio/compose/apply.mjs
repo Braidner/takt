@@ -118,6 +118,7 @@ export function mountScene(root, film, base) {
               height:${b.h}px;overflow:hidden">
               <img src="${base}${plan.state.layer}" style="position:absolute;
                 left:${-b.x}px;top:${-b.y}px;width:${sw}px"></div>`).join('')}
+          <div class="overlays" style="position:absolute;inset:0;pointer-events:none"></div>
           <div class="cursor" style="position:absolute;left:0;top:0;width:26px;height:26px;
             margin:-13px 0 0 -13px;border-radius:50%;background:rgba(255,255,255,.9);
             box-shadow:0 0 0 5px rgba(255,255,255,.28),0 6px 22px rgba(0,0,0,.5);
@@ -127,12 +128,92 @@ export function mountScene(root, film, base) {
     stage.appendChild(el);
     screens.set(plan.id, {
       el, zoom: el.querySelector('.zoom'), body: el.querySelector('.body'),
-      cursor: el.querySelector('.cursor'),
+      overlays: el.querySelector('.overlays'), cursor: el.querySelector('.cursor'),
+      drawn: new Map(),
     });
   }
 
   return { screens, window: root.querySelector('.window'),
            captionText: root.querySelector('.caption-text'), lastText: '' };
+}
+
+/**
+ * Наложения: подсветить, указать, подписать, размыть.
+ *
+ * Узлы создаются один раз на эффект и дальше только меняют непрозрачность: пересоздание
+ * на каждом кадре стоило бы перерисовки блюра, а он самый дорогой из всего, что здесь
+ * рисуется.
+ *
+ * Координаты — в шкале страницы, поэтому слой живёт внутри той же обёртки, что и снимок:
+ * он едет вместе с панорамой и масштабируется вместе с наездом, как и должно быть у
+ * пометки, привязанной к элементу интерфейса.
+ */
+function drawOverlays(screen, desc) {
+  const живые = new Set();
+  for (const o of desc.overlays || []) {
+    живые.add(o.id);
+    let node = screen.drawn.get(o.id);
+    if (!node) {
+      node = document.createElement('div');
+      node.style.cssText = 'position:absolute;pointer-events:none';
+      node.innerHTML = overlayHTML(o);
+      node.dataset.place = o.place || 'above';
+      screen.overlays.append(node);
+      screen.drawn.set(o.id, node);
+    }
+    const r = o.rect || { x: 0, y: 0, w: 0, h: 0 };
+    // Выноска и стрелка ставятся у цели, подсветка и размытие — по ней самой.
+    const поле = o.what === 'spotlight' || o.what === 'blur' ? 12 : 0;
+    node.style.left = `${r.x - поле}px`;
+    node.style.top = `${r.y - поле}px`;
+    node.style.width = `${r.w + поле * 2}px`;
+    node.style.height = `${r.h + поле * 2}px`;
+    node.style.opacity = String(o.opacity);
+    if ((o.what === 'callout' || o.what === 'arrow') && node.dataset.place !== o.place) {
+      node.dataset.place = o.place;
+      node.innerHTML = overlayHTML(o);
+    }
+  }
+  for (const [id, node] of screen.drawn) {
+    if (!живые.has(id)) node.style.opacity = '0';
+  }
+}
+
+function overlayHTML(o) {
+  if (o.what === 'blur') {
+    return `<div style="position:absolute;inset:0;backdrop-filter:blur(14px);
+      border-radius:10px"></div>`;
+  }
+  if (o.what === 'arrow') {
+    // Стрелка приходит сбоку и упирается в цель, не закрывая её. Сторону берём ту же,
+    // что у выноски: у цели под верхним краем стрелка сверху обрезалась бы окном.
+    const снизу = o.place === 'below';
+    const бок = снизу ? 'right:100%;top:100%' : 'right:100%;bottom:100%';
+    const путь = снизу
+      ? { line: 'M4 116 C 40 90, 60 60, 96 24', head: 'M96 24 L 74 28 L 92 46 Z' }
+      : { line: 'M4 4 C 40 30, 60 60, 96 96', head: 'M96 96 L 74 92 L 92 74 Z' };
+    return `<svg viewBox="0 0 120 120" style="position:absolute;${бок};
+      width:120px;height:120px;overflow:visible">
+      <path d="${путь.line}" stroke="#00e0b8" stroke-width="7"
+        fill="none" stroke-linecap="round"/>
+      <path d="${путь.head}" fill="#00e0b8"/></svg>`;
+  }
+  if (o.what === 'callout') {
+    // Сторона выноски приходит из кадра: у цели под верхним краем она уходила бы
+    // за границу окна вместе с текстом.
+    const место = o.place === 'below'
+      ? 'top:calc(100% + 14px)' : 'bottom:calc(100% + 14px)';
+    return `<div style="position:absolute;left:50%;${место};
+      transform:translateX(-50%);white-space:nowrap;
+      padding:10px 18px;border-radius:12px;background:rgba(9,11,16,.92);
+      box-shadow:0 0 0 1px rgba(0,224,184,.5), 0 18px 40px -12px rgba(0,0,0,.8);
+      font:600 26px/1.2 'Golos Text',system-ui,sans-serif;color:#f4f6fa">${o.text || ''}</div>
+      <div style="position:absolute;inset:0;border-radius:10px;
+        box-shadow:0 0 0 3px rgba(0,224,184,.75)"></div>`;
+  }
+  // Подсветка: затемняем всё, кроме цели, огромной тенью вокруг неё.
+  return `<div style="position:absolute;inset:0;border-radius:12px;
+    box-shadow:0 0 0 9999px rgba(4,6,12,.66), 0 0 0 3px rgba(255,255,255,.28)"></div>`;
 }
 
 export function applyFrame(scene, desc) {
@@ -152,6 +233,7 @@ export function applyFrame(scene, desc) {
     // Окно камеры: сначала сдвиг к окну, затем масштаб — семантика zoompan.
     s.zoom.style.transform =
       `scale(${d.camera.scale}) translate(${-d.camera.x}px,${-d.camera.y}px)`;
+    drawOverlays(s, d);
     if (d.cursor) {
       s.cursor.style.opacity = String(d.cursor.opacity);
       // Курсор целится в якорь — его координаты в шкале СТРАНИЦЫ, а рисуется он

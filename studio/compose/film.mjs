@@ -38,15 +38,50 @@ export function visibleSticky(bands, viewport) {
     && b.x < viewport.width && b.y < viewport.height);
 }
 
-/** Центр якоря в CSS-пикселях экрана: снимок вдвое плотнее, камера считает в CSS. */
-function anchorPoint(state, selector) {
+/** Прямоугольник якоря в CSS-пикселях экрана: снимок вдвое плотнее, кадр считает в CSS. */
+function anchorRect(state, selector) {
   const found = (state.anchors || []).find((a) => a.selector === selector && a.rect);
   if (!found) return null;
   const k = state.scale || 1;
   return {
-    x: Math.round((found.rect.x + found.rect.w / 2) / k),
-    y: Math.round((found.rect.y + found.rect.h / 2) / k),
+    x: Math.round(found.rect.x / k), y: Math.round(found.rect.y / k),
+    w: Math.round(found.rect.w / k), h: Math.round(found.rect.h / k),
   };
+}
+
+/** Центр якоря — то, во что целится камера. */
+function anchorPoint(state, selector) {
+  const r = anchorRect(state, selector);
+  return r ? { x: Math.round(r.x + r.w / 2), y: Math.round(r.y + r.h / 2) } : null;
+}
+
+/**
+ * Наложения плана: подсветить, указать, подписать, размыть.
+ *
+ * Целятся селектором, как и камера, и разрешаются здесь же — в одном месте, где
+ * намерение встречается с фактом. Не нашли якорь — наложения нет и план назван:
+ * стрелка, указывающая в пустоту, хуже, чем её отсутствие.
+ */
+function overlaysOf(storyboard, plan, state, issues) {
+  const out = [];
+  for (const e of storyboard.effects || []) {
+    if (e.plan !== plan.id || e.kind !== 'overlay') continue;
+    const rect = e.anchor ? anchorRect(state, e.anchor) : null;
+    if (e.anchor && !rect) {
+      issues.push({ plan: plan.id,
+        text: `«${plan.title.text}»: цель наложения «${e.anchor}» не попала в снимок` });
+      continue;
+    }
+    out.push({
+      id: e.id,
+      what: e.params?.what || 'spotlight',
+      text: e.params?.text || '',
+      rect,
+      from: e.at?.from ?? 0,
+      to: e.at?.to ?? plan.duration.seconds,
+    });
+  }
+  return out;
 }
 
 /** Сколько камера успеет проехать за своё окно — но не дальше, чем есть страница. */
@@ -181,6 +216,7 @@ export function buildFilm(manifest, storyboard) {
     plans.push({
       id: plan.id,
       kind: 'state',
+      overlays: overlaysOf(storyboard, plan, state, issues),
       from: Math.round(at * 10) / 10,
       to: Math.round((at + dur) * 10) / 10,
       state: { ...state, sticky: visibleSticky(state.sticky, state.viewport) },

@@ -244,3 +244,47 @@ test('длительность живого плана задаёт запись
   const живой = film.plans.find((p) => p.id === 'p02');
   assert.ok(Math.abs((живой.to - живой.from) - 4) < 0.01);   // столько записалось
 });
+
+const withOverlay = (what, extra = {}) => normalizeStoryboard({
+  title: 'Демо', slate: false,
+  plans: [{ title: { text: 'Клик' }, action: { kind: 'click', selector: 'text=Жанры' } }],
+  effects: [{ id: 'o1', plan: 'p01', kind: 'overlay', at: { from: 1, to: 3 },
+              anchor: 'text=Жанры', params: { what, ...extra }, source: 'manual' }],
+});
+
+const anchored = () => state({
+  anchors: [anchor('text=Жанры', { x: 2000, y: 1200, w: 200, h: 80 })],
+});
+
+test('наложение целится селектором и получает прямоугольник, а не точку', () => {
+  // Подсветить и размыть можно только область: центр для этого не годится.
+  const states = [anchored()];
+  const film = buildFilm(manifest(states), withOverlay('spotlight'));
+  const [o] = film.plans[0].overlays;
+
+  assert.equal(o.what, 'spotlight');
+  assert.deepEqual(o.rect, { x: 1000, y: 600, w: 100, h: 40 });
+  assert.equal(o.from, 1);
+  assert.equal(o.to, 3);
+});
+
+test('выноска несёт свой текст', () => {
+  const states = [anchored()];
+  const film = buildFilm(manifest(states), withOverlay('callout', { text: 'вот сюда' }));
+  assert.equal(film.plans[0].overlays[0].text, 'вот сюда');
+});
+
+test('наложение без найденной цели не строится, а называет план', () => {
+  // Стрелка, указывающая в пустоту, хуже, чем её отсутствие.
+  const states = [state({ anchors: [anchor('text=Жанры', null)] })];
+  const film = buildFilm(manifest(states), withOverlay('arrow'));
+
+  assert.deepEqual(film.plans[0].overlays, []);
+  assert.ok(film.issues.some((i) => /наложения/.test(i.text)));
+});
+
+test('план без наложений получает пустой список, а не отсутствие поля', () => {
+  const states = [state()];
+  const sb = board([{ title: { text: 'Лента' }, action: null }], states);
+  assert.deepEqual(buildFilm(manifest(states), sb).plans[0].overlays, []);
+});

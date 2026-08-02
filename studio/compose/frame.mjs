@@ -92,7 +92,33 @@ function screenAt(film, plan, t) {
 
   return { plan: plan.id, opacity: 1, scrollY, camera,
            sticky: plan.state.sticky.map(({ x, y, w, h }) => ({ x, y, w, h })),
+           overlays: overlaysAt(plan, local, scrollY, film.screen),
            cursor: cursorAt(plan, local, film.screen) };
+}
+
+/**
+ * Наложения на текущий момент: только живые, с плавным появлением и уходом.
+ *
+ * Резко возникшая подсветка читается как сбой отрисовки, поэтому у наложения всегда
+ * есть проявление и угасание — четверть секунды с каждой стороны.
+ */
+const OVERLAY_FADE = 0.25;
+
+function overlaysAt(plan, local, scrollY, screen) {
+  const out = [];
+  for (const o of plan.overlays || []) {
+    if (local < o.from || local > o.to) continue;
+    // Выноска ставится с той стороны, где есть место: у цели под верхним краем она
+    // уходила за кадр и обрезалась вместе с текстом.
+    const сверху = o.rect ? (o.rect.y - scrollY) < screen.h * 0.42 : false;
+    const opacity = Math.min(
+      interpolate(local, [o.from, o.from + OVERLAY_FADE], [0, 1], { easing: easeInOut }),
+      interpolate(local, [o.to - OVERLAY_FADE, o.to], [1, 0], { easing: easeInOut }),
+    );
+    out.push({ id: o.id, what: o.what, text: o.text, rect: o.rect, opacity,
+               place: сверху ? 'below' : 'above' });
+  }
+  return out;
 }
 
 /** Курсор: приехать, нажать, погаснуть. Без него действие выглядит самопроизвольным. */

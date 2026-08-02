@@ -110,3 +110,17 @@ test('последний кадр не выпадает за плёнку', () =
   const f = twoPlans();
   assert.equal(composeFrame(f, Math.round(f.seconds * f.fps) - 1).screens.length, 1);
 });
+
+test('наложение живёт только в своём окне и не возникает рывком', () => {
+  const f = film([{ title: { text: 'Клик' }, action: { kind: 'click', selector: 'x' } }],
+                 [state({ anchors: [{ selector: 'x', rect: { x: 400, y: 600, w: 200, h: 80 } }] })]);
+  // Наложение ставится вручную, поэтому подкладываем его прямо в план плёнки.
+  f.plans[0].overlays = [{ id: 'o1', what: 'spotlight', text: '', from: 1, to: 3,
+                           rect: { x: 200, y: 300, w: 100, h: 40 } }];
+
+  assert.deepEqual(composeFrame(f, Math.round(0.5 * 30)).screens[0].overlays, []);
+  const появление = composeFrame(f, Math.round(1.1 * 30)).screens[0].overlays[0];
+  assert.ok(появление.opacity > 0 && появление.opacity < 1, `opacity=${появление.opacity}`);
+  assert.equal(composeFrame(f, Math.round(2 * 30)).screens[0].overlays[0].opacity, 1);
+  assert.deepEqual(composeFrame(f, Math.round(3.5 * 30)).screens[0].overlays, []);
+});

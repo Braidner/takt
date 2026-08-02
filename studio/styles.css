@@ -831,6 +831,11 @@ button, input, textarea, select { font: inherit; color: inherit; }
   border-color: color-mix(in oklch, var(--ink) 34%, transparent);
 }
 
+.clip[data-kind="mark"] {
+  background: color-mix(in oklch, var(--brand-teal) 26%, transparent);
+  border-color: color-mix(in oklch, var(--brand-teal) 55%, transparent);
+}
+
 .clip[data-source="manual"] {
   box-shadow: inset 0 0 0 1px var(--brand-cyan);
 }
@@ -1417,6 +1422,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
   font-size: var(--t-xs);
 }
 .inspector-row select { width: auto; }
+.inspector-row .fx-text { width: 24ch; }
 
 /* Клип, который правится, виден на дорожке: иначе после прокрутки непонятно,
    к чему относятся поля. */
