@@ -20,6 +20,8 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { inProject, currentTarget } from './project.mjs';
 import { chromium } from 'playwright';
@@ -160,8 +162,6 @@ async function runPlan(plan) {
   if (a.press) await page.keyboard.press(a.press);
 }
 
-const timeline = { scene: 'take', fps: 30, viewport: VIEWPORT, events: [], hits: [] };
-const hits = timeline.hits;
 const started = Date.now();
 
 /**
@@ -216,8 +216,6 @@ try {
     await setStep(plan.id, { state: 'running' });
     await setStatus({ state: 'busy', text: plan.title.text, step: plan.n,
                       of: storyboard.plans.length });
-    timeline.events.push({ t: sinceStart(), kind: 'caption', label: plan.title.text, n: plan.n,
-                           diagram: plan.diagram || null });
     const t0 = Date.now();
     try {
       await runPlan(plan);
@@ -277,34 +275,76 @@ try {
   await browser.close();
   const file = video ? await video.path() : null;
 
-  // hits остаются ради нынешнего монтажа, который ещё работает на них: берём центр
-  // якоря из снятого состояния, приведённый к шкале вьюпорта.
-  for (const st of states) {
-    for (const a of st.anchors || []) {
-      if (!a.rect) continue;
-      const k = st.scale || 1;
-      hits.push({
-        t: 0, plan: st.id,
-        x: Math.round((a.rect.x + a.rect.w / 2) / k),
-        y: Math.round((a.rect.y + a.rect.h / 2) / k),
-        w: Math.round(a.rect.w / k), h: Math.round(a.rect.h / k),
-      });
+  /**
+   * Сдвиг между шкалой записи и часами съёмки.
+   *
+   * recordVideo пишет с момента создания контекста, то есть захватывает открытие
+   * стенда и вход в систему; часы съёмки идут с первого плана. Разницу знает только
+   * кодировщик — по временам кадров, — поэтому спрашиваем длительность у ffprobe.
+   *
+   * Это та самая разъехавшаяся шкала, на которой конвейер обжигался дважды: сначала
+   * титры уезжали на длину входа, потом монтаж вырезал не те куски. Считаем её один
+   * раз и здесь, а не в каждом потребителе.
+   */
+  const снято = recordingFrom ? (Date.now() - recordingFrom) / 1000 : 0;
+
+  /**
+   * Живые отрезки вырезаются из записи в отдельные файлы — по одному на план.
+   *
+   * Иначе никак: Playwright пишет webm потоком, без индекса, и браузер по такому
+   * файлу перематываться НЕ УМЕЕТ вовсе — `seekable` у него пустой, а присваивание
+   * currentTime молча даёт ноль. Композиция получала бы первый кадр записи вместо
+   * нужного момента: на дымовом прогоне это дало экран входа в систему посреди
+   * ролика, одинаковый во всех кадрах плана.
+   *
+   * Заодно исчезает и разъезд шкал: вырезанный отрезок начинается со своего нуля,
+   * и сдвиг записи больше никому не нужно знать.
+   */
+  if (file && liveRanges.length) {
+    const run = promisify(execFile);
+    let offset = 0;
+    try {
+      const { stdout } = await run('ffprobe', ['-v', 'error', '-show_entries',
+        'format=duration', '-of', 'csv=p=0', file]);
+      const raw = Number(stdout.trim());
+      if (Number.isFinite(raw) && raw > снято) offset = raw - снято;
+    } catch {
+      console.error('ffprobe не ответил: живые отрезки могут поехать на длину входа');
+    }
+
+    for (const r of liveRanges) {
+      const out = path.join(STATES, `${r.plan}.mp4`);
+      const длина = Math.max(0.4, r.to - r.from);
+      try {
+        await run('ffmpeg', ['-v', 'error', '-y',
+          // -ss после -i: перекодирование всё равно идёт, а точность здесь важнее
+          // скорости — отрезок короткий, и промах в полсекунды виден.
+          '-i', file, '-ss', (offset + r.from).toFixed(2), '-t', длина.toFixed(2),
+          '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
+          // Ключевой кадр каждые полсекунды: по такому файлу композиция мотает точно.
+          '-g', '12', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-an', out]);
+        const st = states.find((s) => s.id === r.plan);
+        if (st) {
+          st.video = out;
+          st.seconds = Math.round(длина * 100) / 100;
+        }
+      } catch (e) {
+        console.error(`не вырезал живой отрезок ${r.plan}: ${(e.stderr || e.message).slice(0, 120)}`);
+      }
     }
   }
-
-  timeline.durationInSeconds = recordingFrom ? (Date.now() - recordingFrom) / 1000 : 0;
-  timeline.video = file;
-  timeline.states = states.length;
-  fs.writeFileSync(inProject('timeline.json'), JSON.stringify(timeline, null, 2));
 
   // Пути к снимкам — относительные: проект переносится между машинами вместе с данными,
   // а абсолютный путь пережил бы перенос ровно до первого открытия.
   const rel = (f) => (f ? path.relative(inProject('.'), f) : null);
   const manifest = {
     viewport: VIEWPORT,
-    seconds: Number(timeline.durationInSeconds.toFixed(2)),
-    live: file ? { video: rel(file), ranges: liveRanges } : null,
-    states: states.map((st) => ({ ...st, body: rel(st.body), layer: rel(st.layer) })),
+    seconds: Number((снято).toFixed(2)),
+    // Живые отрезки лежат в самих состояниях отдельными файлами: у плана есть либо
+    // снимок, либо кусок записи, и оба адресуются одинаково.
+    live: null,
+    states: states.map((st) => ({ ...st, body: rel(st.body), layer: rel(st.layer),
+                                  video: rel(st.video) })),
   };
   const issues = checkStates(states);
   manifest.issues = issues;

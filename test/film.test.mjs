@@ -19,7 +19,7 @@ const anchor = (selector, rect) => ({ selector, rect });
 
 /** Раскадровка с расставленными эффектами — как она приходит из студии. */
 const board = (plans, states) =>
-  directStoryboard(normalizeStoryboard({ title: 'Демо', plans }), states);
+  directStoryboard(normalizeStoryboard({ title: 'Демо', slate: false, plans }), states);
 
 const manifest = (states) => ({ viewport: VIEWPORT, live: null, states });
 
@@ -78,7 +78,7 @@ test('панорама: дистанция считается из скорос�
 
 test('панорама: правка окна человеком меняет дистанцию, а не игнорируется', () => {
   const states = [state()];
-  const sb = normalizeStoryboard({ title: 'Демо',
+  const sb = normalizeStoryboard({ title: 'Демо', slate: false,
     plans: [{ title: { text: 'Лента' }, action: { kind: 'hold', seconds: 4 } }],
     effects: [{ id: 'мой', plan: 'p01', kind: 'camera', at: { from: 0.6, to: 2.6 },
                 anchor: null, params: { move: 'pan', speed: 300 }, source: 'manual' }] });
@@ -133,13 +133,6 @@ test('плёнка: план без снятого состояния пропу
   assert.match(film.issues.find((i) => /Неснятый/.test(i.text)).text, /не снят/);
 });
 
-test('плёнка: живой план — отказ с объяснением, а не молчаливый пропуск', () => {
-  const states = [state({ mode: 'live' })];
-  const sb = board([{ title: { text: 'Живой' }, mode: 'live', action: null }], states);
-  assert.throws(() => buildFilm({ ...manifest(states), live: { video: 'x.webm' } }, sb),
-                /старым монтажом/);
-});
-
 test('хайлайты: действие важнее пейзажа, бюджет соблюдён', () => {
   const states = [state(),
                   state({ id: 'p02', anchors: [anchor('x', { x: 400, y: 600, w: 80, h: 40 })] }),
@@ -162,4 +155,92 @@ test('хайлайты: укороченный план едет меньше, �
 
   // Окно клипа 3.2 − 0.6 − 2.6 = 0 … панорама сжимается до нуля и уступает дрейфу.
   assert.ok(hl.plans[0].camera.distance <= 600, `distance=${hl.plans[0].camera.distance}`);
+});
+
+test('заставка и финал встают по краям и входят в хронометраж', () => {
+  const states = [state()];
+  const sb = board([{ title: { text: 'Лента' }, action: { kind: 'hold', seconds: 2 } }], states);
+  const film = buildFilm(manifest(states), { ...sb, title: 'Демо', slate: true, task: 'о чём ролик' });
+
+  assert.deepEqual(film.plans.map((p) => p.id), ['slate', 'p01', 'end']);
+  assert.equal(film.plans[0].kind, 'card');
+  assert.equal(film.plans[0].text, 'Демо');
+  assert.equal(film.plans[0].subtitle, 'о чём ролик');
+  assert.equal(film.plans[2].card, 'end');
+  // Заставка входит в хронометраж: иначе таймкоды замечаний разъедутся с картинкой.
+  assert.equal(film.plans[1].from, 2.6);
+  assert.equal(film.seconds, 2.6 + sb.seconds + 2.2);
+});
+
+test('заставка склеивается с первым планом, финал ни с чем', () => {
+  const states = [state()];
+  const film = buildFilm(manifest(states),
+    { ...board([{ title: { text: 'Лента' }, action: null }], states),
+      title: 'Демо', slate: true });
+  assert.equal(film.plans[0].transition.style, 'dissolve');
+  assert.equal(film.plans.at(-1).transition, null);
+});
+
+test('без названия карточек нет: обложке неоткуда взяться', () => {
+  const states = [state()];
+  const sb = board([{ title: { text: 'Лента' }, action: null }], states);
+  const film = buildFilm(manifest(states), { ...sb, title: '', slate: true });
+  assert.deepEqual(film.plans.map((p) => p.id), ['p01']);
+});
+
+test('хайлайты карточек не берут', () => {
+  const states = [state(), state({ id: 'p02' })];
+  const sb = board([
+    { title: { text: 'Первый' }, action: { kind: 'hold', seconds: 2 } },
+    { title: { text: 'Второй' }, action: { kind: 'hold', seconds: 2 } },
+  ], states);
+  const film = buildFilm(manifest(states), { ...sb, title: 'Демо', slate: true });
+  const hl = buildHighlightFilm(film, { seconds: 25 });
+  assert.deepEqual(hl.plans.map((p) => p.id), ['p01', 'p02']);
+});
+
+const liveManifest = (states) => ({ viewport: VIEWPORT, live: null, states });
+
+/** Живой план — это состояние с вырезанным куском записи вместо снимка. */
+const liveState = (over = {}) => state({ id: 'p02', mode: 'live',
+  video: 'states/p02.mp4', seconds: 4, ...over });
+
+const liveBoard = () => directStoryboard(normalizeStoryboard({
+  title: 'Демо', slate: false,
+  plans: [
+    { title: { text: 'Статичный' }, action: { kind: 'hold', seconds: 2 } },
+    { title: { text: 'Живой' }, mode: 'live', action: { kind: 'hold', seconds: 3 } },
+  ],
+}), [state()]);
+
+test('живой план играет свой вырезанный отрезок с нуля', () => {
+  const film = buildFilm(liveManifest([state(), liveState()]), liveBoard());
+
+  assert.equal(film.fps, 25, 'один живой план переводит весь ролик в 25 кадров');
+  const живой = film.plans.find((p) => p.id === 'p02');
+  assert.equal(живой.kind, 'live');
+  assert.equal(живой.video, 'states/p02.mp4');
+  // По сплошной записи браузер мотать не умеет — там нет индекса, поэтому съёмка
+  // режет отрезок в свой файл, и он начинается со своего нуля.
+  assert.equal(живой.videoFrom, 0);
+});
+
+test('живой план без отрезка записи пропускается с замечанием', () => {
+  const film = buildFilm(liveManifest([state(), state({ id: 'p02', mode: 'live' })]), liveBoard());
+  assert.deepEqual(film.plans.map((p) => p.id), ['p01']);
+  assert.match(film.issues[0].text, /Живой/);
+});
+
+test('камера по живому отрезку не ездит', () => {
+  // В кадре и так движение: наезд поверх него читается как тряска.
+  const film = buildFilm(liveManifest([state(), liveState()]), liveBoard());
+  assert.equal(film.plans.find((p) => p.id === 'p02').camera.kind, 'drift');
+});
+
+test('длительность живого плана задаёт запись, а не раскадровка', () => {
+  // Снятое движение нельзя растянуть: показывать после него застывший последний
+  // кадр значит выдать за живой план стоп-кадр.
+  const film = buildFilm(liveManifest([state(), liveState()]), liveBoard());
+  const живой = film.plans.find((p) => p.id === 'p02');
+  assert.ok(Math.abs((живой.to - живой.from) - 4) < 0.01);   // столько записалось
 });

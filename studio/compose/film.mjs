@@ -17,6 +17,13 @@ import { DEPTH, DRIFT_IN } from './director.mjs';
 
 /** Длина клипа хайлайтов: короче — рвано, длиннее — скучно. */
 export const CLIP = 3.2;
+/**
+ * Заставка и финальная плашка. Ролик без начала и конца выглядит куском чужой
+ * записи: непонятно, что это было и куда идти. Длительности выверены старым
+ * монтажом и переезжают вместе с самими карточками.
+ */
+export const SLATE = 2.6;
+export const END = 2.2;
 /** Щелчок ставится ближе к концу подводки: курсор успел доехать, камера — навестись. */
 const CLICK_AFTER = 0.9;
 
@@ -82,10 +89,19 @@ function cameraOf(effect, plan, state, issues) {
   return { kind: 'drift', from: 0, to: Math.min(dur, DRIFT_IN) };
 }
 
+/** Карточка — такой же план, только вместо снимка на нём текст. */
+const card = (id, kind, at, seconds, fields) => ({
+  id, kind: 'card', card: kind,
+  from: Math.round(at * 10) / 10,
+  to: Math.round((at + seconds) * 10) / 10,
+  camera: { kind: 'drift', from: 0, to: seconds },
+  cursor: null,
+  title: { text: '', at: 0 },
+  transition: { from: seconds - 0.35, to: seconds, style: 'dissolve' },
+  ...fields,
+});
+
 export function buildFilm(manifest, storyboard) {
-  if (manifest.live || (storyboard.plans || []).some((p) => p.mode === 'live')) {
-    throw new Error('в раскадровке есть живые планы — такой проект пока собирается старым монтажом (takt build/edit)');
-  }
 
   const byId = new Map((manifest.states || []).map((s) => [s.id, s]));
   const issues = [];
@@ -93,8 +109,59 @@ export function buildFilm(manifest, storyboard) {
   const clicks = [];
   let at = 0;
 
+  // Заставка идёт первой и в хронометраж входит: иначе таймкоды замечаний и реплик
+  // разъедутся с картинкой ровно на её длину.
+  const заставка = storyboard.slate !== false && Boolean(storyboard.title);
+  if (заставка) {
+    // Задача идёт подзаголовком, только если она короткая: человек пишет её абзацем,
+    // а на обложке абзац превращается в стену текста, которую никто не читает.
+    const подзаголовок = storyboard.task && storyboard.task.length <= 90
+      ? storyboard.task : null;
+    plans.push(card('slate', 'slate', 0, SLATE,
+                    { text: storyboard.title, subtitle: подзаголовок }));
+    at += SLATE;
+  }
+
   for (const plan of storyboard.plans || []) {
     const state = byId.get(plan.id);
+
+    if (plan.mode === 'live') {
+      if (!state?.video) {
+        issues.push({ plan: plan.id,
+          text: `«${plan.title.text}» живой, но отрезка записи нет — план пропущен` });
+        continue;
+      }
+      /**
+       * Длительность живого плана задаёт ЗАПИСЬ, а не раскадровка: снятое движение
+       * нельзя растянуть, а показывать после него застывший последний кадр —
+       * значит выдать за живой план стоп-кадр. У статичных планов наоборот:
+       * движение собирается, и время назначает раскадровка.
+       */
+      const снято = Math.round((state.seconds || 0) * 10) / 10;
+      const dur = снято > 0.4 ? снято : plan.duration.seconds;
+      const cut = (storyboard.effects || [])
+        .find((e) => e.plan === plan.id && e.kind === 'transition');
+      plans.push({
+        id: plan.id,
+        kind: 'live',
+        from: Math.round(at * 10) / 10,
+        to: Math.round((at + dur) * 10) / 10,
+        video: state.video,
+        // Отрезок вырезан съёмкой в свой файл и начинается со своего нуля: по
+        // сплошной записи браузер перематываться не умеет — там нет индекса.
+        videoFrom: 0,
+        // Камера по живому отрезку не ездит: в кадре и так движение, а наезд
+        // поверх него читается как тряска.
+        camera: { kind: 'drift', from: 0, to: 0 },
+        cursor: null,
+        state: { sticky: [] },
+        title: { text: plan.title.text, at: 0.15 },
+        transition: cut ? { from: cut.at.from, to: cut.at.to, style: cut.params.style } : null,
+      });
+      at += dur;
+      continue;
+    }
+
     if (!state) {
       issues.push({ plan: plan.id, text: `«${plan.title.text}» не снят — плана нет в манифесте состояний` });
       continue;
@@ -115,6 +182,7 @@ export function buildFilm(manifest, storyboard) {
     const cut = forPlan('transition');
     plans.push({
       id: plan.id,
+      kind: 'state',
       from: Math.round(at * 10) / 10,
       to: Math.round((at + dur) * 10) / 10,
       state: { ...state, sticky: visibleSticky(state.sticky, state.viewport) },
@@ -123,6 +191,13 @@ export function buildFilm(manifest, storyboard) {
       transition: cut ? { from: cut.at.from, to: cut.at.to, style: cut.params.style } : null,
     });
     at += dur;
+  }
+
+  if (заставка) {
+    plans.push(card('end', 'end', at, END,
+                    { text: storyboard.title, url: storyboard.url || null,
+                      transition: null }));
+    at += END;
   }
 
   return {
@@ -139,9 +214,13 @@ export function buildFilm(manifest, storyboard) {
  * потом открывающий план (что это вообще), потом финал (к чему всё шло).
  */
 export function buildHighlightFilm(film, { seconds = 25 } = {}) {
+  // Карточки в отбор не идут: хайлайты отвечают «а что это вообще» за время, которое
+  // человек готов потратить на незнакомый продукт в ленте, и тратить его на заставку
+  // значит не ответить вовсе.
+  const материал = film.plans.filter((p) => p.kind !== 'card');
   const weight = (p, i) =>
-    (p.cursor ? 3 : 0) + (i === 0 ? 2 : 0) + (i === film.plans.length - 1 ? 1 : 0);
-  const picked = film.plans
+    (p.cursor ? 3 : 0) + (i === 0 ? 2 : 0) + (i === материал.length - 1 ? 1 : 0);
+  const picked = материал
     .map((p, i) => ({ p, i, w: weight(p, i) }))
     .sort((a, b) => b.w - a.w || a.i - b.i)
     .slice(0, Math.max(1, Math.floor(seconds / CLIP)))

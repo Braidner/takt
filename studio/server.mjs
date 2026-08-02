@@ -170,9 +170,7 @@ const movieFile = () => inProject('movie.json');
 const CUTS = [
   { id: 'full',  file: 'movie.mp4',                 key: 'movieFull' },
   { id: 'cut',   file: 'movie-vo.mp4',              key: 'movieVoiced' },
-  { id: 'edit',  file: 'movie-cut.mp4',             key: 'movieCut' },
   { id: 'short', file: 'movie-short.mp4',           key: 'movieShort' },
-  { id: 'vert',  file: 'movie-short-vertical.mp4',  key: 'movieVertical' },
 ];
 
 const readCuts = () => CUTS

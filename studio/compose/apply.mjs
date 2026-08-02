@@ -46,10 +46,49 @@ export function mountScene(root, film, base) {
   const stage = root.querySelector('.stage');
   const screens = new Map();
   for (const plan of film.plans) {
+    // Карточка рисуется поверх всей сцены, а не внутри окна-мокапа: заставка — это
+    // не экран продукта, а обложка ролика.
+    if (plan.kind === 'card') {
+      const el = document.createElement('div');
+      el.style.cssText = `position:absolute;inset:0;display:none;place-content:center;
+        justify-items:center;text-align:center;gap:26px;
+        background:${plan.card === 'end' ? 'rgba(9,11,16,.92)' : 'transparent'}`;
+      el.innerHTML = `
+        <div class="card-text" style="font:800 ${plan.card === 'end' ? 84 : 96}px/1.05
+          'Unbounded',system-ui,sans-serif;color:#f4f6fa;letter-spacing:-.03em;
+          max-width:1500px"></div>
+        ${plan.subtitle ? `<div class="card-sub" style="font:500 34px/1.4 'Golos Text',
+          system-ui,sans-serif;color:#aab3c2;max-width:1300px"></div>` : ''}
+        <div style="width:${plan.card === 'end' ? 140 : 120}px;height:4px;border-radius:2px;
+          background:linear-gradient(96deg,#0162e4,#089efb 45%,#00e0b8)"></div>
+        ${plan.url ? `<div class="card-url" style="font:500 34px/1 ui-monospace,
+          'JetBrains Mono',monospace;color:#56b6ff"></div>` : ''}`;
+      el.querySelector('.card-text').textContent = plan.text || '';
+      if (plan.subtitle) el.querySelector('.card-sub').textContent = plan.subtitle;
+      if (plan.url) el.querySelector('.card-url').textContent = plan.url;
+      // Карточка вне окна-мокапа: она перекрывает всю сцену целиком.
+      root.querySelector('.scene').append(el);
+      screens.set(plan.id, { el, card: true });
+      continue;
+    }
+
     // Экран на план создаётся один раз и дальше только переключается видимостью:
     // пересоздавать DOM на каждом кадре — значит терять кеш декодированных картинок.
     const el = document.createElement('div');
     el.style.cssText = 'position:absolute;inset:0;display:none';
+    // Живой план показывает запись, а не снимок: содержание такого плана — само
+    // движение интерфейса, и собрать его из состояний нельзя.
+    if (plan.kind === 'live') {
+      const el = document.createElement('div');
+      el.style.cssText = 'position:absolute;inset:0;display:none';
+      el.innerHTML = `<video class="live" src="${base}${plan.video}" muted playsinline
+        preload="auto" style="position:absolute;inset:0;width:100%;height:100%;
+        object-fit:cover"></video>`;
+      stage.appendChild(el);
+      screens.set(plan.id, { el, live: el.querySelector('video') });
+      continue;
+    }
+
     // Внутри — виртуальный экран в CSS-пикселях съёмки, вписанный масштабом:
     // так вся геометрия кадра остаётся в одной шкале со снимками и якорями.
     el.innerHTML = `
@@ -76,15 +115,23 @@ export function mountScene(root, film, base) {
     });
   }
 
-  return { screens, captionText: root.querySelector('.caption-text'), lastText: '' };
+  return { screens, window: root.querySelector('.window'),
+           captionText: root.querySelector('.caption-text'), lastText: '' };
 }
 
 export function applyFrame(scene, desc) {
   for (const [, s] of scene.screens) s.el.style.display = 'none';
   for (const d of desc.screens) {
     const s = scene.screens.get(d.plan);
-    s.el.style.display = '';
-    s.el.style.opacity = String(d.opacity);
+    s.el.style.display = s.card ? 'grid' : '';
+    s.el.style.opacity = String(d.opacity * (d.appear ?? 1));
+    if (s.card) continue;
+    if (s.live) {
+      // Перематываем только когда действительно надо: лишний seek сбрасывает
+      // декодер и заставляет кадр моргнуть.
+      if (Math.abs(s.live.currentTime - d.video.t) > 0.005) s.live.currentTime = d.video.t;
+      continue;
+    }
     s.body.style.transform = `translateY(${-d.scrollY}px)`;
     // Окно камеры: сначала сдвиг к окну, затем масштаб — семантика zoompan.
     s.zoom.style.transform =
@@ -100,6 +147,10 @@ export function applyFrame(scene, desc) {
       s.cursor.style.opacity = '0';
     }
   }
+  // Под карточкой окно продукта не показывается: это обложка, а не кадр интерфейса.
+  const карточка = desc.screens.some((d) => scene.screens.get(d.plan)?.card);
+  if (scene.window) scene.window.style.visibility = карточка ? 'hidden' : '';
+
   const cap = desc.caption;
   if (cap) {
     if (cap.text !== scene.lastText) {

@@ -87,12 +87,12 @@ if (notes.length) {
   copied.push('замечания.md');
 }
 
-// Телеметрия — единственный служебный файл в выгрузке: без неё ролик не пересобрать,
-// а весит она килобайты.
-const timeline = inProject('timeline.json');
-if (fs.existsSync(timeline)) {
-  fs.copyFileSync(timeline, path.join(dest, 'timeline.json'));
-  copied.push('timeline.json');
+// Раскадровка — единственный служебный файл в выгрузке: по ней ролик пересобирается
+// целиком, а весит она килобайты.
+const board = inProject('storyboard.json');
+if (fs.existsSync(board)) {
+  fs.copyFileSync(board, path.join(dest, 'storyboard.json'));
+  copied.push('storyboard.json');
 }
 
 const size = copied.reduce((sum, f) => sum + fs.statSync(path.join(dest, f)).size, 0);
