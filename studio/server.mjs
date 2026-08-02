@@ -30,7 +30,7 @@ import { planFor } from './classify-notes.mjs';
 import { fromScenario, normalizeStoryboard, checkStoryboard } from './compose/storyboard.mjs';
 import { directStoryboard } from './compose/director.mjs';
 import { STAGES, pipelineState } from './compose/pipeline.mjs';
-import { HOME, HOME_FROM, PROJECTS, VOICES, SERVER_INFO, ensureHome } from './home.mjs';
+import { HOME, PROJECTS, VOICES, SERVER_INFO, ensureHome } from './home.mjs';
 import { listTargets, readTarget, writeTarget, readNotes as readTargetNotes,
          appendNote, slugifyTarget } from './target.mjs';
 
@@ -163,8 +163,8 @@ const readNarration = () => {
 const movieFile = () => inProject('movie.json');
 
 /**
- * Готовые версии ролика. Их несколько, и это разные вещи, а не копии: мастер — рабочий
- * материал для студии, смонтированный — то, что показывают, хайлайты — то, что кидают
+ * Готовые версии ролика. Их несколько, и это разные вещи, а не копии: полный — то, что
+ * показывают, с озвучкой — он же поверх дикторского голоса, хайлайты — то, что кидают
  * в ленту. Человек должен видеть, что у него уже есть, не выясняя это по датам файлов.
  */
 const CUTS = [
@@ -230,6 +230,13 @@ const readBoard = () => {
 const writeBoard = (sb) => {
   const next = directStoryboard(normalizeStoryboard(sb), readStates());
   fs.writeFileSync(boardFile(), JSON.stringify(next, null, 2));
+  /**
+   * Исходная задача словами — первая ступень конвейера и источник перегенерации.
+   * Она приходит вместе с раскадровкой, поэтому и сохраняется здесь: держать её
+   * только внутри раскадровки значило бы потерять её при первой же пересборке,
+   * а показывать ступень «ещё нет» там, где задача давно поставлена, — врать.
+   */
+  if (next.task) fs.writeFileSync(inProject('prompt.txt'), `${next.task}\n`);
   return next;
 };
 
@@ -766,7 +773,10 @@ const server = http.createServer(async (req, res) => {
     const msg = await body(req);
     fs.writeFileSync(movieFile(), JSON.stringify(msg, null, 2));
     logEvent({ type: 'movie', duration: msg?.duration });
-    broadcast({ type: 'movie', movie: msg });
+    // Рассылаем ПРОЧИТАННОЕ, а не присланное: список готовых версий собирается при
+    // чтении с диска, и без него страница прячет переключатель. Иначе новая версия
+    // не появлялась бы до перезагрузки — а собирают их как раз чтобы сравнить.
+    broadcast({ type: 'movie', movie: readMovie() });
     broadcast({ type: 'pipeline' });
     return send(res, 200, { ok: true });
   }
@@ -963,27 +973,6 @@ const server = http.createServer(async (req, res) => {
     writeNotes(notes);
     broadcast({ type: 'notes', notes });
     return send(res, 200, { ok: true, t: note.t });
-  }
-
-  /**
-   * Перенос врезки-схемы на другой шаг.
-   *
-   * Схема живёт не сама по себе, а на плане раскадровки: она показывается поверх паузы,
-   * и «перенести схему» означает выбрать другую паузу. Поэтому таскание меняет
-   * привязку, а не абстрактное время — иначе схема повисла бы между планами.
-   */
-  if (p === '/api/diagram-move' && req.method === 'POST') {
-    if (!authed) return send(res, 401, { error: 'unauthorized' });
-    const msg = await body(req);
-    const storyboard = readBoard();
-    const from = storyboard?.plans?.find((x) => x.id === msg?.from);
-    const to = storyboard?.plans?.find((x) => x.id === msg?.to);
-    if (!from || !to || !from.diagram) return send(res, 400, { error: 'no_diagram' });
-    to.diagram = from.diagram;
-    if (from.id !== to.id) from.diagram = null;
-    const next = writeBoard(storyboard);
-    broadcast({ type: 'storyboard', storyboard: next });
-    return send(res, 200, { ok: true, plan: to.id });
   }
 
   // ── Файлы текущего проекта

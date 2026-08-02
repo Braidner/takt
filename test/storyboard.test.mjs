@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fromScenario, normalizeStoryboard, checkStoryboard, nextPlanId }
   from '../studio/compose/storyboard.mjs';
+import { SLATE, END } from '../studio/compose/duration.mjs';
 
 /** Настоящий сценарий mc-медиа: на нём миграция и проверяется. */
 const MC = {
@@ -93,12 +94,28 @@ test('нормализация: номера и время выводятся, �
   const sb = normalizeStoryboard(fromScenario(MC));
   assert.deepEqual(sb.plans.map((p) => p.id), ['p01', 'p02', 'p03', 'p04', 'p05', 'p06']);
   assert.deepEqual(sb.plans.map((p) => p.n), [1, 2, 3, 4, 5, 6]);
-  // Планы встык: начало каждого — сумма длительностей предыдущих.
+  // Планы встык, но не с нуля: перед ними стоит обложка и занимает своё время.
   const at = sb.plans.map((p) => p.at);
-  assert.equal(at[0], 0);
-  assert.equal(at[1], sb.plans[0].duration.seconds);
+  assert.equal(at[0], SLATE);
+  assert.ok(Math.abs(at[1] - (SLATE + sb.plans[0].duration.seconds)) < 0.01);
   const sum = sb.plans.reduce((s, p) => s + p.duration.seconds, 0);
-  assert.ok(Math.abs(sb.seconds - sum) < 0.05, `${sb.seconds} против ${sum}`);
+  assert.ok(Math.abs(sb.seconds - (SLATE + sum + END)) < 0.05,
+            `${sb.seconds} против ${SLATE + sum + END}`);
+});
+
+test('нормализация: без обложки планы начинаются с нуля', () => {
+  const sb = normalizeStoryboard({ ...fromScenario(MC), slate: false });
+  assert.equal(sb.plans[0].at, 0);
+  const sum = sb.plans.reduce((s, p) => s + p.duration.seconds, 0);
+  assert.ok(Math.abs(sb.seconds - sum) < 0.05);
+});
+
+test('нормализация: время раскадровки совпадает со временем собранной плёнки', () => {
+  // Один источник времени: разойдись они — и клик по плану в студии уводил бы
+  // на чужой кадр, а замечание по таймкоду приезжало бы агенту не туда.
+  const sb = normalizeStoryboard(fromScenario(MC));
+  assert.equal(sb.plans[0].at, SLATE);
+  assert.equal(sb.slate, true);
 });
 
 test('нормализация: идентификатор переживает перестановку планов', () => {
@@ -108,7 +125,7 @@ test('нормализация: идентификатор переживает 
   const moved = normalizeStoryboard({ ...sb, plans: [sb.plans[3], ...sb.plans.slice(0, 3)] });
   assert.equal(moved.plans[0].id, 'p04');
   assert.equal(moved.plans[0].n, 1);
-  assert.equal(moved.plans[0].at, 0);
+  assert.equal(moved.plans[0].at, SLATE);
 });
 
 test('нормализация: частота следует самому строгому плану', () => {

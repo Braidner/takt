@@ -94,7 +94,7 @@
         </svg>
       </button>
       <span class="clock"><b>0:47</b> / 4:47</span>
-      <!-- Версии ролика: мастер, смонтированный, хайлайты. Показываются только те,
+      <!-- Версии ролика: полный, с озвучкой, хайлайты. Показываются только те,
            что реально собраны — пустой переключатель обещал бы несуществующее. -->
       <!-- Что показывать в кадре: собранную композицию или отрендеренное видео.
            Композиция доступна сразу после съёмки, видео — только после сборки. -->
@@ -123,7 +123,6 @@
       <div class="track-labels" aria-hidden="true">
         <span class="track-label" data-i="trackSteps">Планы</span>
         <span class="track-label" data-i="trackEffects">Эффекты</span>
-        <span class="track-label" data-i="trackDiagrams">Схемы</span>
         <span class="track-label" data-i="trackNotes">Правки</span>
         <span class="track-label" data-i="trackVoice">Голос</span>
       </div>
@@ -137,7 +136,6 @@
         </div>
         <div class="track" data-track="steps" data-i-title="trackStepsTitle" title="Границы планов раскадровки"></div>
         <div class="track" data-track="effects" data-i-title="trackEffectsTitle" title="Камера и склейки"></div>
-        <div class="track" data-track="diagrams" data-i-title="trackDiagramsTitle" title="Врезки-схемы"></div>
         <div class="track" data-track="notes" data-i-title="trackNotesTitle" title="Замечания"></div>
         <div class="track" data-track="voice" data-i-title="trackVoiceTitle" title="Дикторские реплики"></div>
         <span class="playhead"></span>
@@ -329,7 +327,11 @@
       <button class="ghost narration-close" type="button" data-i="narrationClose">Закрыть</button>
     </div>
     <ul class="narration-list"></ul>
+    <p class="narration-empty" data-i="narrationEmpty" hidden>Реплик пока нет. Соберите каркас
+      по планам раскадровки — метки и окна проставятся сами, останется написать текст.</p>
     <div class="narration-actions">
+      <button class="ghost narration-fill" type="button" data-i="narrationFill"
+              data-i-title="narrationFillTitle" hidden>Собрать по планам</button>
       <button class="primary narration-voice" type="button" data-i="narrationVoice">Озвучить</button>
     </div>
   </dialog>

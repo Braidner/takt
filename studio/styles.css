@@ -800,7 +800,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
 }
 .marker:hover { transform: scale(1.25); }
 .marker[data-kind="voice"] { background: var(--brand-cyan); }
-.marker[data-kind="diagram"] { background: var(--brand-sky); }
 
 .clip {
   position: absolute;
@@ -836,10 +835,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
   box-shadow: inset 0 0 0 1px var(--brand-cyan);
 }
 
-.clip[data-kind="diagram"] {
-  background: color-mix(in oklch, var(--brand-sky) 26%, transparent);
-  border-color: color-mix(in oklch, var(--brand-sky) 52%, transparent);
-}
 
 /* Шаг — сегмент на дорожке, как клип в монтажке: границы шагов читаются стыками
    сегментов, состояние — цветом. Сплошная заливка «прогресса» здесь была бы снова
@@ -1145,7 +1140,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
 
 .narration-line {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr);
+  /* Третья колонка — кнопка «убрать»: без неё она падала бы под строку и читалась
+     как относящаяся к следующей реплике. */
+  grid-template-columns: 56px minmax(0, 1fr) 24px;
   gap: var(--sp-3);
   align-items: start;
 }
@@ -1173,7 +1170,27 @@ button, input, textarea, select { font: inherit; color: inherit; }
 
 /* Укладка проверяется до синтеза: реплика, не влезающая в своё окно, наедет на
    следующую, и в дорожке будут два голоса разом. */
+/* Пустая панель объясняет, что делать: список, который просто пуст, читается как
+   поломка. */
+.narration-empty {
+  margin: 0;
+  padding: var(--sp-4);
+  font-size: var(--t-sm);
+  color: var(--ink-muted);
+}
+
+.narration-drop {
+  border: none;
+  background: none;
+  color: var(--ink-faint);
+  cursor: pointer;
+  padding: 0 var(--sp-1);
+  line-height: 1;
+}
+.narration-drop:hover { color: var(--danger); }
+
 .narration-fit { grid-column: 2; font-size: var(--t-xs); color: var(--ink-faint); }
+.narration-drop { grid-row: 1; grid-column: 3; }
 .narration-fit[data-fit="tight"] { color: var(--warn); }
 .narration-fit[data-fit="over"] { color: var(--danger); }
 

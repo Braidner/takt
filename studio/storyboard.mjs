@@ -42,7 +42,6 @@ const plans = (draft.plans || []).map((p) => ({
   mode: p.mode === 'live' ? 'live' : 'static',
   screen: { route: p.screen?.route ?? null, waitFor: p.screen?.waitFor || null },
   action: p.action || null,
-  diagram: p.diagram || null,
   // Ручную длительность пропускаем только помеченной: иначе «выведено» и «назначено»
   // не отличить, и первый же пересчёт молча затрёт решение человека.
   duration: p.duration?.source === 'manual' ? p.duration : undefined,

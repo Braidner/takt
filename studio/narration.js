@@ -16,7 +16,7 @@ const TIGHT = 0.9;        // впритык: между дублями темп 
 
 const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
-export function setupNarration({ post }) {
+export function setupNarration({ post, getPlans = () => [] }) {
   const el = {
     dialog: document.querySelector('.narration'),
     list: document.querySelector('.narration-list'),
@@ -24,6 +24,8 @@ export function setupNarration({ post }) {
     toggle: document.querySelector('.narration-toggle'),
     close: document.querySelector('.narration-close'),
     voice: document.querySelector('.narration-voice'),
+    fill: document.querySelector('.narration-fill'),
+    empty: document.querySelector('.narration-empty'),
   };
   if (!el.dialog) return { render: () => {} };
 
@@ -61,11 +63,37 @@ export function setupNarration({ post }) {
     await post('/api/narration', { ...narration, lines });
   };
 
+  /**
+   * Заготовка по планам.
+   *
+   * Реплику не из чего писать, пока нет строки, а строки браться было неоткуда:
+   * панель умела править существующие и молчала о том, как их завести. Метка реплики
+   * и есть начало плана, а его длительность — окно, в которое надо уложиться; значит
+   * каркас выводится из раскадровки, и человеку остаётся написать текст.
+   */
+  const fill = async () => {
+    const plans = getPlans();
+    if (!plans.length) return;
+    const lines = plans.map((p, i) => ({
+      at: p.at,
+      // Окно реплики — до начала следующего плана: наедет на него — получатся два
+      // голоса разом, и синтез такого не ловит.
+      hold: (plans[i + 1] ? plans[i + 1].at : p.at + p.duration.seconds) - p.at,
+      text: '', state: 'draft', seconds: null,
+    }));
+    await post('/api/narration', { ...(narration || {}), lines });
+  };
+
   const render = (next) => {
     narration = next;
     const has = Boolean(narration?.lines?.length);
-    if (el.toggle) el.toggle.hidden = !has;
-    if (!has) return;
+    // Кнопка живёт, пока есть раскадровка: без неё дикторский текст не к чему привязать,
+    // а с ней его надо хотя бы предложить написать.
+    if (el.toggle) el.toggle.hidden = !getPlans().length && !has;
+    if (el.empty) el.empty.hidden = has;
+    if (el.fill) el.fill.hidden = has;
+    if (el.voice) el.voice.hidden = !has;
+    if (!has) { el.list.innerHTML = ''; el.total.textContent = ''; return; }
 
     el.list.innerHTML = '';
     let speech = 0;
@@ -98,9 +126,21 @@ export function setupNarration({ post }) {
       area.addEventListener('input', refresh);
       area.addEventListener('change', save);
 
+      // Лишнюю реплику надо чем-то убрать: без этого заготовка по планам оставляла бы
+      // пустые строки, которые синтез честно озвучит тишиной.
+      const drop = document.createElement('button');
+      drop.type = 'button';
+      drop.className = 'narration-drop';
+      drop.textContent = '✕';
+      drop.title = window.taktText?.('narrationDrop') ?? 'Убрать реплику';
+      drop.addEventListener('click', async () => {
+        const lines = narration.lines.filter((_, k) => k !== i);
+        await post('/api/narration', { ...narration, lines });
+      });
+
       speech += line.text.trim().length / RATE;
       li.dataset.n = String(i + 1);
-      li.append(at, area, fit);
+      li.append(at, area, fit, drop);
       el.list.append(li);
     });
 
@@ -134,6 +174,7 @@ export function setupNarration({ post }) {
   };
 
   el.toggle?.addEventListener('click', () => el.dialog.showModal());
+  el.fill?.addEventListener('click', fill);
   el.close?.addEventListener('click', () => el.dialog.close());
   el.voice?.addEventListener('click', async () => {
     await save();

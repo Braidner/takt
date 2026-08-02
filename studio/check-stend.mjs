@@ -13,7 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { login, stendUrl } from '../capture/lib/stend.mjs';
+import { login, stendUrl } from './lib/stend.mjs';
 import { readConfig, resolveStend, saveConfig } from './resolve-stend.mjs';
 import { dismissDevOverlay } from './dismiss-overlay.mjs';
 import { loadPreset } from './preset.mjs';

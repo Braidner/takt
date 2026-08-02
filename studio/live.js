@@ -294,7 +294,7 @@ function renderBoard(next) {
     if (s.state && s.state !== 'done') b.dataset.state = s.state;
     b.innerHTML = `<span class="step-time">${mmss(s.at)}</span>
       <span class="step-dur"></span>
-      <span class="step-label"></span>${s.diagram || s.intent ? '<span class="step-note"></span>' : ''}`;
+      <span class="step-label"></span>${s.intent ? '<span class="step-note"></span>' : ''}`;
     b.querySelector('.step-label').textContent = s.title.text;
     // Длительность видна всегда и всегда говорит, откуда взялась: «выведена» и
     // «назначена человеком» — разные вещи, и пересчёт трогает только первую.
@@ -302,10 +302,9 @@ function renderBoard(next) {
     dur.textContent = `${s.duration.seconds} с`;
     dur.dataset.source = s.duration.source;
     trTitle(dur, s.duration.source === 'manual' ? 'durManual' : 'durDerived');
+    // Намерение плана пишет агент, поэтому оно не переводится.
     const note = b.querySelector('.step-note');
-    // Врезку описываем мы, намерение плана — агент: первое переводится, второе нет.
-    if (note && s.diagram) tr(note, 'stepDiagram', { sec: s.duration.seconds });
-    else if (note) note.textContent = s.intent;
+    if (note) note.textContent = s.intent;
     if (s.state === 'failed' && s.error) {
       const err = document.createElement('span');
       err.className = 'step-error';
@@ -449,6 +448,9 @@ function renderBoard(next) {
     if (effectById(openEffect)) openInspector(openEffect);
     else closeInspector();
   }
+  // Панель дикторского текста живёт планами: пока их не было, ей нечего было
+  // предложить, и кнопка пряталась даже там, где реплики уже можно писать.
+  narrationPanel?.render(narrationData);
 
   // Статус рядом с заголовком: пока черновик — съёмка не стартует, и человек должен
   // понимать, почему, не заглядывая в документацию.
@@ -661,38 +663,6 @@ function renderTracks() {
     }
   }
 
-  // Схемы: врезка занимает время, поэтому это отрезок, а не точка.
-  const diagrams = track('diagrams');
-  if (diagrams) {
-    diagrams.innerHTML = '';
-    for (const s of (storyboard?.plans || []).filter((x) => x.diagram)) {
-      const clip = document.createElement('span');
-      clip.className = 'clip';
-      clip.dataset.kind = 'diagram';
-      clip.style.left = pct(s.at);
-      clip.style.width = pct(s.duration.seconds);
-      clip.textContent = s.diagram;
-      clip.dataset.step = s.id;
-      trTitle(clip, 'clipDiagram', { name: s.diagram, sec: s.duration.seconds });
-      // Клик ведёт к шагу, на котором схема показывается: врезка живёт не сама по
-      // себе, а поверх конкретной паузы, и смотреть её нужно там же.
-      clip.addEventListener('click', (e) => {
-        e.stopPropagation();
-        seek(s.at);
-        litStep(s.n);
-      });
-      dragMark(clip, {
-        onDrop: async (t) => {
-          const to = (storyboard?.plans || [])
-            .find((x) => t >= x.at && t < x.at + x.duration.seconds);
-          if (to && to.id !== s.id) await post('/api/diagram-move', { from: s.id, to: to.id });
-          else renderTracks();      // не попали в план — вернуть метку на место
-        },
-      });
-      diagrams.append(clip);
-    }
-  }
-
   // Правки: точка на моменте замечания, цвет по виду работы.
   const notesTrack = track('notes');
   if (notesTrack) {
@@ -700,7 +670,7 @@ function renderTracks() {
     for (const n of notesData) {
       const m = document.createElement('span');
       m.className = 'marker';
-      if (n.kind) m.dataset.kind = n.kind;
+    if (n.kind) m.dataset.kind = n.kind;
       m.style.left = pct(n.t);
       m.title = n.text;
       m.dataset.id = n.id;
@@ -828,11 +798,10 @@ function renderInFlight(list = []) {
  * из которых в каждый момент осмысленна ровно одна.
  */
 /**
- * Версии ролика: мастер, смонтированный, хайлайты.
+ * Версии ролика: полный, с озвучкой, хайлайты.
  *
- * Переключатель показывает только собранное. Вертикальную версию плеер студии
- * покажет как есть — с полями по бокам: подгонять окно под 9:16 значило бы
- * перестраивать всё рабочее место ради предпросмотра.
+ * Переключатель показывает только собранное: обещать версию, которой нет, значит
+ * отправить человека искать несуществующий файл.
  */
 function renderCuts(cuts) {
   if (!el.cuts) return;
@@ -1037,7 +1006,6 @@ const PLAN_KINDS = {
   direct: 'planDirect',
   shoot: 'planShoot',
   voice: 'planVoice',
-  diagram: 'planDiagram',
   edit: 'planEdit',
   unclear: 'planUnclear',
 };
@@ -1177,7 +1145,7 @@ function renderNotes(notes) {
   renderTracks();
   if (!el.notes) return;
   el.notes.innerHTML = '';
-  const kinds = { diagram: 'kindDiagram', edit: 'kindEdit', voice: 'kindVoice' };
+  const kinds = { edit: 'kindEdit', voice: 'kindVoice' };
   for (const n of notes) {
     const art = document.createElement('article');
     art.className = 'note';
@@ -1323,7 +1291,7 @@ async function boot() {
   token = hello.token;
   voicePanel = setupVoice({ post, getToken: () => token });
   voicePanel.render(hello.voices || []);
-  narrationPanel = setupNarration({ post });
+  narrationPanel = setupNarration({ post, getPlans: () => storyboard?.plans || [] });
   narrationData = hello.narration;
   narrationPanel.render(hello.narration);
   setAgent(hello.status, hello.agent);

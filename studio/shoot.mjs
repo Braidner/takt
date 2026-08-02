@@ -23,9 +23,9 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { inProject, currentTarget } from './project.mjs';
+import { inProject } from './project.mjs';
 import { chromium } from 'playwright';
-import { login } from '../capture/lib/stend.mjs';
+import { login } from './lib/stend.mjs';
 import { readConfig } from './resolve-stend.mjs';
 import { dismissDevOverlay } from './dismiss-overlay.mjs';
 import { loadPreset } from './preset.mjs';
@@ -340,9 +340,6 @@ try {
   const manifest = {
     viewport: VIEWPORT,
     seconds: Number((снято).toFixed(2)),
-    // Живые отрезки лежат в самих состояниях отдельными файлами: у плана есть либо
-    // снимок, либо кусок записи, и оба адресуются одинаково.
-    live: null,
     states: states.map((st) => ({ ...st, body: rel(st.body), layer: rel(st.layer),
                                   video: rel(st.video) })),
   };
