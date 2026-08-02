@@ -162,8 +162,6 @@ async function runPlan(plan) {
   if (a.press) await page.keyboard.press(a.press);
 }
 
-const timeline = { scene: 'take', fps: 30, viewport: VIEWPORT, events: [], hits: [] };
-const hits = timeline.hits;
 const started = Date.now();
 
 /**
@@ -218,8 +216,6 @@ try {
     await setStep(plan.id, { state: 'running' });
     await setStatus({ state: 'busy', text: plan.title.text, step: plan.n,
                       of: storyboard.plans.length });
-    timeline.events.push({ t: sinceStart(), kind: 'caption', label: plan.title.text, n: plan.n,
-                           diagram: plan.diagram || null });
     const t0 = Date.now();
     try {
       await runPlan(plan);
@@ -290,6 +286,7 @@ try {
    * титры уезжали на длину входа, потом монтаж вырезал не те куски. Считаем её один
    * раз и здесь, а не в каждом потребителе.
    */
+  const снято = recordingFrom ? (Date.now() - recordingFrom) / 1000 : 0;
   let liveOffset = 0;
   if (file) {
     try {
@@ -297,7 +294,6 @@ try {
       const { stdout } = await run('ffprobe', ['-v', 'error', '-show_entries',
         'format=duration', '-of', 'csv=p=0', file]);
       const raw = Number(stdout.trim());
-      const снято = recordingFrom ? (Date.now() - recordingFrom) / 1000 : 0;
       if (Number.isFinite(raw) && raw > снято) liveOffset = Math.round((raw - снято) * 100) / 100;
     } catch {
       // Без ffprobe живые отрезки поедут на длину входа в систему — это заметно,
@@ -306,32 +302,12 @@ try {
     }
   }
 
-  // hits остаются ради нынешнего монтажа, который ещё работает на них: берём центр
-  // якоря из снятого состояния, приведённый к шкале вьюпорта.
-  for (const st of states) {
-    for (const a of st.anchors || []) {
-      if (!a.rect) continue;
-      const k = st.scale || 1;
-      hits.push({
-        t: 0, plan: st.id,
-        x: Math.round((a.rect.x + a.rect.w / 2) / k),
-        y: Math.round((a.rect.y + a.rect.h / 2) / k),
-        w: Math.round(a.rect.w / k), h: Math.round(a.rect.h / k),
-      });
-    }
-  }
-
-  timeline.durationInSeconds = recordingFrom ? (Date.now() - recordingFrom) / 1000 : 0;
-  timeline.video = file;
-  timeline.states = states.length;
-  fs.writeFileSync(inProject('timeline.json'), JSON.stringify(timeline, null, 2));
-
   // Пути к снимкам — относительные: проект переносится между машинами вместе с данными,
   // а абсолютный путь пережил бы перенос ровно до первого открытия.
   const rel = (f) => (f ? path.relative(inProject('.'), f) : null);
   const manifest = {
     viewport: VIEWPORT,
-    seconds: Number(timeline.durationInSeconds.toFixed(2)),
+    seconds: Number((снято).toFixed(2)),
     live: file ? { video: rel(file), offset: liveOffset, ranges: liveRanges } : null,
     states: states.map((st) => ({ ...st, body: rel(st.body), layer: rel(st.layer) })),
   };
