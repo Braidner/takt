@@ -1275,6 +1275,55 @@ button, input, textarea, select { font: inherit; color: inherit; }
   .step-row.lit, .note.lit, .narration-line.lit { animation-duration: 0.01s; }
 }
 
+/* Ступени конвейера. Полосой, а не списком: их шесть, они идут строго по порядку,
+   и человеку нужно видеть весь путь разом — где он сейчас и что ниже устарело. */
+.stages {
+  display: flex;
+  gap: 2px;
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  list-style: none;
+  border-bottom: 1px solid var(--line);
+}
+
+.stage-step {
+  flex: 1;
+  min-width: 0;
+}
+
+.stage-btn {
+  width: 100%;
+  padding: var(--sp-1) 2px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--ink-faint);
+  font-size: 10px;
+  line-height: 1.2;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.stage-btn:disabled { cursor: default; }
+.stage-btn::before {
+  content: "";
+  display: block;
+  height: 3px;
+  margin-bottom: 3px;
+  border-radius: 2px;
+  background: var(--line);
+}
+/* Черновик виден полосой поярче, утверждённое — брендовой, устаревшее —
+   предупреждающей: цвет здесь несёт смысл, поэтому дублируется подсказкой. */
+.stage-step[data-state="draft"] .stage-btn { color: var(--ink-muted); }
+.stage-step[data-state="draft"] .stage-btn::before { background: var(--line-strong); }
+.stage-step[data-state="ready"] .stage-btn { color: var(--ink); }
+.stage-step[data-state="ready"] .stage-btn::before { background: var(--brand-teal); }
+.stage-step[data-stale="true"] .stage-btn { color: var(--warn); }
+.stage-step[data-stale="true"] .stage-btn::before { background: var(--warn); }
+
 /* Адрес замечания: план или эффект рядом с таймкодом. Приглушён — это уточнение
    к времени, а не второй заголовок. */
 .note-where {

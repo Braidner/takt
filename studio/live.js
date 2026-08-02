@@ -49,6 +49,7 @@ const el = {
   planCost: document.querySelector('.plan-cost'),
   planApply: document.querySelector('.plan-apply'),
   planRegen: document.querySelector('.plan-regen'),
+  stages: document.querySelector('.stages'),
   inflight: document.querySelector('.script-actions .inflight'),
   inflightNotes: document.querySelector('.inflight-notes'),
   projectSelect: document.querySelector('.project-select'),
@@ -468,6 +469,53 @@ function renderBoard(next) {
     el.shoot.disabled = ready || el.agent?.dataset.state === 'offline';
     if (el.shoot.disabled && !ready) trTitle(el.shoot, 'shootOffline');
     else { trTitle(el.shoot, null); el.shoot.title = ''; }
+  }
+}
+
+/**
+ * Ступени конвейера.
+ *
+ * Показывают весь путь разом: где мы сейчас и что ниже устарело после правки. Состояние
+ * приходит с сервера, где выводится из файлов проекта, — здесь только рисунок и клик.
+ * Клик утверждает ступень или снимает утверждение: это единственное решение, которое
+ * из файлов не выводится.
+ */
+const STAGE_KEYS = {
+  prompt: 'stagePrompt', recon: 'stageRecon', story: 'stageStory',
+  storyboard: 'stageStoryboard', states: 'stageStates', movie: 'stageMovie',
+};
+
+async function renderStages() {
+  if (!el.stages) return;
+  const данные = await fetch('/api/pipeline').then((r) => r.json()).catch(() => null);
+  if (!данные?.stages) { el.stages.hidden = true; return; }
+  el.stages.hidden = false;
+  el.stages.innerHTML = '';
+
+  for (const s of данные.stages) {
+    const li = document.createElement('li');
+    li.className = 'stage-step';
+    li.dataset.state = s.state;
+    if (s.stale) li.dataset.stale = 'true';
+
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'stage-btn';
+    tr(b, STAGE_KEYS[s.id]);
+    const имя = window.taktText(STAGE_KEYS[s.id]) || s.id;
+    // Цвет несёт смысл, поэтому дублируется словами: без подсказки «жёлтая полоска»
+    // не читается никак.
+    trTitle(b, s.stale ? 'stageStale'
+      : s.state === 'ready' ? 'stageReady'
+      : s.state === 'draft' ? 'stageDraft' : 'stageMissing', { stage: имя });
+    b.disabled = s.state === 'missing';
+    b.addEventListener('click', async () => {
+      await post('/api/approve', { stage: s.id, approved: s.state !== 'ready' });
+      renderStages();
+    });
+
+    li.append(b);
+    el.stages.append(li);
   }
 }
 
@@ -1245,6 +1293,7 @@ function connect() {
     if (msg.type === 'stend') setStend(msg.stend);
     if (msg.type === 'project') renderProjects(msg.current, msg.projects);
     if (msg.type === 'storyboard') { renderBoard(msg.storyboard); reloadCompose(); }
+    if (msg.type === 'pipeline') renderStages();
     if (msg.type === 'movie') renderMovie(msg.movie);
     if (msg.type === 'voices') voicePanel?.render(msg.voices);
     if (msg.type === 'narration') { narrationData = msg.narration; narrationPanel?.render(msg.narration); renderTracks(); }
@@ -1283,6 +1332,7 @@ async function boot() {
   renderProjects(hello.project, hello.projects);
   setupDragAndDrop(el.steps);
   setupCompose();
+  renderStages();
   renderBoard(hello.storyboard);
   renderMovie(hello.movie);
   renderNotes(hello.notes || []);
