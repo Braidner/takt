@@ -1,8 +1,8 @@
 /**
- * Съёмка по утверждённому сценарию.
+ * Съёмка по утверждённой раскадровке.
  *
- *   node studio/shoot.mjs            снять весь сценарий
- *   node studio/shoot.mjs --from 3   переснять начиная с третьего шага
+ *   node studio/shoot.mjs            снять всю раскадровку
+ *   node studio/shoot.mjs --from 3   переснять начиная с третьего плана
  *
  * Два потока данных, и это не одно и то же:
  *   * СОСТОЯНИЯ — снимки страницы целиком в двойном разрешении. Прокрутка, наезд и
@@ -13,9 +13,10 @@
  *     застряло. Здесь важна не плавность, а свежесть: три кадра в секунду достаточно,
  *     а полноценный поток забил бы канал и замедлил саму съёмку.
  *
- * Шаг описывается действиями, которые агент проставил при разведке. Шаг без действий —
- * это пауза на экране: так снимаются планы, где ничего не происходит, но зрителю нужно
- * успеть прочитать.
+ * План описывает НАМЕРЕНИЕ и одно типизированное действие: куда попасть, по какому
+ * признаку видно, что экран готов, и что на нём сделать. Из этого же выводится
+ * длительность и строится камера — потому действие и типизировано, а не задано
+ * списком команд браузеру.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -43,19 +44,19 @@ const api = (route, payload) =>
     body: JSON.stringify(payload),
   }).then((r) => r.json()).catch(() => null);
 
-const setStep = (n, patch) => api('/api/step', { n, ...patch });
+const setStep = (plan, patch) => api('/api/step', { plan, ...patch });
 const setStatus = (patch) => api('/api/status', patch);
 const shouldStop = () =>
   fetch(`${base}/api/control?token=${info.token}`).then((r) => r.json())
     .then((d) => Boolean(d.stop)).catch(() => false);
-const scenario = await fetch(`${base}/api/scenario`).then((r) => r.json());
-if (!scenario?.steps?.length) {
-  console.error('Сценарий пуст: снимать нечего');
+const storyboard = await fetch(`${base}/api/storyboard`).then((r) => r.json());
+if (!storyboard?.plans?.length) {
+  console.error('Раскадровка пуста: снимать нечего');
   process.exit(1);
 }
-if (scenario.status !== 'ready') {
-  // Черновик снимать нельзя намеренно: прогон стоит минут, а сценарий ещё правят.
-  console.error('Сценарий не утверждён — нажмите «Снимать» в студии');
+if (storyboard.status !== 'ready') {
+  // Черновик снимать нельзя намеренно: прогон стоит минут, а раскадровку ещё правят.
+  console.error('Раскадровка не утверждена — нажмите «Снимать» в студии');
   process.exit(2);
 }
 
@@ -72,7 +73,7 @@ fs.mkdirSync(STATES, { recursive: true });
  * Живые планы требуют записи потока, а её нельзя включить после создания контекста.
  * Поэтому смотрим сценарий заранее: есть хоть один live — пишем весь прогон.
  */
-const hasLive = scenario.steps.some((st) => st.mode === 'live');
+const hasLive = storyboard.plans.some((pl) => pl.mode === 'live');
 
 const VIEWPORT = { width: 1440, height: 810 };
 const browser = await chromium.launch();
@@ -110,56 +111,49 @@ const streamFrames = async () => {
   }
 };
 
-/** Действия шага. Набор намеренно маленький: всё, что нужно для показа интерфейса. */
-async function runAction(a) {
-  // Сравнение с undefined, а не проверка на истинность: goto: "" — это возврат на
-  // главную, самый обычный шаг обзорного ролика. Как ложное значение он молча
-  // пропускался, съёмка оставалась на прежнем разделе, и падал уже следующий шаг —
-  // с жалобой на селектор, которого на этом экране и не должно быть.
-  if (a.goto !== undefined) {
-    await page.goto(cfg.stend.replace(/#.*$/, '') + a.goto, { waitUntil: 'domcontentloaded' });
+/**
+ * Исполнение плана: попасть на экран, дождаться готовности, сделать одно действие.
+ *
+ * Набор действий закрыт намеренно. Пока шаг был списком команд браузеру, из него нельзя
+ * было вывести ни длительность, ни цель камеры: в `[{press},{wait},{click},{wait}]` не
+ * сказано, что здесь содержание, а что подпорка под запись потока.
+ */
+async function runPlan(plan) {
+  // Сравнение с null, а не проверка на истинность: route: "" — это возврат на главную,
+  // самый обычный план обзорного ролика. Как ложное значение он молча пропускался бы,
+  // съёмка оставалась на прежнем разделе, и падал уже следующий план.
+  if (plan.screen.route !== null && plan.screen.route !== undefined) {
+    await page.goto(cfg.stend.replace(/#.*$/, '') + plan.screen.route,
+                    { waitUntil: 'domcontentloaded' });
     await dismissDevOverlay(page);
-    return;
   }
 
-  // Прокрутка — приём, а не перемещение курсора по документу. Клавиши оставлены ради
-  // сценариев, снятых до этой правки: PageDown в них означал именно «проехать экран»,
-  // и переводить его в прыжок было бы точным исполнением неверного намерения.
-  if (a.scroll !== undefined) {
-    await smoothScroll(page, { distance: a.scroll, speed: a.speed });
-    return;
-  }
-  if (a.press === 'PageDown' || a.press === 'PageUp') {
-    const dir = a.press === 'PageDown' ? 1 : -1;
-    await smoothScroll(page, { distance: dir * Math.round(VIEWPORT.height * 0.9) });
-    return;
-  }
-  if (a.press === 'Home' || a.press === 'End') {
-    const to = await page.evaluate((k) => (k === 'Home'
-      ? -window.scrollY
-      : document.body.scrollHeight - window.innerHeight - window.scrollY), a.press);
-    await smoothScroll(page, { distance: to });
-    return;
-  }
+  const a = plan.action;
+  if (!a) return;
+  if (a.selector) noteAnchor(a.selector);
 
-  if (a.click) {
-    noteAnchor(a.click);
-    await page.click(a.click, { timeout: 15000 });
-    // Проба СРАЗУ ПОСЛЕ клика, а не до: перед кликом Playwright сам прокручивает страницу
-    // к элементу, и снятая заранее координата относится к экрану, которого уже нет.
-    // Именно так в mc-медиа появилось y=3673 при высоте кадра 810.
+  switch (a.kind) {
+    case 'click':
+      await page.click(a.selector, { timeout: 15000 });
+      // Проба якоря снимается ПОСЛЕ действия: перед кликом Playwright сам прокручивает
+      // страницу к элементу, и снятая заранее координата относится к экрану, которого
+      // уже нет. Именно так в mc-медиа появилось y=3673 при высоте кадра 810.
+      break;
+    case 'type':
+      await page.fill(a.selector, a.text, { timeout: 15000 });
+      break;
+    case 'scroll':
+      await smoothScroll(page, { distance: a.distance, speed: a.speed });
+      break;
+    // Удержание и переход своих действий не имеют: у первого содержание — сама пауза,
+    // у второго — уже выполненный переход.
+    case 'hold':
+    case 'goto':
+      break;
+    default:
+      throw new Error(`неизвестное действие «${a.kind}»`);
   }
-  if (a.type) {
-    noteAnchor(a.type.selector);
-    await page.fill(a.type.selector, a.type.text, { timeout: 15000 });
-  }
-  if (a.press && !['PageDown', 'PageUp', 'Home', 'End'].includes(a.press)) {
-    await page.keyboard.press(a.press);
-  }
-  // Пауза по часам осталась только там, где её поставили руками: ожидание готовности
-  // экрана теперь делает waitUntilSettled после всех действий шага.
-  if (a.wait) await page.waitForTimeout(a.wait);
-  if (a.waitFor) await page.waitForSelector(a.waitFor, { timeout: 30000 });
+  if (a.press) await page.keyboard.press(a.press);
 }
 
 const timeline = { scene: 'take', fps: 30, viewport: VIEWPORT, events: [], hits: [] };
@@ -198,7 +192,7 @@ await fetch(`${base}/api/control?token=${info.token}`, {
 
 try {
   await setStatus({ state: 'busy', text: 'Открываю стенд', key: 'agentOpening',
-                    step: 0, of: scenario.steps.length });
+                    step: 0, of: storyboard.plans.length });
   await page.goto(cfg.stend, { waitUntil: 'domcontentloaded', timeout: 90000 });
   await page.waitForTimeout(3000);
   await login(page, cfg.creds || {});
@@ -209,19 +203,20 @@ try {
   if (rec) rec.started = recordingFrom;
   streamFrames();
 
-  for (const step of scenario.steps) {
-    if (step.n < from) continue;
-    // Проверяем между шагами: прерывать посреди действия — значит оставить браузер
+  for (const plan of storyboard.plans) {
+    if (plan.n < from) continue;
+    // Проверяем между планами: прерывать посреди действия — значит оставить браузер
     // в середине формы и получить кадр, который потом никому не объяснить.
     if (await shouldStop()) { stopped = true; break; }
     stepAnchors = [];
-    await setStep(step.n, { state: 'running' });
-    await setStatus({ state: 'busy', text: step.label, step: step.n, of: scenario.steps.length });
-    timeline.events.push({ t: sinceStart(), kind: 'caption', label: step.label, n: step.n,
-                           diagram: step.diagram || null });
+    await setStep(plan.id, { state: 'running' });
+    await setStatus({ state: 'busy', text: plan.title.text, step: plan.n,
+                      of: storyboard.plans.length });
+    timeline.events.push({ t: sinceStart(), kind: 'caption', label: plan.title.text, n: plan.n,
+                           diagram: plan.diagram || null });
     const t0 = Date.now();
     try {
-      for (const a of step.actions || []) await runAction(a);
+      await runPlan(plan);
 
       // Проверка результата — не перестраховка. Клик по пункту меню, который на самом
       // деле раскрывает подменю, проходит без ошибки: элемент найден, клик выполнен,
@@ -231,35 +226,40 @@ try {
       // Ждём готовности содержимым, а не часами. Раньше здесь стоял waitForSelector,
       // и он проверял признак ПОСЛЕ паузы шага — то есть ничем не управлял: пауза всё
       // равно отсчитывалась по часам, и скелетоны успевали попасть в кадр.
-      const mode = step.mode === 'live' ? 'live' : 'static';
+      const mode = plan.mode === 'live' ? 'live' : 'static';
       const liveFrom = sinceStart();
 
       if (mode === 'static') {
-        // Состояние снимается ПОСЛЕ действий: камере нужен результат, а не подводка.
+        // Состояние снимается ПОСЛЕ действия: камере нужен результат, а не подводка.
         // Ожидание готовности, догрузка ленивых картинок и слой липких — внутри.
+        // Идентификатор состояния — идентификатор плана: по нему их и сводит композиция.
         const state = await captureState(page, {
-          id: `p${String(step.n).padStart(2, '0')}`,
+          id: plan.id,
           dir: STATES,
-          waitFor: step.expect,
+          waitFor: plan.screen.waitFor,
           anchors: stepAnchors,
         });
-        states.push({ ...state, plan: step.n, label: step.label, mode });
+        states.push({ ...state, label: plan.title.text, mode });
       } else {
         // Живому плану снимок не поможет: содержание в самом движении. Ждём готовности
         // и запоминаем границы отрезка — композиция возьмёт из записи именно его.
-        const settle = await waitUntilSettled(page, { waitFor: step.expect, timeout: 30000 });
-        states.push({ id: `p${String(step.n).padStart(2, '0')}`, plan: step.n,
-                      label: step.label, mode, settle, viewport: VIEWPORT, scale: 1,
+        const settle = await waitUntilSettled(page, { waitFor: plan.screen.waitFor, timeout: 30000 });
+        states.push({ id: plan.id, label: plan.title.text, mode, settle,
+                      viewport: VIEWPORT, scale: 1,
                       sticky: [], anchors: [], layer: null, size: null });
       }
 
-      const left = step.seconds * 1000 - (Date.now() - t0);
-      if (left > 0) await page.waitForTimeout(left);
-      if (mode === 'live') liveRanges.push({ plan: step.n, from: liveFrom, to: sinceStart() });
-      await setStep(step.n, { state: 'done', took: Math.round((Date.now() - t0) / 1000) });
+      // Живому плану длительность задаёт запись, статичному — композиция: держать
+      // браузер лишние секунды после снимка незачем, кадры всё равно вычисляются.
+      if (mode === 'live') {
+        const left = plan.duration.seconds * 1000 - (Date.now() - t0);
+        if (left > 0) await page.waitForTimeout(left);
+        liveRanges.push({ plan: plan.id, from: liveFrom, to: sinceStart() });
+      }
+      await setStep(plan.id, { state: 'done', took: Math.round((Date.now() - t0) / 1000) });
     } catch (e) {
-      failed = await explainFailure(page, step, e);
-      await setStep(step.n, { state: 'failed', error: failed.error, fix: failed.fix });
+      failed = await explainFailure(page, plan, e);
+      await setStep(plan.id, { state: 'failed', error: failed.error, fix: failed.fix });
       break;
     }
   }
@@ -280,7 +280,7 @@ try {
       if (!a.rect) continue;
       const k = st.scale || 1;
       hits.push({
-        t: 0, plan: st.plan,
+        t: 0, plan: st.id,
         x: Math.round((a.rect.x + a.rect.w / 2) / k),
         y: Math.round((a.rect.y + a.rect.h / 2) / k),
         w: Math.round(a.rect.w / k), h: Math.round(a.rect.h / k),
@@ -325,7 +325,7 @@ try {
   } else {
     await setStatus({ state: 'listening', text: 'Съёмка завершена', key: 'agentDone',
                       step: null, of: null });
-    console.log(JSON.stringify({ ok: true, steps: scenario.steps.length,
+    console.log(JSON.stringify({ ok: true, plans: storyboard.plans.length,
                                  seconds: Math.round((Date.now() - started) / 1000), video: file }));
   }
 }

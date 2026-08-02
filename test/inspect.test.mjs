@@ -121,7 +121,7 @@ test('отчёт по пустому дублю не падает', () => {
 import { checkStates } from '../studio/lib/inspect.mjs';
 
 const STATE_OK = {
-  id: 's1', plan: 1, label: 'Медиатека',
+  id: 's1', label: 'Медиатека',
   size: { w: 2880, h: 8278 }, viewport: { width: 1440, height: 810 }, scale: 2,
   sticky: [{ edge: 'top', w: 2880, h: 98 }],
   layer: 'states/s1-layer.jpg',
@@ -138,7 +138,7 @@ test('ожидание не сошлось — замечание с причи�
   const issues = checkStates([s]);
   assert.equal(issues.length, 1);
   assert.equal(issues[0].kind, 'загрузка');
-  assert.equal(issues[0].step, 1);
+  assert.equal(issues[0].plan, 's1');
   assert.match(issues[0].text, /картинка/);
 });
 
@@ -181,8 +181,8 @@ test('липкие есть, а слоя нет — панорама поеде�
 });
 
 test('несколько состояний проверяются независимо', () => {
-  const bad = { ...STATE_OK, id: 's2', plan: 2, settle: { waitedMs: 30000, reason: 'таймаут: сеть' } };
+  const bad = { ...STATE_OK, id: 's2', settle: { waitedMs: 30000, reason: 'таймаут: сеть' } };
   const issues = checkStates([STATE_OK, bad]);
   assert.equal(issues.length, 1);
-  assert.equal(issues[0].step, 2);
+  assert.equal(issues[0].plan, 's2');
 });

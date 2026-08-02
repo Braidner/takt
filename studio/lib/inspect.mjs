@@ -97,37 +97,39 @@ export function inspect(take) {
 export function checkStates(states) {
   const out = [];
   for (const s of states) {
-    const where = `план ${s.plan}${s.label ? ` «${s.label}»` : ''}`;
+    // План называется своим титром: номер человеку ничего не говорит, а титр он
+    // только что читал в раскадровке.
+    const where = s.label ? `план «${s.label}»` : `план ${s.id}`;
 
     if (s.settle && s.settle.reason) {
-      out.push({ kind: 'загрузка', step: s.plan,
+      out.push({ kind: 'загрузка', plan: s.id,
         text: `${where}: экран не успокоился за ${(s.settle.waitedMs / 1000).toFixed(1)} с — `
             + `${s.settle.reason}` });
     }
 
     // Страница короче одного экрана — почти всегда значит, что она не догрузилась.
     if (s.size && s.viewport && s.size.h < s.viewport.height * s.scale) {
-      out.push({ kind: 'пусто', step: s.plan,
+      out.push({ kind: 'пусто', plan: s.id,
         text: `${where}: страница ${s.size.h} px — короче экрана, похоже не догрузилась` });
     }
 
     // Липкие нашли, а снять слой не удалось: панорама поедет вместе с шапкой.
     if (s.sticky && s.sticky.length && !s.layer) {
-      out.push({ kind: 'слой', step: s.plan,
+      out.push({ kind: 'слой', plan: s.id,
         text: `${where}: закреплённых элементов ${s.sticky.length}, а слой не снят — `
             + 'шапка поедет вместе со страницей' });
     }
 
     for (const a of s.anchors || []) {
       if (!a.rect) {
-        out.push({ kind: 'якорь', step: s.plan,
+        out.push({ kind: 'якорь', plan: s.id,
           text: `${where}: цель «${a.selector}» не найдена — наезд не построен` });
         continue;
       }
       const outside = s.size && (a.rect.y > s.size.h || a.rect.x > s.size.w
         || a.rect.y + a.rect.h < 0 || a.rect.x + a.rect.w < 0);
       if (outside) {
-        out.push({ kind: 'якорь', step: s.plan,
+        out.push({ kind: 'якорь', plan: s.id,
           text: `${where}: цель «${a.selector}» за пределами снимка — наезд не построен` });
       }
     }
