@@ -14,7 +14,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { currentProject, inProject, ROOT } from './project.mjs';
+import { currentProject, inProject } from './project.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const id = currentProject();

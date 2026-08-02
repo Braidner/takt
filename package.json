@@ -17,7 +17,6 @@
   "files": [
     "cli.mjs",
     "studio/",
-    "capture/",
     "SKILL.md",
     "references/",
     "README.md"

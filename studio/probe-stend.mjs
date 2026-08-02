@@ -16,7 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { inProject } from './project.mjs';
 import { chromium } from 'playwright';
-import { login } from '../capture/lib/stend.mjs';
+import { login } from './lib/stend.mjs';
 import { readConfig } from './resolve-stend.mjs';
 import { dismissDevOverlay } from './dismiss-overlay.mjs';
 import { loadPreset } from './preset.mjs';

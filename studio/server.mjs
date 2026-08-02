@@ -30,7 +30,7 @@ import { planFor } from './classify-notes.mjs';
 import { fromScenario, normalizeStoryboard, checkStoryboard } from './compose/storyboard.mjs';
 import { directStoryboard } from './compose/director.mjs';
 import { STAGES, pipelineState } from './compose/pipeline.mjs';
-import { HOME, HOME_FROM, PROJECTS, VOICES, SERVER_INFO, ensureHome } from './home.mjs';
+import { HOME, PROJECTS, VOICES, SERVER_INFO, ensureHome } from './home.mjs';
 import { listTargets, readTarget, writeTarget, readNotes as readTargetNotes,
          appendNote, slugifyTarget } from './target.mjs';
 

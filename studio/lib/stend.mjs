@@ -5,8 +5,8 @@
  * селекторы формы входа приходят из пресета (studio/preset.mjs). Иначе инструмент годится
  * ровно для одного приложения, а снять что-то ещё можно только правкой исходников.
  */
-import { branchSlug, loadPreset, presetForTarget } from '../../studio/preset.mjs';
-import { currentTarget } from '../../studio/project.mjs';
+import { branchSlug, loadPreset, presetForTarget } from '../preset.mjs';
+import { currentTarget } from '../project.mjs';
 
 /**
  * Адрес по короткому указанию.
