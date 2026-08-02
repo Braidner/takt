@@ -162,9 +162,7 @@ const RU = {
   evShort: "Хайлайты",
   movieFull: "Полный",
   movieShort: "Хайлайты",
-  movieCut: "Смонтированный",
   movieVoiced: "С озвучкой",
-  movieVertical: "Вертикальный",
   shootDone: "Снято по этой раскадровке",
   shootOffline: "Агент не подключён",
 
