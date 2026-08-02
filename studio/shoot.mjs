@@ -20,6 +20,8 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { inProject, currentTarget } from './project.mjs';
 import { chromium } from 'playwright';
@@ -277,6 +279,33 @@ try {
   await browser.close();
   const file = video ? await video.path() : null;
 
+  /**
+   * Сдвиг между шкалой записи и часами съёмки.
+   *
+   * recordVideo пишет с момента создания контекста, то есть захватывает открытие
+   * стенда и вход в систему; часы съёмки идут с первого плана. Разницу знает только
+   * кодировщик — по временам кадров, — поэтому спрашиваем длительность у ffprobe.
+   *
+   * Это та самая разъехавшаяся шкала, на которой конвейер обжигался дважды: сначала
+   * титры уезжали на длину входа, потом монтаж вырезал не те куски. Считаем её один
+   * раз и здесь, а не в каждом потребителе.
+   */
+  let liveOffset = 0;
+  if (file) {
+    try {
+      const run = promisify(execFile);
+      const { stdout } = await run('ffprobe', ['-v', 'error', '-show_entries',
+        'format=duration', '-of', 'csv=p=0', file]);
+      const raw = Number(stdout.trim());
+      const снято = recordingFrom ? (Date.now() - recordingFrom) / 1000 : 0;
+      if (Number.isFinite(raw) && raw > снято) liveOffset = Math.round((raw - снято) * 100) / 100;
+    } catch {
+      // Без ffprobe живые отрезки поедут на длину входа в систему — это заметно,
+      // поэтому лучше сказать вслух, чем собрать ролик со сдвигом.
+      console.error('ffprobe не ответил: сдвиг живой записи неизвестен, отрезки могут поехать');
+    }
+  }
+
   // hits остаются ради нынешнего монтажа, который ещё работает на них: берём центр
   // якоря из снятого состояния, приведённый к шкале вьюпорта.
   for (const st of states) {
@@ -303,7 +332,7 @@ try {
   const manifest = {
     viewport: VIEWPORT,
     seconds: Number(timeline.durationInSeconds.toFixed(2)),
-    live: file ? { video: rel(file), ranges: liveRanges } : null,
+    live: file ? { video: rel(file), offset: liveOffset, ranges: liveRanges } : null,
     states: states.map((st) => ({ ...st, body: rel(st.body), layer: rel(st.layer) })),
   };
   const issues = checkStates(states);
