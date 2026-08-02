@@ -10,6 +10,12 @@ import { directStoryboard } from './director.mjs';
 
 const q = new URLSearchParams(location.search);
 const render = q.get('render') === '1';
+/**
+ * Врезка: та же страница внутри студии. Спека называет скраббер главным инструментом —
+ * пока он жил отдельной вкладкой, это было неправдой. Своих органов управления у врезки
+ * нет: позицию задаёт плейхед студии, и двух источников правды о ней быть не должно.
+ */
+const embed = q.get('embed') === '1';
 
 try {
   const [manifest, storyboard] = await Promise.all([
@@ -56,7 +62,27 @@ try {
     film: { fps: film.fps, seconds: film.seconds, frames,
             clicks: film.clicks, issues: film.issues } };
 
-  if (!render) {
+  if (embed) {
+    // Студия и композиция говорят временем, а не номерами кадров: у студии на той же
+    // шкале лежат замечания, реплики и врезки, и переводить их в кадры значило бы
+    // хранить частоту в двух местах.
+    const toParent = (msg) => parent.postMessage({ source: 'takt-compose', ...msg }, '*');
+    addEventListener('message', (e) => {
+      if (e.data?.type === 'takt:seek') seek(Math.round((e.data.t || 0) * film.fps));
+    });
+    const fitEmbed = () => {
+      const s = Math.min(innerWidth / 1920, innerHeight / 1080);
+      const frame = document.getElementById('frame');
+      frame.style.transform = `scale(${s})`;
+      frame.style.height = `${1080 * s}px`;
+    };
+    fitEmbed();
+    addEventListener('resize', fitEmbed);
+    toParent({ type: 'takt:ready', seconds: film.seconds, fps: film.fps,
+               issues: film.issues });
+  }
+
+  if (!render && !embed) {
     const controls = document.getElementById('controls');
     controls.hidden = false;
     const scrub = document.getElementById('scrub');
@@ -106,4 +132,8 @@ try {
   div.textContent = e.message;
   document.body.prepend(div);
   window.__takt = { ready: false, error: e.message };
+  // Врезка обязана сказать студии, что показывать нечего: молчащий чёрный
+  // прямоугольник человек читает как поломку студии, а не как отсутствие съёмки.
+  if (embed) parent.postMessage({ source: 'takt-compose', type: 'takt:error',
+                                  error: e.message }, '*');
 }

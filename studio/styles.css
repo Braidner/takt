@@ -664,6 +664,17 @@ button, input, textarea, select { font: inherit; color: inherit; }
 
 .live-badge[hidden] { display: none; }
 
+/* Врезка композиции занимает кадр целиком: это и есть просмотр ролика, а не
+   вспомогательная панель где-то сбоку. */
+.compose-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--bg);
+}
+
 .live-badge {
   position: absolute;
   top: var(--sp-3);
@@ -1260,8 +1271,14 @@ button, input, textarea, select { font: inherit; color: inherit; }
 
 /* Переключатель версий ролика. Сегментами, а не выпадающим списком: версий три-четыре,
    и видеть их все сразу важнее, чем экономить место — человек сравнивает. */
-.cuts { display: inline-flex; gap: 2px; padding: 2px; margin-left: var(--sp-3);
+.cuts,
+.sources { display: inline-flex; gap: 2px; padding: 2px; margin-left: var(--sp-3);
         border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+/* Источник в кадре — выбор более крупный, чем версия файла: композиция и видео
+   показывают разное состояние работы, поэтому переключатель идёт первым. */
+.sources { margin-left: var(--sp-4); }
+.cut-btn:disabled { opacity: 0.45; cursor: default; }
+.cut-btn:disabled:hover { color: var(--ink-faint); }
 .cut-btn {
   font: 500 var(--t-xs)/1 inherit;
   white-space: nowrap;

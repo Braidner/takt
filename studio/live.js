@@ -38,6 +38,8 @@ const el = {
   shoot: document.querySelector('.script-shoot'),
   cut: document.querySelector('.cut-run'),
   cuts: document.querySelector('.cuts'),
+  sources: document.querySelector('.sources'),
+  composeFrame: document.querySelector('.compose-frame'),
   short: document.querySelector('.short-run'),
   play: document.querySelector('.play'),
   caption: document.querySelector('.caption'),
@@ -753,13 +755,113 @@ function renderMovie(next) {
 
   const img = el.frame.querySelector('img');
   if (img) img.hidden = true;
-  DURATION = movie.duration || DURATION;
+  renderSources();
+  // Готовый файл не выталкивает композицию из кадра: человек смотрит то, что выбрал.
+  video.hidden = source === 'compose' && compose.ready;
+  if (source === 'video') DURATION = movie.duration || DURATION;
   renderRuler();
   renderTracks();
   // Позиция могла остаться от прежней длительности и оказаться за концом нового ролика:
   // тогда титр показывает последний кадр сценария ещё до нажатия «играть».
   if (cursor > DURATION) seek(0);
   else renderCaption(cursor);
+}
+
+/**
+ * Композиция во врезке — главный инструмент студии.
+ *
+ * Ролик смотрится без единого рендера: кадр вычисляется из позиции плейхеда той же
+ * страницей, которой он потом снимается покадрово в файл. Предпросмотр и вывод не
+ * могут разойтись, потому что это один код.
+ *
+ * Источник в кадре один за раз: композиция ИЛИ собранное видео. Показывать оба
+ * бессмысленно — это одно и то же с точностью до времени рендера, — а вот путать их
+ * опасно: правку эффекта видно только в композиции, и человек решил бы, что она не
+ * применилась.
+ */
+let compose = { ready: false, seconds: 0, playing: null };
+let source = 'compose';
+
+function setupCompose() {
+  if (!el.composeFrame) return;
+  addEventListener('message', (e) => {
+    if (e.data?.source !== 'takt-compose') return;
+    if (e.data.type === 'takt:ready') {
+      compose = { ...compose, ready: true, seconds: e.data.seconds || 0 };
+      if (e.data.issues?.length) console.warn('замечания композиции:', e.data.issues);
+    }
+    if (e.data.type === 'takt:error') compose = { ...compose, ready: false, seconds: 0 };
+    renderSources();
+    if (source === 'compose') setSource('compose');
+  });
+  reloadCompose();
+}
+
+/**
+ * Перечитать композицию. Вызывается на каждую правку раскадровки: «правка параметра
+ * видна сразу» — это обещание студии, и выполняет его именно перезагрузка врезки.
+ * Метка времени в адресе нужна против кеша снимков: имена файлов состояний не меняются.
+ */
+function reloadCompose() {
+  if (!el.composeFrame) return;
+  el.composeFrame.src = `/compose/player.html?embed=1&v=${Date.now()}`;
+}
+
+/** Показывать переключатель есть смысл, только когда есть между чем выбирать. */
+function renderSources() {
+  if (!el.sources) return;
+  const хоть_что_то = compose.ready || Boolean(movie?.url);
+  el.sources.hidden = !хоть_что_то;
+  for (const b of el.sources.querySelectorAll('.source-btn')) {
+    const свой = b.dataset.source;
+    b.disabled = свой === 'compose' ? !compose.ready : !movie?.url;
+    b.setAttribute('aria-pressed', String(source === свой));
+    trTitle(b, свой === 'compose' ? 'sourceComposeTitle' : 'sourceVideoTitle');
+  }
+}
+
+function setSource(next) {
+  source = next;
+  const показываем_композицию = next === 'compose' && compose.ready;
+  if (el.composeFrame) el.composeFrame.hidden = !показываем_композицию;
+  if (video) video.hidden = показываем_композицию;
+  const img = el.frame?.querySelector('img');
+  if (img && (показываем_композицию || movie?.url)) img.hidden = true;
+  // Титры композиции выжжены в самом кадре — накладывать их поверх значит показать
+  // каждый дважды.
+  if (el.caption) el.caption.hidden = показываем_композицию;
+
+  const длина = показываем_композицию ? compose.seconds : (movie?.duration || DURATION);
+  if (длина) { DURATION = длина; renderRuler(); renderTracks(); }
+  stopPlaying();
+  renderSources();
+  syncCursor(Math.min(cursor, DURATION));
+}
+
+/** Композицию проигрывает студия: у врезки нет своих органов управления намеренно. */
+function stopPlaying() {
+  if (compose.playing) { clearInterval(compose.playing); compose.playing = null; }
+  if (el.play) el.play.setAttribute('aria-pressed', 'false');
+  video?.pause?.();
+}
+
+function togglePlay() {
+  if (source === 'video') {
+    if (!video) return;
+    if (video.paused) video.play(); else video.pause();
+    return;
+  }
+  if (compose.playing) return stopPlaying();
+  if (!compose.ready) return;
+  if (cursor >= DURATION - 0.05) seek(0);
+  el.play?.setAttribute('aria-pressed', 'true');
+  // Шаг в 1/25 секунды: врезка всё равно вычисляет кадр по времени, а более частая
+  // отправка сообщений ничего не добавляет к плавности просмотра.
+  const шаг = 0.04;
+  compose.playing = setInterval(() => {
+    if (cursor + шаг >= DURATION) { seek(DURATION); return stopPlaying(); }
+    seek(cursor + шаг);
+  }, шаг * 1000);
 }
 
 /** Титр текущего момента: последний, чьё время уже наступило. */
@@ -781,6 +883,10 @@ function syncCursor(t) {
   tr(el.pin, 'pin', { t: mmss(cursor) });
   trPh(el.composer, 'composerPh', { t: mmss(cursor) });
   renderCaption(cursor);
+  // Плейхед и кадр композиции — одна позиция, а не две синхронизируемые.
+  if (source === 'compose' && compose.ready && el.composeFrame?.contentWindow) {
+    el.composeFrame.contentWindow.postMessage({ type: 'takt:seek', t: cursor }, '*');
+  }
 }
 
 /**
@@ -1034,7 +1140,7 @@ function connect() {
     if (msg.type === 'status') { setAgent(msg.status, msg.agent); renderInFlight(msg.inFlight); }
     if (msg.type === 'stend') setStend(msg.stend);
     if (msg.type === 'project') renderProjects(msg.current, msg.projects);
-    if (msg.type === 'storyboard') renderBoard(msg.storyboard);
+    if (msg.type === 'storyboard') { renderBoard(msg.storyboard); reloadCompose(); }
     if (msg.type === 'movie') renderMovie(msg.movie);
     if (msg.type === 'voices') voicePanel?.render(msg.voices);
     if (msg.type === 'narration') { narrationData = msg.narration; narrationPanel?.render(msg.narration); renderTracks(); }
@@ -1072,6 +1178,7 @@ async function boot() {
   setStend(hello.stend);
   renderProjects(hello.project, hello.projects);
   setupDragAndDrop(el.steps);
+  setupCompose();
   renderBoard(hello.storyboard);
   renderMovie(hello.movie);
   renderNotes(hello.notes || []);
@@ -1158,9 +1265,10 @@ async function boot() {
     await post('/api/event', { type: 'apply' });
   });
 
-  el.play?.addEventListener('click', () => {
-    if (!video) return;
-    if (video.paused) video.play(); else video.pause();
+  el.play?.addEventListener('click', togglePlay);
+  el.sources?.addEventListener('click', (e) => {
+    const b = e.target.closest('.source-btn');
+    if (b && !b.disabled) setSource(b.dataset.source);
   });
 
   el.stop?.addEventListener('click', () => post('/api/event', { type: 'stop' }));
