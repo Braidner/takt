@@ -78,6 +78,7 @@ takt target        # адрес, вход, разведанные селекто
 | `cut` | смонтировать: камера, курсор, титры, звук | `takt edit`, затем `references/editing.md` |
 | `short` | короткая версия из лучших моментов | `takt highlight` (`--vertical` для сторис) |
 | `apply` | применить накопленные замечания | `references/notes.md` |
+| `regen` | пересобрать раскадровку по комментариям | `references/notes.md` |
 | `narrate` | озвучить ролик | `references/voice.md` |
 | `voice_prepare` | подготовить добавленный голос | `references/voice.md` |
 | `check_stend` | проверить доступ к системе | `takt check` |
