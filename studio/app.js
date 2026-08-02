@@ -121,6 +121,8 @@ const RU = {
   cutRunTitle: "Камера по действиям, курсор, титры и звук — из снятого материала",
   shortRun: "Хайлайты",
   shortRunTitle: "Короткая версия из лучших моментов, ≈25 секунд",
+  composeOpen: "Композиция",
+  composeOpenTitle: "Кадр вычисляется из позиции ползунка — рендер не нужен",
   evCut: "Монтаж",
   evShort: "Хайлайты",
   movieFull: "Полный",
@@ -305,6 +307,8 @@ const EN = {
   statusDraft: "draft",
   shootRun: "Record",
   shootDone: "Recorded from this script",
+  composeOpen: "Composition",
+  composeOpenTitle: "Frames are computed from the scrubber position — no render needed",
   shootOffline: "The agent is not connected",
 
   evScenarioNote: "Script edit",
@@ -441,3 +445,10 @@ themeBtn.addEventListener("click", () => {
   root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark";
   syncThemeLabel();
 });
+
+// Композиция доступна, когда снят хотя бы один манифест состояний. Проверка одна,
+// при загрузке: манифест появляется только съёмкой, а после неё страница и так
+// обновляется человеком.
+fetch("/project/states.json", { method: "HEAD" }).then((r) => {
+  for (const el of document.querySelectorAll(".compose-open")) el.hidden = !r.ok;
+}).catch(() => {});

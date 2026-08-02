@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<title>Композиция — предпросмотр</title>
+<link rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Golos+Text:wght@400;500;600&display=swap">
+<style>
+  body { margin: 0; background: #070a11; color: #cfd6e4;
+         font: 14px 'Golos Text', system-ui, sans-serif; }
+  /* Сцена рендерится в честных 1920×1080 и вписывается в окно масштабом:
+     привод вывода снимает её 1:1, человеку она ужимается под его экран. */
+  #frame { transform-origin: 0 0; }
+  #controls { display: flex; gap: 12px; align-items: center; padding: 10px 16px; }
+  #controls input[type=range] { flex: 1; accent-color: #4c8dff; }
+  #controls button { background: #182034; color: inherit; border: 1px solid #2a3550;
+                     border-radius: 8px; padding: 6px 14px; cursor: pointer; }
+  #error { padding: 24px; color: #ff8f8f; white-space: pre-wrap; }
+</style>
+<div id="frame"><div id="root"></div></div>
+<div id="controls" hidden>
+  <button id="play" aria-label="Играть/пауза">▶</button>
+  <input id="scrub" type="range" min="0" value="0" step="1"
+         aria-label="Позиция ролика по кадрам">
+  <span id="time">0:00 / 0:00</span>
+</div>
+<script type="module" src="/compose/player.js"></script>

@@ -43,13 +43,28 @@ const pushFilm = () => buildFilm(
   { title: 'Демо', steps: [{ n: 1, label: 'Клик', seconds: 6 }] },
 );
 
-test('наезд: масштаб дошёл до глубины, центр зажат у якоря', () => {
+test('наезд: масштаб дошёл до глубины, окно камеры притянуто к якорю', () => {
   const fr = composeFrame(pushFilm(), Math.round(2.0 * 30));
   const cam = fr.screens[0].camera;
   assert.equal(cam.scale, 1.26);
-  // Якорь (1050, 620) CSS: ox = 50 + (1050/1440 − 0.5)·45 ≈ 60.3.
-  assert.ok(Math.abs(cam.ox - 60.3) < 0.1, `ox=${cam.ox}`);
-  assert.ok(Math.abs(cam.oy - 61.9) < 0.1, `oy=${cam.oy}`);
+  // Якорь (1050, 620) CSS. Окно шириной 1440/1.26 сдвинуто на долю
+  // 0.5 + (1050/1440 − 0.5)·0.45 от свободного хода 1440 − 1440/1.26.
+  assert.ok(Math.abs(cam.x - 179.2) < 0.5, `x=${cam.x}`);
+  assert.ok(Math.abs(cam.y - 103.5) < 0.5, `y=${cam.y}`);
+});
+
+test('наезд: якорь у края экрана остаётся в окне, а не утягивается за кадр', () => {
+  // Клик по пункту липкой шапки: центр якоря на y=22 CSS. Притяжение к центру
+  // поставило бы верх окна на ~48 — выше якоря, и клик происходил бы за кадром.
+  const film = buildFilm(
+    { viewport: VIEWPORT, live: null,
+      states: [state({ anchors: [{ selector: 'x', rect: { x: 700, y: 40, w: 100, h: 8 } }] })] },
+    { title: 'Демо', steps: [{ n: 1, label: 'Клик в шапке', seconds: 6 }] },
+  );
+  const cam = composeFrame(film, Math.round(2.0 * 30)).screens[0].camera;
+  assert.equal(cam.y, 0);
+  // Верх окна прижат к краю, якорь внутри окна по обеим осям.
+  assert.ok(cam.x > 0 && cam.x < 375, `x=${cam.x}`);
 });
 
 test('курсор: до подводки нет, в момент щелчка нажат, потом гаснет', () => {

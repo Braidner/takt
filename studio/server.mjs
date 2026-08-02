@@ -285,7 +285,10 @@ function reclaimExpired() {
 }
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8', '.jpg': 'image/jpeg', '.png': 'image/png',
+  // .mjs обязан быть text/javascript: модули браузер проверяет по MIME строго,
+  // и octet-stream молча валит весь граф импортов композиции.
+  '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
+  '.jpg': 'image/jpeg', '.png': 'image/png',
   '.mp4': 'video/mp4', '.json': 'application/json' };
 
 const body = (req) => new Promise((resolve) => {

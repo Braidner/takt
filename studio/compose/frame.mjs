@@ -11,6 +11,27 @@ import { LEAD, TAIL, TRANSITION } from './film.mjs';
 
 /** Притяжение центра наезда к середине: см. edit.mjs — контекст дороже точности. */
 const PULL = 0.45;
+/** Поле между якорем и краем окна камеры: цель не должна лежать на срезе кадра. */
+const MARGIN = 60;
+
+/**
+ * Окно камеры: масштаб и сдвиг окна в CSS-пикселях экрана.
+ *
+ * Семантика zoompan, а не transform-origin: окно шириной w/scale смотрит на долю
+ * свободного хода. Притяжение к центру сохраняет контекст вокруг цели, но у краёв
+ * экрана утащило бы её за кадр — например, клик по пункту липкой шапки происходил
+ * бы за верхним срезом. Поэтому после притяжения окно прижимается так, чтобы якорь
+ * остался внутри с полем MARGIN.
+ */
+function cameraWindow(scale, ax, ay, { w, h }) {
+  if (scale <= 1) return { scale, x: 0, y: 0 };
+  const spanX = w - w / scale, spanY = h - h / scale;
+  let x = spanX * clamp(0.5 + (ax / w - 0.5) * PULL, 0.22, 0.78);
+  let y = spanY * clamp(0.5 + (ay / h - 0.5) * PULL, 0.24, 0.76);
+  x = clamp(clamp(x, ax + MARGIN - w / scale, ax - MARGIN), 0, spanX);
+  y = clamp(clamp(y, ay + MARGIN - h / scale, ay - MARGIN), 0, spanY);
+  return { scale, x, y };
+}
 
 export function composeFrame(film, n) {
   const t = n / film.fps;
@@ -34,20 +55,18 @@ function screenAt(film, plan, t) {
   const cam = plan.camera;
 
   let scrollY = 0;
-  let camera = { scale: 1, ox: 50, oy: 50 };
+  let camera = { scale: 1, x: 0, y: 0 };
 
   if (cam.kind === 'pan') {
     scrollY = Math.round(interpolate(local, [LEAD, dur - TAIL], [0, cam.to],
                                      { easing: ride }));
   } else if (cam.kind === 'push') {
-    camera = {
-      scale: interpolate(local, [LEAD, LEAD + 0.9], [1, cam.depth], { easing: easeInOut }),
-      ox: clamp(50 + (cam.anchor.cx / film.screen.w - 0.5) * PULL * 100, 22, 78),
-      oy: clamp(50 + (cam.anchor.cy / film.screen.h - 0.5) * PULL * 100, 24, 76),
-    };
+    const scale = interpolate(local, [LEAD, LEAD + 0.9], [1, cam.depth], { easing: easeInOut });
+    camera = cameraWindow(scale, cam.anchor.cx, cam.anchor.cy, film.screen);
   } else {
     // Дрейф: вступительный наплыв — неподвижный кадр читается как стоп-кадр.
-    camera = { scale: interpolate(local, [0, 2.6], [1.045, 1]), ox: 50, oy: 50 };
+    const scale = interpolate(local, [0, 2.6], [1.045, 1]);
+    camera = cameraWindow(scale, film.screen.w / 2, film.screen.h / 2, film.screen);
   }
 
   return { plan: plan.id, opacity: 1, scrollY, camera,
