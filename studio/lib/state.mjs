@@ -100,10 +100,13 @@ async function prefetchLazy(page) {
 async function anchorRects(page, selectors, scale) {
   const out = [];
   for (const selector of selectors) {
+    // Таймаут короткий и явный: элемент либо уже на странице — действие с ним только
+    // что выполнено, — либо его нет вовсе. Дефолтные 30 секунд ожидания превращали
+    // каждый ненайденный якорь в полминуты простоя съёмки.
     const rect = await page.locator(selector).first().evaluate((el) => {
       const r = el.getBoundingClientRect();
       return { x: r.x + window.scrollX, y: r.y + window.scrollY, w: r.width, h: r.height };
-    }).catch(() => null);
+    }, undefined, { timeout: 3000 }).catch(() => null);
 
     out.push({
       selector,
