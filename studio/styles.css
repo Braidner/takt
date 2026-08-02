@@ -800,7 +800,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
 }
 .marker:hover { transform: scale(1.25); }
 .marker[data-kind="voice"] { background: var(--brand-cyan); }
-.marker[data-kind="diagram"] { background: var(--brand-sky); }
 
 .clip {
   position: absolute;
@@ -836,10 +835,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
   box-shadow: inset 0 0 0 1px var(--brand-cyan);
 }
 
-.clip[data-kind="diagram"] {
-  background: color-mix(in oklch, var(--brand-sky) 26%, transparent);
-  border-color: color-mix(in oklch, var(--brand-sky) 52%, transparent);
-}
 
 /* Шаг — сегмент на дорожке, как клип в монтажке: границы шагов читаются стыками
    сегментов, состояние — цветом. Сплошная заливка «прогресса» здесь была бы снова

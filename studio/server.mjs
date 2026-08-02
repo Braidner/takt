@@ -968,27 +968,6 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { ok: true, t: note.t });
   }
 
-  /**
-   * Перенос врезки-схемы на другой шаг.
-   *
-   * Схема живёт не сама по себе, а на плане раскадровки: она показывается поверх паузы,
-   * и «перенести схему» означает выбрать другую паузу. Поэтому таскание меняет
-   * привязку, а не абстрактное время — иначе схема повисла бы между планами.
-   */
-  if (p === '/api/diagram-move' && req.method === 'POST') {
-    if (!authed) return send(res, 401, { error: 'unauthorized' });
-    const msg = await body(req);
-    const storyboard = readBoard();
-    const from = storyboard?.plans?.find((x) => x.id === msg?.from);
-    const to = storyboard?.plans?.find((x) => x.id === msg?.to);
-    if (!from || !to || !from.diagram) return send(res, 400, { error: 'no_diagram' });
-    to.diagram = from.diagram;
-    if (from.id !== to.id) from.diagram = null;
-    const next = writeBoard(storyboard);
-    broadcast({ type: 'storyboard', storyboard: next });
-    return send(res, 200, { ok: true, plan: to.id });
-  }
-
   // ── Файлы текущего проекта
   if (p.startsWith('/project/')) {
     const rel = decodeURIComponent(p.slice('/project/'.length));

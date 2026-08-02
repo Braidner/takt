@@ -73,7 +73,6 @@ export function fromScenario(scenario) {
       mode: s.mode === 'live' ? 'live' : 'static',
       screen: { route, waitFor },
       action,
-      diagram: s.diagram || null,
       state: s.state || 'pending',
       error: s.error || null,
       fix: s.fix || null,
@@ -113,12 +112,14 @@ export function normalizeStoryboard(sb) {
       mode: p.mode === 'live' ? 'live' : 'static',
       screen: { route: p.screen?.route ?? null, waitFor: p.screen?.waitFor || null },
       action: p.action || null,
-      diagram: p.diagram || null,
       state: p.state || 'pending',
       error: p.error || null,
       fix: p.fix || null,
       took: p.took ?? null,
     };
+    // Поля, которых больше нет, вычищаются при первом же чтении: без этого они
+    // переживают в сохранённых раскадровках и всплывают в экспорте.
+    delete plan.diagram;
     plan.duration = planDuration(plan);
     at += plan.duration.seconds;
     return plan;

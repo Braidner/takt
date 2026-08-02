@@ -59,7 +59,6 @@ if (storyboard?.plans?.length) {
   for (const p of storyboard.plans) {
     lines.push(`**${mmss(p.at)}** — ${p.title?.text || ''}`);
     if (p.intent) lines.push(`  ${p.intent}`);
-    if (p.diagram) lines.push(`  врезка-схема: ${p.diagram}`);
     lines.push('');
   }
   fs.writeFileSync(path.join(dest, 'раскадровка.md'), lines.join('\n'));
