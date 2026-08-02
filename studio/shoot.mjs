@@ -287,18 +287,50 @@ try {
    * раз и здесь, а не в каждом потребителе.
    */
   const снято = recordingFrom ? (Date.now() - recordingFrom) / 1000 : 0;
-  let liveOffset = 0;
-  if (file) {
+
+  /**
+   * Живые отрезки вырезаются из записи в отдельные файлы — по одному на план.
+   *
+   * Иначе никак: Playwright пишет webm потоком, без индекса, и браузер по такому
+   * файлу перематываться НЕ УМЕЕТ вовсе — `seekable` у него пустой, а присваивание
+   * currentTime молча даёт ноль. Композиция получала бы первый кадр записи вместо
+   * нужного момента: на дымовом прогоне это дало экран входа в систему посреди
+   * ролика, одинаковый во всех кадрах плана.
+   *
+   * Заодно исчезает и разъезд шкал: вырезанный отрезок начинается со своего нуля,
+   * и сдвиг записи больше никому не нужно знать.
+   */
+  if (file && liveRanges.length) {
+    const run = promisify(execFile);
+    let offset = 0;
     try {
-      const run = promisify(execFile);
       const { stdout } = await run('ffprobe', ['-v', 'error', '-show_entries',
         'format=duration', '-of', 'csv=p=0', file]);
       const raw = Number(stdout.trim());
-      if (Number.isFinite(raw) && raw > снято) liveOffset = Math.round((raw - снято) * 100) / 100;
+      if (Number.isFinite(raw) && raw > снято) offset = raw - снято;
     } catch {
-      // Без ffprobe живые отрезки поедут на длину входа в систему — это заметно,
-      // поэтому лучше сказать вслух, чем собрать ролик со сдвигом.
-      console.error('ffprobe не ответил: сдвиг живой записи неизвестен, отрезки могут поехать');
+      console.error('ffprobe не ответил: живые отрезки могут поехать на длину входа');
+    }
+
+    for (const r of liveRanges) {
+      const out = path.join(STATES, `${r.plan}.mp4`);
+      const длина = Math.max(0.4, r.to - r.from);
+      try {
+        await run('ffmpeg', ['-v', 'error', '-y',
+          // -ss после -i: перекодирование всё равно идёт, а точность здесь важнее
+          // скорости — отрезок короткий, и промах в полсекунды виден.
+          '-i', file, '-ss', (offset + r.from).toFixed(2), '-t', длина.toFixed(2),
+          '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
+          // Ключевой кадр каждые полсекунды: по такому файлу композиция мотает точно.
+          '-g', '12', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-an', out]);
+        const st = states.find((s) => s.id === r.plan);
+        if (st) {
+          st.video = out;
+          st.seconds = Math.round(длина * 100) / 100;
+        }
+      } catch (e) {
+        console.error(`не вырезал живой отрезок ${r.plan}: ${(e.stderr || e.message).slice(0, 120)}`);
+      }
     }
   }
 
@@ -308,8 +340,11 @@ try {
   const manifest = {
     viewport: VIEWPORT,
     seconds: Number((снято).toFixed(2)),
-    live: file ? { video: rel(file), offset: liveOffset, ranges: liveRanges } : null,
-    states: states.map((st) => ({ ...st, body: rel(st.body), layer: rel(st.layer) })),
+    // Живые отрезки лежат в самих состояниях отдельными файлами: у плана есть либо
+    // снимок, либо кусок записи, и оба адресуются одинаково.
+    live: null,
+    states: states.map((st) => ({ ...st, body: rel(st.body), layer: rel(st.layer),
+                                  video: rel(st.video) })),
   };
   const issues = checkStates(states);
   manifest.issues = issues;

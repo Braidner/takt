@@ -199,11 +199,11 @@ test('хайлайты карточек не берут', () => {
   assert.deepEqual(hl.plans.map((p) => p.id), ['p01', 'p02']);
 });
 
-const liveManifest = (states) => ({
-  viewport: VIEWPORT,
-  live: { video: 'takes/take.webm', offset: 12.4, ranges: [{ plan: 'p02', from: 5, to: 9 }] },
-  states,
-});
+const liveManifest = (states) => ({ viewport: VIEWPORT, live: null, states });
+
+/** Живой план — это состояние с вырезанным куском записи вместо снимка. */
+const liveState = (over = {}) => state({ id: 'p02', mode: 'live',
+  video: 'states/p02.mp4', seconds: 4, ...over });
 
 const liveBoard = () => directStoryboard(normalizeStoryboard({
   title: 'Демо', slate: false,
@@ -213,27 +213,34 @@ const liveBoard = () => directStoryboard(normalizeStoryboard({
   ],
 }), [state()]);
 
-test('живой план берётся из записи со сдвигом на длину входа в систему', () => {
-  const film = buildFilm(liveManifest([state(), state({ id: 'p02', mode: 'live' })]), liveBoard());
+test('живой план играет свой вырезанный отрезок с нуля', () => {
+  const film = buildFilm(liveManifest([state(), liveState()]), liveBoard());
 
   assert.equal(film.fps, 25, 'один живой план переводит весь ролик в 25 кадров');
   const живой = film.plans.find((p) => p.id === 'p02');
   assert.equal(живой.kind, 'live');
-  assert.equal(живой.video, 'takes/take.webm');
-  // Отрезок начинается на 5-й секунде часов съёмки, запись идёт на 12.4 с раньше.
-  assert.equal(живой.videoFrom, 17.4);
+  assert.equal(живой.video, 'states/p02.mp4');
+  // По сплошной записи браузер мотать не умеет — там нет индекса, поэтому съёмка
+  // режет отрезок в свой файл, и он начинается со своего нуля.
+  assert.equal(живой.videoFrom, 0);
 });
 
-test('живой план без отрезка в записи пропускается с замечанием', () => {
-  const manifest = { viewport: VIEWPORT, live: { video: 'x.webm', offset: 0, ranges: [] },
-                     states: [state()] };
-  const film = buildFilm(manifest, liveBoard());
+test('живой план без отрезка записи пропускается с замечанием', () => {
+  const film = buildFilm(liveManifest([state(), state({ id: 'p02', mode: 'live' })]), liveBoard());
   assert.deepEqual(film.plans.map((p) => p.id), ['p01']);
   assert.match(film.issues[0].text, /Живой/);
 });
 
 test('камера по живому отрезку не ездит', () => {
   // В кадре и так движение: наезд поверх него читается как тряска.
-  const film = buildFilm(liveManifest([state(), state({ id: 'p02', mode: 'live' })]), liveBoard());
+  const film = buildFilm(liveManifest([state(), liveState()]), liveBoard());
   assert.equal(film.plans.find((p) => p.id === 'p02').camera.kind, 'drift');
+});
+
+test('длительность живого плана задаёт запись, а не раскадровка', () => {
+  // Снятое движение нельзя растянуть: показывать после него застывший последний
+  // кадр значит выдать за живой план стоп-кадр.
+  const film = buildFilm(liveManifest([state(), liveState()]), liveBoard());
+  const живой = film.plans.find((p) => p.id === 'p02');
+  assert.ok(Math.abs((живой.to - живой.from) - 4) < 0.01);   // столько записалось
 });

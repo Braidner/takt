@@ -49,6 +49,23 @@ try {
   ]);
   await document.fonts.ready;
 
+  /**
+   * Видео живых отрезков должно иметь метаданные ДО первого кадра.
+   *
+   * Присваивание currentTime незагруженному видео игнорируется молча — и в ролике
+   * вместо нужного момента остаётся первый кадр записи. На дымовом прогоне это дало
+   * экран входа в систему посреди ролика, причём одинаковый во всех кадрах плана.
+   */
+  await Promise.race([
+    Promise.all([...document.querySelectorAll('video.live')].map((v) => (
+      v.readyState >= 1 ? Promise.resolve() : new Promise((r) => {
+        v.addEventListener('loadedmetadata', r, { once: true });
+        v.addEventListener('error', r, { once: true });
+      })
+    ))),
+    new Promise((r) => setTimeout(r, 15000)),
+  ]);
+
   let current = -1;
   const seek = (n) => {
     const k = Math.max(0, Math.min(frames - 1, n));
@@ -68,11 +85,16 @@ try {
    */
   const settled = () => {
     const видео = [...document.querySelectorAll('video.live')]
-      .filter((v) => v.offsetParent !== null && v.seeking);
+      .filter((v) => v.offsetParent !== null && (v.seeking || v.readyState < 2));
     if (!видео.length) return Promise.resolve(true);
     return Promise.all(видео.map((v) => new Promise((r) => {
-      const готово = () => { v.removeEventListener('seeked', готово); r(true); };
+      const готово = () => {
+        v.removeEventListener('seeked', готово);
+        v.removeEventListener('canplay', готово);
+        r(true);
+      };
       v.addEventListener('seeked', готово);
+      v.addEventListener('canplay', готово);
       // Сторож: у повреждённого отрезка seeked может не прийти вовсе, и ждать его
       // вечно значит подвесить весь рендер.
       setTimeout(готово, 2000);

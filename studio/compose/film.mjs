@@ -102,10 +102,6 @@ const card = (id, kind, at, seconds, fields) => ({
 });
 
 export function buildFilm(manifest, storyboard) {
-  // Живой отрезок берётся из записи по границам, размеченным съёмкой, и сдвигается
-  // на длину входа в систему: запись начинается раньше первого плана.
-  const live = manifest.live || null;
-  const отрезок = (id) => (live?.ranges || []).find((r) => r.plan === id) || null;
 
   const byId = new Map((manifest.states || []).map((s) => [s.id, s]));
   const issues = [];
@@ -130,13 +126,19 @@ export function buildFilm(manifest, storyboard) {
     const state = byId.get(plan.id);
 
     if (plan.mode === 'live') {
-      const range = отрезок(plan.id);
-      if (!live?.video || !range) {
+      if (!state?.video) {
         issues.push({ plan: plan.id,
-          text: `«${plan.title.text}» живой, но отрезка нет в записи — план пропущен` });
+          text: `«${plan.title.text}» живой, но отрезка записи нет — план пропущен` });
         continue;
       }
-      const dur = plan.duration.seconds;
+      /**
+       * Длительность живого плана задаёт ЗАПИСЬ, а не раскадровка: снятое движение
+       * нельзя растянуть, а показывать после него застывший последний кадр —
+       * значит выдать за живой план стоп-кадр. У статичных планов наоборот:
+       * движение собирается, и время назначает раскадровка.
+       */
+      const снято = Math.round((state.seconds || 0) * 10) / 10;
+      const dur = снято > 0.4 ? снято : plan.duration.seconds;
       const cut = (storyboard.effects || [])
         .find((e) => e.plan === plan.id && e.kind === 'transition');
       plans.push({
@@ -144,10 +146,10 @@ export function buildFilm(manifest, storyboard) {
         kind: 'live',
         from: Math.round(at * 10) / 10,
         to: Math.round((at + dur) * 10) / 10,
-        video: live.video,
-        // Отрезок может быть короче или длиннее плана: длительность считает
-        // раскадровка, а запись идёт как шла. Берём начало и играем сколько нужно.
-        videoFrom: Math.round(((live.offset || 0) + range.from) * 100) / 100,
+        video: state.video,
+        // Отрезок вырезан съёмкой в свой файл и начинается со своего нуля: по
+        // сплошной записи браузер перематываться не умеет — там нет индекса.
+        videoFrom: 0,
         // Камера по живому отрезку не ездит: в кадре и так движение, а наезд
         // поверх него читается как тряска.
         camera: { kind: 'drift', from: 0, to: 0 },
