@@ -37,6 +37,21 @@ const api = (route, payload) =>
     body: JSON.stringify(payload),
   }).then((r) => r.json()).catch(() => null);
 
+/**
+ * Статичный проект собирается композицией: у него нет записи, из которой можно
+ * было бы делать «мастер», — ролик рендерится из состояний сразу смонтированным.
+ * Отдельный процесс, а не импорт: render.mjs сам читает аргументы и сам выходит.
+ */
+const manifestPath = inProject('states.json');
+if (fs.existsSync(manifestPath)
+    && !JSON.parse(fs.readFileSync(manifestPath, 'utf8')).live) {
+  const { spawn } = await import('node:child_process');
+  const child = spawn(process.execPath, [path.join(DIR, 'render.mjs'),
+                                         ...process.argv.slice(2)], { stdio: 'inherit' });
+  child.on('close', (code) => process.exit(code ?? 1));
+  await new Promise(() => {});   // дальше живёт только дочерний процесс
+}
+
 const timelinePath = inProject('timeline.json');
 if (!fs.existsSync(timelinePath)) {
   console.error('Нет телеметрии: сначала снимите сценарий (node studio/shoot.mjs)');
