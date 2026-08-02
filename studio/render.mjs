@@ -80,6 +80,10 @@ try {
 
   for (let n = 0; n < film.frames; n++) {
     await page.evaluate((k) => window.__takt.seek(k), n);
+    // У живого отрезка кадр появляется не сразу: currentTime только просит видео
+    // перемотаться. Снимок, сделанный раньше, вернёт предыдущий кадр — и в ролике
+    // будет рывок назад.
+    if (film.live) await page.evaluate(() => window.__takt.settled());
     const shot = await page.screenshot({ type: 'jpeg', quality: 92 });
     if (!ff.stdin.write(shot)) await new Promise((r) => ff.stdin.once('drain', r));
     if (n % 150 === 0) {

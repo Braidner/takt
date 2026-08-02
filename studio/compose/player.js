@@ -58,9 +58,31 @@ try {
   };
   seek(0);
 
-  window.__takt = { ready: true, seek,
+  /**
+   * Готовность кадра.
+   *
+   * У снимков её нет: они декодированы заранее и рисуются мгновенно. У живого
+   * отрезка есть: `currentTime` только просит видео перемотаться, а показывает оно
+   * кадр позже — по событию `seeked`. Привод вывода, снявший кадр раньше, получит
+   * предыдущий, и в ролике появится рывок назад.
+   */
+  const settled = () => {
+    const видео = [...document.querySelectorAll('video.live')]
+      .filter((v) => v.offsetParent !== null && v.seeking);
+    if (!видео.length) return Promise.resolve(true);
+    return Promise.all(видео.map((v) => new Promise((r) => {
+      const готово = () => { v.removeEventListener('seeked', готово); r(true); };
+      v.addEventListener('seeked', готово);
+      // Сторож: у повреждённого отрезка seeked может не прийти вовсе, и ждать его
+      // вечно значит подвесить весь рендер.
+      setTimeout(готово, 2000);
+    }))).then(() => true);
+  };
+
+  window.__takt = { ready: true, seek, settled,
     film: { fps: film.fps, seconds: film.seconds, frames,
-            clicks: film.clicks, issues: film.issues } };
+            clicks: film.clicks, issues: film.issues,
+            live: film.plans.some((p) => p.kind === 'live') } };
 
   if (embed) {
     // Студия и композиция говорят временем, а не номерами кадров: у студии на той же
