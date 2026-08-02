@@ -73,7 +73,7 @@ browser), starts the studio in the background, opens http://localhost:4173, and 
 agent attaches to studio events. Update anytime with `/takt update`.
 
 Running without an agent? `node cli.mjs start` does the same from the terminal.
-Optional capabilities — narration engines, Remotion editing — are installed from the
+Optional capabilities — narration engines — are installed from the
 **Environment** panel in the studio, each with its download size shown up front.
 
 The target system's URL and credentials are entered **in the studio itself** — click the
@@ -146,6 +146,3 @@ brought the file.
 
 Code is [MIT](LICENSE). Synthesis engines: Qwen3-TTS (Apache 2.0) and Chatterbox (MIT),
 both fine for commercial use; Chatterbox embeds a watermark.
-
-Editing via Remotion (an optional component) requires a paid license for teams of four
-or more — see [remotion.pro/license](https://remotion.pro/license).

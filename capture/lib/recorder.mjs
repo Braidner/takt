@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 
 /**
  * Съёмка сцены: кадры берутся из CDP-скринкаста (headless, без прав на запись экрана),
- * параллельно копится телеметрия действий — по ней Remotion потом ведёт камеру и курсор.
+ * параллельно копится телеметрия действий — по ней монтаж потом ведёт камеру и курсор.
  */
 export class Recorder {
   constructor(page, { scene, fps = 30, root, viewport, scale = 2 }) {
