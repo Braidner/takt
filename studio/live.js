@@ -185,7 +185,7 @@ function setStend(stend) {
  * хронометраж виден до съёмки, а не после — переснимать пятнадцатиминутный ролик,
  * поняв, что он длинный, дороже, чем сократить план заранее.
  */
-let scenario = null;
+let storyboard = null;
 
 /**
  * Правка сценария разделена по стоимости, и это не педантизм.
@@ -236,13 +236,13 @@ function setupDragAndDrop(list) {
     const r = row.getBoundingClientRect();
     const over = Number(row.dataset.index);
     let to = e.clientY > r.top + r.height / 2 ? over + 1 : over;
-    const steps = [...scenario.steps];
-    const [moved] = steps.splice(dragFrom, 1);
-    // После выреза индексы ниже сдвигаются на один — иначе шаг встаёт мимо места.
+    const plans = [...storyboard.plans];
+    const [moved] = plans.splice(dragFrom, 1);
+    // После выреза индексы ниже сдвигаются на один — иначе план встаёт мимо места.
     if (dragFrom < to) to -= 1;
-    steps.splice(to, 0, moved);
+    plans.splice(to, 0, moved);
     dragFrom = null;
-    if (steps.some((s, idx) => s !== scenario.steps[idx])) await pushScenario({ steps });
+    if (plans.some((x, idx) => x !== storyboard.plans[idx])) await pushBoard({ plans });
   });
 
   list.addEventListener('dragend', () => {
@@ -251,14 +251,14 @@ function setupDragAndDrop(list) {
   });
 }
 
-async function pushScenario(patch = {}) {
-  scenario = { ...scenario, ...patch };
-  await post('/api/scenario', scenario);
+async function pushBoard(patch = {}) {
+  storyboard = { ...storyboard, ...patch };
+  await post('/api/storyboard', storyboard);
 }
 
-function renderScenario(next) {
-  scenario = next;
-  const has = Boolean(scenario?.steps?.length);
+function renderBoard(next) {
+  storyboard = next;
+  const has = Boolean(storyboard?.plans?.length);
   if (el.scriptEmpty) el.scriptEmpty.hidden = has;
   if (el.steps) el.steps.hidden = !has;
   if (el.scriptActions) el.scriptActions.hidden = !has;
@@ -267,32 +267,40 @@ function renderScenario(next) {
     return;
   }
 
-  DURATION = scenario.steps.reduce((sum, s) => sum + (s.seconds || 0), 0) || DURATION;
-  const shooting = scenario.steps.some((s) => s.state === 'running');
+  DURATION = storyboard.seconds || DURATION;
+  const shooting = storyboard.plans.some((x) => x.state === 'running');
   // Плашка «идёт съёмка» показывается ровно пока съёмка идёт: висящая поверх готового
   // кадра, она врёт о состоянии — а состояние здесь и есть главное, что читает человек.
   const liveBadge = document.querySelector('.live-badge');
   if (liveBadge) liveBadge.hidden = !shooting;
   if (el.frame) el.frame.dataset.live = shooting ? 'true' : 'false';
-  const editable = scenario.status !== 'ready' && !shooting;
+  const editable = storyboard.status !== 'ready' && !shooting;
   el.steps.innerHTML = '';
 
-  scenario.steps.forEach((s, i) => {
+  storyboard.plans.forEach((s, i) => {
     const li = document.createElement('li');
     li.className = 'step-row';
     li.dataset.n = String(s.n);
+    li.dataset.plan = s.id;
     const b = document.createElement('button');
     b.className = 'step';
     b.type = 'button';
     b.dataset.t = String(s.at);
     if (s.state && s.state !== 'done') b.dataset.state = s.state;
     b.innerHTML = `<span class="step-time">${mmss(s.at)}</span>
-      <span class="step-label"></span>${s.diagram || s.hint ? '<span class="step-note"></span>' : ''}`;
-    b.querySelector('.step-label').textContent = s.label;
+      <span class="step-dur"></span>
+      <span class="step-label"></span>${s.diagram || s.intent ? '<span class="step-note"></span>' : ''}`;
+    b.querySelector('.step-label').textContent = s.title.text;
+    // Длительность видна всегда и всегда говорит, откуда взялась: «выведена» и
+    // «назначена человеком» — разные вещи, и пересчёт трогает только первую.
+    const dur = b.querySelector('.step-dur');
+    dur.textContent = `${s.duration.seconds} с`;
+    dur.dataset.source = s.duration.source;
+    trTitle(dur, s.duration.source === 'manual' ? 'durManual' : 'durDerived');
     const note = b.querySelector('.step-note');
-    // Врезку описываем мы, подсказку к шагу — агент: первое переводится, второе нет.
-    if (note && s.diagram) tr(note, 'stepDiagram', { sec: s.seconds });
-    else if (note) note.textContent = s.hint;
+    // Врезку описываем мы, намерение плана — агент: первое переводится, второе нет.
+    if (note && s.diagram) tr(note, 'stepDiagram', { sec: s.duration.seconds });
+    else if (note) note.textContent = s.intent;
     if (s.state === 'failed' && s.error) {
       const err = document.createElement('span');
       err.className = 'step-error';
@@ -321,7 +329,7 @@ function renderScenario(next) {
       tr(retake.firstElementChild, 'toolFrom');
       retake.addEventListener('click', (e) => {
         if (e.target.dataset?.act !== 'from') return;
-        post('/api/event', { type: 'retake', from: s.n, label: s.label });
+        post('/api/event', { type: 'retake', from: s.n, label: s.title.text });
       });
       li.append(retake);
     }
@@ -336,10 +344,10 @@ function renderScenario(next) {
         if (!k.altKey || (k.key !== 'ArrowUp' && k.key !== 'ArrowDown')) return;
         k.preventDefault();
         const to = k.key === 'ArrowUp' ? i - 1 : i + 1;
-        if (to < 0 || to >= scenario.steps.length) return;
-        const steps = [...scenario.steps];
-        [steps[i], steps[to]] = [steps[to], steps[i]];
-        pushScenario({ steps });
+        if (to < 0 || to >= storyboard.plans.length) return;
+        const plans = [...storyboard.plans];
+        [plans[i], plans[to]] = [plans[to], plans[i]];
+        pushBoard({ plans });
       });
 
       const tools = document.createElement('div');
@@ -347,17 +355,51 @@ function renderScenario(next) {
       tools.innerHTML = `
         <span class="step-tool" data-act="drag"></span>
         <button type="button" class="step-tool" data-act="edit"></button>
+        <button type="button" class="step-tool" data-act="time"></button>
         <button type="button" class="step-tool" data-act="del"></button>`;
       const drag = tools.querySelector('[data-act="drag"]');
       tr(drag, 'toolDrag');
       trTitle(drag, 'toolDragTitle');
       tr(tools.querySelector('[data-act="edit"]'), 'toolEdit');
-      tr(tools.querySelector('[data-act="del"]'), 'toolDel');
+      const timeTool = tools.querySelector('[data-act="time"]');
+      tr(timeTool, 'toolTime');
+      trTitle(timeTool, 'toolTimeTitle');
       tools.addEventListener('click', async (e) => {
         const act = e.target.dataset?.act;
         if (!act || act === 'drag') return;
-        const steps = [...scenario.steps];
-        if (act === 'del') steps.splice(i, 1);
+        const plans = [...storyboard.plans];
+        if (act === 'del') plans.splice(i, 1);
+        if (act === 'time') {
+          // Время правится на месте, как и титр. Пустая строка возвращает выведенное:
+          // отменить своё решение должно быть так же легко, как принять.
+          const cell = b.querySelector('.step-dur');
+          cell.contentEditable = 'true';
+          cell.focus();
+          document.getSelection().selectAllChildren(cell);
+          let closed = false;
+          const commit = async () => {
+            if (closed) return;
+            closed = true;
+            cell.contentEditable = 'false';
+            const text = cell.textContent.replace(',', '.').trim();
+            const seconds = Number.parseFloat(text);
+            plans[i] = { ...plans[i],
+              duration: text === '' || !Number.isFinite(seconds) || seconds <= 0
+                ? undefined
+                : { source: 'manual', seconds: Math.round(seconds * 10) / 10 } };
+            await pushBoard({ plans });
+          };
+          cell.addEventListener('blur', commit, { once: true });
+          cell.addEventListener('keydown', (k) => {
+            if (k.key === 'Enter') { k.preventDefault(); commit(); }
+            if (k.key === 'Escape') {
+              closed = true;
+              cell.textContent = `${s.duration.seconds} с`;
+              cell.contentEditable = 'false';
+            }
+          });
+          return;
+        }
         if (act === 'edit') {
           // Правка на месте: подпись — это то, что увидит зритель, и переписывать её
           // удобнее прямо там, где она читается, а не в отдельной форме.
@@ -373,19 +415,19 @@ function renderScenario(next) {
             done = true;
             label.contentEditable = 'false';
             const text = label.textContent.trim();
-            if (!text) { label.textContent = s.label; return; }
-            if (text === s.label) return;
-            steps[i] = { ...steps[i], label: text };
-            await pushScenario({ steps });
+            if (!text) { label.textContent = s.title.text; return; }
+            if (text === s.title.text) return;
+            plans[i] = { ...plans[i], title: { ...plans[i].title, text } };
+            await pushBoard({ plans });
           };
           label.addEventListener('blur', commit, { once: true });
           label.addEventListener('keydown', (k) => {
             if (k.key === 'Enter') { k.preventDefault(); commit(); }
-            if (k.key === 'Escape') { done = true; label.textContent = s.label; label.contentEditable = 'false'; }
+            if (k.key === 'Escape') { done = true; label.textContent = s.title.text; label.contentEditable = 'false'; }
           });
           return;
         }
-        await pushScenario({ steps });
+        await pushBoard({ plans });
       });
       li.append(tools);
     }
@@ -393,7 +435,7 @@ function renderScenario(next) {
     el.steps.append(li);
   });
 
-  if (el.scriptCount) el.scriptCount.textContent = `${scenario.steps.length} · ${mmss(DURATION)}`;
+  if (el.scriptCount) el.scriptCount.textContent = `${storyboard.plans.length} · ${mmss(DURATION)}`;
   renderRuler();
   renderTracks();
 
@@ -405,12 +447,12 @@ function renderScenario(next) {
     badge.className = 'script-status';
     el.scriptHead.querySelector('span').after(badge);
   }
-  badge.dataset.state = scenario.status;
-  tr(badge, scenario.status === 'ready' ? 'statusReady' : 'statusDraft');
+  badge.dataset.state = storyboard.status;
+  tr(badge, storyboard.status === 'ready' ? 'statusReady' : 'statusDraft');
 
   if (el.shoot) {
     el.shoot.hidden = false;
-    const ready = scenario.status === 'ready';
+    const ready = storyboard.status === 'ready';
     tr(el.shoot, ready ? 'shootDone' : 'shootRun');
     // Съёмку выполняет агент: без него кнопка обещала бы то, чего не произойдёт.
     el.shoot.disabled = ready || el.agent?.dataset.state === 'offline';
@@ -436,14 +478,48 @@ function renderTracks() {
   const steps = track('steps');
   if (steps) {
     steps.querySelectorAll('.step-seg').forEach((x) => x.remove());
-    for (const s of scenario?.steps || []) {
+    for (const s of storyboard?.plans || []) {
       const seg = document.createElement('span');
       seg.className = 'step-seg';
       seg.dataset.state = s.state || 'pending';
       seg.style.left = `calc(${pct(s.at)} + 1px)`;
-      seg.style.width = `calc(${pct(s.seconds)} - 2px)`;
-      seg.title = `${s.n}. ${s.label}`;
+      seg.style.width = `calc(${pct(s.duration.seconds)} - 2px)`;
+      seg.title = `${s.n}. ${s.title.text}`;
       steps.append(seg);
+    }
+  }
+
+  /**
+   * Эффекты: камера и склейки — то, что решил режиссёр.
+   *
+   * До этой дорожки решение композиции было неисправимым: человек видел результат,
+   * но не имел, что править. Клип ведёт на начало своего эффекта, потому что смотреть
+   * наезд имеет смысл с того кадра, где он начинается, а не с начала плана.
+   */
+  const fx = track('effects');
+  if (fx) {
+    fx.innerHTML = '';
+    const byId = new Map((storyboard?.plans || []).map((x) => [x.id, x]));
+    for (const e of storyboard?.effects || []) {
+      const plan = byId.get(e.plan);
+      if (!plan) continue;
+      const from = plan.at + (e.at?.from || 0);
+      const to = plan.at + (e.at?.to ?? plan.duration.seconds);
+      const clip = document.createElement('span');
+      clip.className = 'clip';
+      clip.dataset.kind = e.kind === 'transition' ? 'cut' : 'camera';
+      if (e.source === 'manual') clip.dataset.source = 'manual';
+      clip.style.left = pct(from);
+      clip.style.width = pct(Math.max(0.25, to - from));
+      const move = e.kind === 'transition' ? e.params?.style : e.params?.move;
+      tr(clip, `fx_${move}`);
+      trTitle(clip, e.source === 'manual' ? 'fxManual' : `fx_${move}`);
+      clip.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        seek(from);
+        litStep(plan.n);
+      });
+      fx.append(clip);
     }
   }
 
@@ -451,15 +527,15 @@ function renderTracks() {
   const diagrams = track('diagrams');
   if (diagrams) {
     diagrams.innerHTML = '';
-    for (const s of (scenario?.steps || []).filter((x) => x.diagram)) {
+    for (const s of (storyboard?.plans || []).filter((x) => x.diagram)) {
       const clip = document.createElement('span');
       clip.className = 'clip';
       clip.dataset.kind = 'diagram';
       clip.style.left = pct(s.at);
-      clip.style.width = pct(s.seconds);
+      clip.style.width = pct(s.duration.seconds);
       clip.textContent = s.diagram;
-      clip.dataset.step = String(s.n);
-      trTitle(clip, 'clipDiagram', { name: s.diagram, sec: s.seconds });
+      clip.dataset.step = s.id;
+      trTitle(clip, 'clipDiagram', { name: s.diagram, sec: s.duration.seconds });
       // Клик ведёт к шагу, на котором схема показывается: врезка живёт не сама по
       // себе, а поверх конкретной паузы, и смотреть её нужно там же.
       clip.addEventListener('click', (e) => {
@@ -469,9 +545,10 @@ function renderTracks() {
       });
       dragMark(clip, {
         onDrop: async (t) => {
-          const to = (scenario?.steps || []).find((x) => t >= x.at && t < x.at + x.seconds);
-          if (to && to.n !== s.n) await post('/api/diagram-move', { from: s.n, to: to.n });
-          else renderTracks();      // не попали в шаг — вернуть метку на место
+          const to = (storyboard?.plans || [])
+            .find((x) => t >= x.at && t < x.at + x.duration.seconds);
+          if (to && to.id !== s.id) await post('/api/diagram-move', { from: s.id, to: to.id });
+          else renderTracks();      // не попали в план — вернуть метку на место
         },
       });
       diagrams.append(clip);
@@ -957,7 +1034,7 @@ function connect() {
     if (msg.type === 'status') { setAgent(msg.status, msg.agent); renderInFlight(msg.inFlight); }
     if (msg.type === 'stend') setStend(msg.stend);
     if (msg.type === 'project') renderProjects(msg.current, msg.projects);
-    if (msg.type === 'scenario') renderScenario(msg.scenario);
+    if (msg.type === 'storyboard') renderBoard(msg.storyboard);
     if (msg.type === 'movie') renderMovie(msg.movie);
     if (msg.type === 'voices') voicePanel?.render(msg.voices);
     if (msg.type === 'narration') { narrationData = msg.narration; narrationPanel?.render(msg.narration); renderTracks(); }
@@ -995,7 +1072,7 @@ async function boot() {
   setStend(hello.stend);
   renderProjects(hello.project, hello.projects);
   setupDragAndDrop(el.steps);
-  renderScenario(hello.scenario);
+  renderBoard(hello.storyboard);
   renderMovie(hello.movie);
   renderNotes(hello.notes || []);
   seek(cursor);
@@ -1033,7 +1110,7 @@ async function boot() {
   });
 
   el.shoot?.addEventListener('click', async () => {
-    await pushScenario({ status: 'ready' });
+    await pushBoard({ status: 'ready' });
     await post('/api/event', { type: 'shoot' });
   });
 

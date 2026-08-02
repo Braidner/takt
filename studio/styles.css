@@ -286,7 +286,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
 
 .step {
   display: grid;
-  grid-template-columns: 46px 1fr;
+  /* Третья колонка — длительность: она читается вместе со временем начала, а не
+     теряется в конце строки. */
+  grid-template-columns: 46px 40px 1fr;
   gap: var(--sp-3);
   align-items: baseline;
   width: 100%;
@@ -301,6 +303,24 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .step:hover { background: var(--surface-raised); }
 .step[aria-current="true"] { background: var(--surface-raised); }
 
+/* Длительность рядом со временем: выведенная приглушена, назначенная человеком —
+   заметна. Разница между «так посчиталось» и «так решили» должна читаться взглядом. */
+.step-dur {
+  font: var(--t-xs)/1 var(--mono);
+  color: var(--ink-faint);
+  justify-self: end;
+}
+
+.step-dur[data-source="manual"] {
+  color: var(--brand-cyan);
+}
+
+.step-dur[contenteditable="true"] {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
 .step-time {
   font-family: var(--mono);
   font-size: var(--t-xs);
@@ -309,7 +329,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
 }
 .step[aria-current="true"] .step-time { color: var(--brand-blue); }
 
-.step-label { font-size: var(--t-md); line-height: 1.4; }
+/* Титр и всё, что под ним, занимают строку целиком: слева от них только время
+   и длительность, и переносить текст в оставшиеся сто пикселей нечитаемо. */
+.step-label { grid-column: 1 / -1; font-size: var(--t-md); line-height: 1.4; }
 .step[data-state="pending"] .step-label { color: var(--ink-faint); }
 
 /* Состояние шага видно по времени слева, а не по иконке справа: взгляд при съёмке
@@ -324,7 +346,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .step[data-state="failed"] .step-time { color: var(--danger); }
 .step[data-state="failed"] .step-label { color: var(--ink); }
 .step-error {
-  grid-column: 2;
+  grid-column: 1 / -1;
   margin-top: 3px;
   font-size: var(--t-xs);
   color: var(--danger);
@@ -334,7 +356,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 
 /* Подсказка приглушена: это не вторая ошибка, а выход из неё. */
 .step-fix {
-  grid-column: 2;
+  grid-column: 1 / -1;
   margin-top: 2px;
   font-size: var(--t-xs);
   color: var(--ink-muted);
@@ -342,7 +364,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 }
 
 .step-note {
-  grid-column: 2;
+  grid-column: 1 / -1;
   font-size: var(--t-xs);
   color: var(--ink-faint);
   margin-top: 2px;
@@ -781,6 +803,22 @@ button, input, textarea, select { font: inherit; color: inherit; }
 
 /* Врезка-схема занимает время в кадре, поэтому это отрезок, а не точка: видно, сколько
    она держится и на какой шаг приходится. */
+/* Эффекты: камера — бренд-синий, склейка — узкая полоса на стыке планов. Ручную
+   правку видно обводкой: она переживает перегенерацию, и это надо читать с дорожки. */
+.clip[data-kind="camera"] {
+  background: color-mix(in oklch, var(--brand-blue) 26%, transparent);
+  border-color: color-mix(in oklch, var(--brand-blue) 52%, transparent);
+}
+
+.clip[data-kind="cut"] {
+  background: color-mix(in oklch, var(--ink) 16%, transparent);
+  border-color: color-mix(in oklch, var(--ink) 34%, transparent);
+}
+
+.clip[data-source="manual"] {
+  box-shadow: inset 0 0 0 1px var(--brand-cyan);
+}
+
 .clip[data-kind="diagram"] {
   background: color-mix(in oklch, var(--brand-sky) 26%, transparent);
   border-color: color-mix(in oklch, var(--brand-sky) 52%, transparent);

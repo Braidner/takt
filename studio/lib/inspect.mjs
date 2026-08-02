@@ -1,0 +1,138 @@
+/**
+ * Автопроверки дубля — страховка, а не основная защита.
+ *
+ * Основная стратегия — предотвращение: ждём содержимое, крутим плавно, снимаем координаты
+ * после прокрутки. Проверки нужны там, где чужой интерфейс придумает то, чего мы не
+ * предусмотрели, а такое будет: Takt ставят на системы, которых мы не видели.
+ *
+ * Каждое замечание отвечает на вопрос человека «что не так и где», а не «какое число
+ * вышло за порог». Поэтому оно называет шаг и говорит словами: смотреть на отчёт
+ * будут между дублями, а не изучать его.
+ */
+import { visible } from './anchors.mjs';
+
+/** Доля изменившихся точек, выше которой это уже не движение, а смена экрана. */
+export const JUMP_THRESHOLD = 0.35;
+
+/** Загрузка в кадре: ожидание не сошлось за отведённое время. */
+export function checkLoading(steps) {
+  return steps
+    .filter((s) => s.settle && s.settle.reason)
+    .map((s) => ({
+      kind: 'загрузка',
+      step: s.n,
+      text: `шаг ${s.n}${s.label ? ` «${s.label}»` : ''}: экран не успокоился за `
+          + `${(s.settle.waitedMs / 1000).toFixed(1)} с — ${s.settle.reason}`,
+    }));
+}
+
+/**
+ * Скачок содержимого вне запланированной склейки.
+ *
+ * Порог обязан быть настраиваемым и жить в цели съёмки: у плотного интерфейса смена
+ * раздела меняет меньше половины кадра, у полноэкранной витрины — почти всё. Одно
+ * число на все системы давало бы либо молчание, либо шум.
+ */
+export function checkJumps(diffs, cuts = [], threshold = JUMP_THRESHOLD) {
+  const planned = (t) => cuts.some((c) => t >= c.from && t <= c.to);
+  return diffs
+    .filter((d) => d.diff > threshold && !planned(d.t))
+    .map((d) => ({
+      kind: 'скачок',
+      at: d.t,
+      text: `${d.t.toFixed(1)} с: экран сменился на ${Math.round(d.diff * 100)}% `
+          + 'вне запланированной склейки',
+    }));
+}
+
+/** Якорь, ни разу не попавший в кадр: наезжать не на что. */
+export function checkAnchors(anchors, viewport) {
+  return anchors
+    .filter((a) => !a.rects.some((r) => visible(r, viewport)))
+    .map((a) => ({
+      kind: 'якорь',
+      step: a.step,
+      text: `шаг ${a.step}: цель «${a.selector}» ни разу не попала в кадр — `
+          + 'наезд не построен',
+    }));
+}
+
+/** Потери кадров: интервал больше полутора периодов. */
+export function checkDrops(times, fps = 30) {
+  const period = 1000 / fps;
+  const limit = period * 1.5;
+  const out = [];
+  for (let i = 1; i < times.length; i++) {
+    const gap = times[i] - times[i - 1];
+    if (gap > limit) {
+      out.push({
+        kind: 'пропуск',
+        at: times[i] / 1000,
+        text: `${(times[i] / 1000).toFixed(1)} с: разрыв ${Math.round(gap)} мс — `
+            + `потеряно кадров: ${Math.round(gap / period) - 1}`,
+      });
+    }
+  }
+  return out;
+}
+
+/** Полный отчёт по дублю. */
+export function inspect(take) {
+  const issues = [
+    ...checkLoading(take.steps || []),
+    ...checkJumps(take.diffs || [], take.cuts || [], take.jumpThreshold),
+    ...checkAnchors(take.anchors || [], take.viewport),
+    ...checkDrops(take.frameTimes || [], take.fps || 30),
+  ];
+  return { ok: issues.length === 0, issues };
+}
+
+/* ── проверки состояний ─────────────────────────────────────────────── */
+
+/**
+ * Состояния проверяются иначе, чем поток: у снимка нет частоты и нет склеек, зато есть
+ * вопросы, которых у записи не было — попал ли якорь в снимок и не уехала ли липкая
+ * шапка в тело страницы.
+ */
+export function checkStates(states) {
+  const out = [];
+  for (const s of states) {
+    // План называется своим титром: номер человеку ничего не говорит, а титр он
+    // только что читал в раскадровке.
+    const where = s.label ? `план «${s.label}»` : `план ${s.id}`;
+
+    if (s.settle && s.settle.reason) {
+      out.push({ kind: 'загрузка', plan: s.id,
+        text: `${where}: экран не успокоился за ${(s.settle.waitedMs / 1000).toFixed(1)} с — `
+            + `${s.settle.reason}` });
+    }
+
+    // Страница короче одного экрана — почти всегда значит, что она не догрузилась.
+    if (s.size && s.viewport && s.size.h < s.viewport.height * s.scale) {
+      out.push({ kind: 'пусто', plan: s.id,
+        text: `${where}: страница ${s.size.h} px — короче экрана, похоже не догрузилась` });
+    }
+
+    // Липкие нашли, а снять слой не удалось: панорама поедет вместе с шапкой.
+    if (s.sticky && s.sticky.length && !s.layer) {
+      out.push({ kind: 'слой', plan: s.id,
+        text: `${where}: закреплённых элементов ${s.sticky.length}, а слой не снят — `
+            + 'шапка поедет вместе со страницей' });
+    }
+
+    for (const a of s.anchors || []) {
+      if (!a.rect) {
+        out.push({ kind: 'якорь', plan: s.id,
+          text: `${where}: цель «${a.selector}» не найдена — наезд не построен` });
+        continue;
+      }
+      const outside = s.size && (a.rect.y > s.size.h || a.rect.x > s.size.w
+        || a.rect.y + a.rect.h < 0 || a.rect.x + a.rect.w < 0);
+      if (outside) {
+        out.push({ kind: 'якорь', plan: s.id,
+          text: `${where}: цель «${a.selector}» за пределами снимка — наезд не построен` });
+      }
+    }
+  }
+  return out;
+}

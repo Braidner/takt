@@ -30,15 +30,6 @@ export const REGISTRY = {
       ['npx', 'playwright', 'install', 'chromium'],
     ],
   },
-  zoom: {
-    name: 'Монтаж с зумом и переходами (Remotion)',
-    size: 'загрузка ≈550 МБ',
-    note: 'платная лицензия для команд от четырёх человек — remotion.pro',
-    steps: () => [
-      // Версии берутся из package.json (optionalDependencies), а не отсюда.
-      ['npm', 'install', '--include=optional', '--no-audit', '--no-fund'],
-    ],
-  },
   'voice-qwen': {
     name: 'Озвучка — Qwen3-TTS',
     size: APPLE

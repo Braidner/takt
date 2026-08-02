@@ -8,7 +8,7 @@
  * человеку ничего не говорит; «озвучка недоступна» говорит ровно то, что он хочет знать —
  * что он не сможет сделать и что для этого поставить.
  *
- * Возможности независимы: снимать ролики можно без озвучки, а озвучивать — без Remotion.
+ * Возможности независимы: снимать ролики можно без озвучки, а озвучивать — без съёмки.
  * Поэтому недостающее не складывается в один длинный список требований, из-за которого
  * кажется, что до первого ролика ещё далеко.
  */
@@ -104,14 +104,6 @@ const capabilities = [
     fix: 'brew install ffmpeg',
   },
   {
-    id: 'zoom', name: 'Монтаж с зумом и переходами',
-    ready: installed('remotion'),
-    optional: true,
-    missing: installed('remotion') ? [] : ['remotion'],
-    fix: 'takt install zoom',
-    note: 'необязательно; платная лицензия для команд от четырёх человек',
-  },
-  {
     id: 'voice-qwen', name: 'Озвучка — Qwen3-TTS',
     ready: qwenReady, optional: true,
     missing: p.apple
@@ -130,7 +122,7 @@ const capabilities = [
 ];
 
 // Вес загрузки едет вместе с возможностью: панель обязана назвать его до кнопки.
-const весом = { shoot: 'browser', build: null, zoom: 'zoom',
+const весом = { shoot: 'browser', build: null,
                 'voice-qwen': 'voice-qwen', 'voice-chatterbox': 'voice-chatterbox' };
 for (const c of capabilities) {
   const рег = REGISTRY[весом[c.id]];

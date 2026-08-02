@@ -5,32 +5,19 @@
   "description": "Takt — студия демонстрационных роликов: сценарий по описанию, съёмка в браузере, монтаж и озвучка клонированным голосом",
   "scripts": {
     "takt": "node cli.mjs",
-    "render": "remotion render Demo out/movie.mp4 --codec h264 --crf 16"
+    "test": "node --test --test-timeout=30000 \"test/**/*.test.mjs\""
   },
   "dependencies": {
     "playwright": "1.62.0"
-  },
-  "devDependencies": {
-    "@types/react": "19.0.0",
-    "typescript": "5.7.3"
   },
   "license": "MIT",
   "bin": {
     "takt": "./cli.mjs"
   },
-  "optionalDependencies": {
-    "@remotion/cli": "4.0.499",
-    "@remotion/media": "4.0.499",
-    "@remotion/transitions": "4.0.499",
-    "remotion": "4.0.499",
-    "react": "19.0.0",
-    "react-dom": "19.0.0"
-  },
   "files": [
     "cli.mjs",
     "studio/",
     "capture/",
-    "src/",
     "SKILL.md",
     "references/",
     "README.md"

@@ -25,7 +25,7 @@ const read = (name) => {
 };
 
 const project = read('project.json') || { id, title: id };
-const scenario = read('scenario.json');
+const storyboard = read('storyboard.json');
 const narration = read('narration.json');
 const notes = read('notes.json') || [];
 const movie = read('movie.json');
@@ -56,16 +56,16 @@ for (const [src, as] of [['movie-short.mp4', 'хайлайты.mp4'],
   if (fs.existsSync(from)) { fs.copyFileSync(from, path.join(dest, as)); copied.push(as); }
 }
 
-if (scenario?.steps?.length) {
-  const lines = [`# ${project.title}`, '', '## Сценарий', ''];
-  for (const s of scenario.steps) {
-    lines.push(`**${mmss(s.at)}** — ${s.label}`);
-    if (s.hint) lines.push(`  ${s.hint}`);
-    if (s.diagram) lines.push(`  врезка-схема: ${s.diagram}`);
+if (storyboard?.plans?.length) {
+  const lines = [`# ${project.title}`, '', '## Раскадровка', ''];
+  for (const p of storyboard.plans) {
+    lines.push(`**${mmss(p.at)}** — ${p.title?.text || ''}`);
+    if (p.intent) lines.push(`  ${p.intent}`);
+    if (p.diagram) lines.push(`  врезка-схема: ${p.diagram}`);
     lines.push('');
   }
-  fs.writeFileSync(path.join(dest, 'сценарий.md'), lines.join('\n'));
-  copied.push('сценарий.md');
+  fs.writeFileSync(path.join(dest, 'раскадровка.md'), lines.join('\n'));
+  copied.push('раскадровка.md');
 }
 
 if (narration?.lines?.length) {

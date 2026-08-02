@@ -37,6 +37,21 @@ const api = (route, payload) =>
     body: JSON.stringify(payload),
   }).then((r) => r.json()).catch(() => null);
 
+/**
+ * Статичный проект собирается композицией: у него нет записи, из которой можно
+ * было бы делать «мастер», — ролик рендерится из состояний сразу смонтированным.
+ * Отдельный процесс, а не импорт: render.mjs сам читает аргументы и сам выходит.
+ */
+const manifestPath = inProject('states.json');
+if (fs.existsSync(manifestPath)
+    && !JSON.parse(fs.readFileSync(manifestPath, 'utf8')).live) {
+  const { spawn } = await import('node:child_process');
+  const child = spawn(process.execPath, [path.join(DIR, 'render.mjs'),
+                                         ...process.argv.slice(2)], { stdio: 'inherit' });
+  child.on('close', (code) => process.exit(code ?? 1));
+  await new Promise(() => {});   // дальше живёт только дочерний процесс
+}
+
 const timelinePath = inProject('timeline.json');
 if (!fs.existsSync(timelinePath)) {
   console.error('Нет телеметрии: сначала снимите сценарий (node studio/shoot.mjs)');
@@ -53,6 +68,16 @@ const OUT = inProject('movie.mp4');
 const captions = timeline.events.filter((e) => e.kind === 'caption');
 
 /**
+ * Интервалы загрузки вырезаются из мастера.
+ *
+ * Съёмка знает, когда экран был не готов: ожидание идёт по содержимому и возвращает,
+ * сколько ждали. Эти куски — скелетоны и пустые витрины — в ролике не нужны никому,
+ * а раньше они попадали в кадр и были главной претензией к качеству.
+ *
+ * Вырезаем select'ом по времени, а не нарезкой и склейкой: склейка потребовала бы
+ * перекодировать каждый кусок отдельно и потерять качество там, где его и так мало.
+ */
+/**
  * Начало записи обрезается, и это обязательный шаг, а не улучшение.
  *
  * Playwright пишет видео с момента создания контекста, то есть захватывает открытие
@@ -65,6 +90,45 @@ const probe = await run('ffprobe', ['-v', 'error', '-show_entries', 'format=dura
 const rawDuration = Number(probe.stdout.trim());
 const offset = Math.max(0, rawDuration - timeline.durationInSeconds);
 
+const takePath = inProject('take.json');
+const loading = (() => {
+  try {
+    const take = JSON.parse(fs.readFileSync(takePath, 'utf8'));
+    // Мелкие ожидания не режем: склейка на них заметнее, чем полсекунды неподвижности.
+    return (take.loading || []).filter((l) => l.to - l.from > 0.7);
+  } catch { return []; }
+})();
+
+/**
+ * Разметка загрузки годится, только если она лежит в шкале самой записи.
+ *
+ * Найдено сборкой: интервалы пишутся по часам съёмки, а длительность записи считает
+ * кодировщик по временам кадров, и эти шкалы могут разъехаться. Тогда select вырежет
+ * не тот кусок — молча и правдоподобно. Лучше не вырезать ничего, чем вырезать мимо.
+ */
+const takeSeconds = (() => {
+  try { return JSON.parse(fs.readFileSync(takePath, 'utf8')).seconds || 0; } catch { return 0; }
+})();
+// Шкалы должны совпадать: интервалы размечены по часам съёмки, а вырезаем мы из записи.
+const fits = takeSeconds > 0 && Math.abs(takeSeconds - rawDuration) < 1.5;
+if (loading.length && !fits) {
+  console.log(`разметка загрузки не в шкале записи (съёмка ${takeSeconds.toFixed(1)} с `
+    + `против записи ${rawDuration.toFixed(1)} с) — не вырезаю, иначе срежу не то`);
+}
+
+const cutFilter = fits && loading.length
+  ? [
+      `select='${loading.map((l) => `not(between(t,${l.from.toFixed(2)},${l.to.toFixed(2)}))`).join('*')}'`,
+      'setpts=N/FRAME_RATE/TB',
+    ].join(',')
+  : null;
+
+if (cutFilter) {
+  const total = loading.reduce((s2, l) => s2 + (l.to - l.from), 0);
+  console.log(`вырезаю загрузку: ${loading.length} кусков, ${total.toFixed(1)} с`);
+}
+
+
 await api('/api/status', { state: 'busy', text: 'Собираю ролик', step: null, of: null });
 
 const args = [
@@ -73,6 +137,7 @@ const args = [
   // потому что дальше идёт перекодирование.
   ...(offset > 0.3 ? ['-ss', offset.toFixed(2)] : []),
   '-i', timeline.video,
+  ...(cutFilter ? ['-vf', cutFilter] : []),
   '-c:v', 'libx264', '-preset', 'medium', '-crf', '20',
   // Ключевой кадр каждые две секунды: перемотка по таймкодам замечаний — основной
   // способ работы с роликом, а без частых ключевых кадров она прыгает мимо.

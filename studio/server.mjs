@@ -27,6 +27,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { planFor } from './classify-notes.mjs';
+import { fromScenario, normalizeStoryboard, checkStoryboard } from './compose/storyboard.mjs';
+import { directStoryboard } from './compose/director.mjs';
 import { HOME, HOME_FROM, PROJECTS, VOICES, SERVER_INFO, ensureHome } from './home.mjs';
 import { listTargets, readTarget, writeTarget, readNotes as readTargetNotes,
          appendNote, slugifyTarget } from './target.mjs';
@@ -198,22 +200,44 @@ function presetTargets() {
     return Object.entries(raw.targets || {}).map(([name, url]) => ({ name, url }));
   } catch { return []; }
 }   // стенд общий: он про окружение, а не про ролик
-const scenarioFile = () => inProject('scenario.json');
-/** Таймкоды — производные от длительностей, а не самостоятельные данные. */
-const withTimeline = (steps) => {
-  let at = 0;
-  return steps.map((s, i) => {
-    const seconds = Number(s.seconds) > 0 ? Number(s.seconds) : 8;
-    const step = { ...s, n: i + 1, at, seconds, state: s.state || 'pending' };
-    at += seconds;
-    return step;
-  });
+const boardFile = () => inProject('storyboard.json');
+const legacyFile = () => inProject('scenario.json');
+
+/**
+ * Раскадровка читается через нормализацию всегда, а не только при записи.
+ *
+ * Номера, таймкоды, длительности и эффекты — производные. Держать их в файле и
+ * доверять записанному значит однажды показать человеку хронометраж, которого нет
+ * ни у одной сборки: файл переживает и правку руками, и обновление правил.
+ *
+ * Старый scenario.json мигрируется при первом же чтении и больше не пишется.
+ */
+const readBoard = () => {
+  let raw = null;
+  try { raw = JSON.parse(fs.readFileSync(boardFile(), 'utf8')); } catch { /* ещё нет */ }
+  if (!raw) {
+    try {
+      const old = JSON.parse(fs.readFileSync(legacyFile(), 'utf8'));
+      raw = fromScenario(old);
+      fs.writeFileSync(boardFile(), JSON.stringify(raw, null, 2));
+      console.log(`раскадровка собрана из старого сценария: ${raw.plans.length} планов`);
+    } catch { return null; }
+  }
+  // Эффекты пересчитываются по снятым состояниям: их размер решает, куда ехать камере,
+  // а ручные правки режиссёр не трогает.
+  return directStoryboard(normalizeStoryboard(raw), readStates());
 };
 
-const readScenario = () => {
-  try { return JSON.parse(fs.readFileSync(scenarioFile(), 'utf8')); } catch { return null; }
+const writeBoard = (sb) => {
+  const next = directStoryboard(normalizeStoryboard(sb), readStates());
+  fs.writeFileSync(boardFile(), JSON.stringify(next, null, 2));
+  return next;
 };
-const writeScenario = (s) => fs.writeFileSync(scenarioFile(), JSON.stringify(s, null, 2));
+
+const readStates = () => {
+  try { return JSON.parse(fs.readFileSync(inProject('states.json'), 'utf8')).states || []; }
+  catch { return []; }
+};
 
 const notesFile = () => inProject('notes.json');
 const eventsFile = () => inProject('events.jsonl');
@@ -285,7 +309,10 @@ function reclaimExpired() {
 }
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8', '.jpg': 'image/jpeg', '.png': 'image/png',
+  // .mjs обязан быть text/javascript: модули браузер проверяет по MIME строго,
+  // и octet-stream молча валит весь граф импортов композиции.
+  '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
+  '.jpg': 'image/jpeg', '.png': 'image/png',
   '.mp4': 'video/mp4', '.json': 'application/json' };
 
 const body = (req) => new Promise((resolve) => {
@@ -341,7 +368,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/hello') {
     return send(res, 200, { token: state.token, project: currentId, projects: listProjects(),
                             status: state.status, agent: agentAlive(),
-                            stend: state.stend, notes: readNotes(), scenario: readScenario(),
+                            stend: state.stend, notes: readNotes(), storyboard: readBoard(),
                             movie: readMovie(), voices: readVoices(),
                             narration: readNarration(), inFlight: inFlight() });
   }
@@ -354,8 +381,8 @@ const server = http.createServer(async (req, res) => {
     res.write(`data: ${JSON.stringify({ type: 'status', status: state.status, agent: agentAlive(), inFlight: inFlight() })}\n\n`);
     res.write(`data: ${JSON.stringify({ type: 'stend', stend: state.stend })}\n\n`);
     res.write(`data: ${JSON.stringify({ type: 'project', current: currentId, projects: listProjects() })}\n\n`);
-    const sc = readScenario();
-    if (sc) res.write(`data: ${JSON.stringify({ type: 'scenario', scenario: sc })}\n\n`);
+    const sb = readBoard();
+    if (sb) res.write(`data: ${JSON.stringify({ type: 'storyboard', storyboard: sb })}\n\n`);
     const mv = readMovie();
     if (mv) res.write(`data: ${JSON.stringify({ type: 'movie', movie: mv })}\n\n`);
     const nr = readNarration();
@@ -414,22 +441,21 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { ok: true });
   }
 
-  // ── Сценарий: агент присылает его сюда, страница получает потоком
-  if (p === '/api/scenario' && req.method === 'POST') {
+  // ── Раскадровка: агент присылает её сюда, страница получает потоком
+  if (p === '/api/storyboard' && req.method === 'POST') {
     if (!authed) return send(res, 401, { error: 'unauthorized' });
     const msg = await body(req);
-    if (!msg?.steps) return send(res, 400, { error: 'no_steps' });
+    if (!msg?.plans) return send(res, 400, { error: 'no_plans' });
     // Статус «черновик» — не украшение: пока он такой, съёмка не стартует, потому что
     // прогон стоит минут живого времени, а расхождение выясняется на первой же реплике.
-    const scenario = { title: msg.title || 'Без названия', status: msg.status || 'draft',
-                       task: msg.task || null, steps: withTimeline(msg.steps) };
-    writeScenario(scenario);
-    logEvent({ type: 'scenario', title: scenario.title, steps: scenario.steps.length });
-    broadcast({ type: 'scenario', scenario });
-    return send(res, 200, { ok: true });
+    const storyboard = writeBoard(msg);
+    logEvent({ type: 'storyboard', title: storyboard.title, plans: storyboard.plans.length });
+    broadcast({ type: 'storyboard', storyboard });
+    return send(res, 200, { ok: true, seconds: storyboard.seconds,
+                            issues: checkStoryboard(storyboard) });
   }
 
-  if (p === '/api/scenario' && req.method === 'GET') return send(res, 200, readScenario());
+  if (p === '/api/storyboard' && req.method === 'GET') return send(res, 200, readBoard());
 
   // ── Дикторский текст: реплики, привязанные к меткам сценария
   if (p === '/api/narration' && req.method === 'POST') {
@@ -573,7 +599,7 @@ const server = http.createServer(async (req, res) => {
       fs.writeFileSync(currentFile, JSON.stringify({ id: currentId }, null, 2));
       logEvent({ type: 'project_open', id: currentId });
       broadcast({ type: 'project', current: currentId, projects: listProjects() });
-      broadcast({ type: 'scenario', scenario: readScenario() });
+      broadcast({ type: 'storyboard', storyboard: readBoard() });
       broadcast({ type: 'notes', notes: readNotes() });
       broadcast({ type: 'movie', movie: readMovie() });
       broadcast({ type: 'narration', narration: readNarration() });
@@ -714,14 +740,17 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/step' && req.method === 'POST') {
     if (!authed) return send(res, 401, { error: 'unauthorized' });
     const msg = await body(req);
-    const scenario = readScenario();
-    if (!scenario) return send(res, 400, { error: 'no_scenario' });
-    const step = scenario.steps[msg.n - 1];
-    if (!step) return send(res, 400, { error: 'no_step' });
-    Object.assign(step, { state: msg.state || 'pending', error: msg.error || null,
-                          fix: msg.fix ?? null, took: msg.took ?? step.took ?? null });
-    writeScenario(scenario);
-    broadcast({ type: 'scenario', scenario });
+    const storyboard = readBoard();
+    if (!storyboard) return send(res, 400, { error: 'no_storyboard' });
+    // Ищем по идентификатору, а не по позиции: съёмка знает план по имени, и
+    // перестановка планов между прогонами не должна попадать в чужую строку.
+    const plan = storyboard.plans.find((x) => x.id === msg.plan)
+      || storyboard.plans[msg.n - 1];
+    if (!plan) return send(res, 400, { error: 'no_plan' });
+    Object.assign(plan, { state: msg.state || 'pending', error: msg.error || null,
+                          fix: msg.fix ?? null, took: msg.took ?? plan.took ?? null });
+    const next = writeBoard(storyboard);
+    broadcast({ type: 'storyboard', storyboard: next });
     return send(res, 200, { ok: true });
   }
 
@@ -892,22 +921,22 @@ const server = http.createServer(async (req, res) => {
   /**
    * Перенос врезки-схемы на другой шаг.
    *
-   * Схема живёт не сама по себе, а на шаге сценария: она показывается поверх паузы,
+   * Схема живёт не сама по себе, а на плане раскадровки: она показывается поверх паузы,
    * и «перенести схему» означает выбрать другую паузу. Поэтому таскание меняет
-   * привязку, а не абстрактное время — иначе схема повисла бы между шагами.
+   * привязку, а не абстрактное время — иначе схема повисла бы между планами.
    */
   if (p === '/api/diagram-move' && req.method === 'POST') {
     if (!authed) return send(res, 401, { error: 'unauthorized' });
     const msg = await body(req);
-    const scenario = readScenario();
-    const from = scenario?.steps?.find((x) => x.n === msg?.from);
-    const to = scenario?.steps?.find((x) => x.n === msg?.to);
+    const storyboard = readBoard();
+    const from = storyboard?.plans?.find((x) => x.id === msg?.from);
+    const to = storyboard?.plans?.find((x) => x.id === msg?.to);
     if (!from || !to || !from.diagram) return send(res, 400, { error: 'no_diagram' });
     to.diagram = from.diagram;
-    if (from.n !== to.n) from.diagram = null;
-    writeScenario(scenario);
-    broadcast({ type: 'scenario', scenario });
-    return send(res, 200, { ok: true, step: to.n });
+    if (from.id !== to.id) from.diagram = null;
+    const next = writeBoard(storyboard);
+    broadcast({ type: 'storyboard', storyboard: next });
+    return send(res, 200, { ok: true, plan: to.id });
   }
 
   // ── Файлы текущего проекта

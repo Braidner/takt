@@ -60,6 +60,22 @@ const titleArg = (() => {
   return i !== -1 ? process.argv[i + 1] : null;
 })();
 
+/**
+ * Статичный проект монтируется самой композицией при сборке: камера, курсор,
+ * титры и звук уже в movie.mp4. Команда остаётся рабочей и ведёт туда же.
+ */
+const manifestPath = inProject('states.json');
+if (fs.existsSync(manifestPath)
+    && !JSON.parse(fs.readFileSync(manifestPath, 'utf8')).live) {
+  const { spawn } = await import('node:child_process');
+  const { fileURLToPath } = await import('node:url');
+  const dir = path.dirname(fileURLToPath(import.meta.url));
+  const child = spawn(process.execPath, [path.join(dir, 'render.mjs'),
+                                         ...process.argv.slice(2)], { stdio: 'inherit' });
+  child.on('close', (code) => process.exit(code ?? 1));
+  await new Promise(() => {});   // дальше живёт только дочерний процесс
+}
+
 const timeline = JSON.parse(fs.readFileSync(inProject('timeline.json'), 'utf8'));
 const master = inProject('movie.mp4');
 if (!fs.existsSync(master)) {
