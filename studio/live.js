@@ -361,6 +361,7 @@ function renderBoard(next) {
         <button type="button" class="step-tool" data-act="edit"></button>
         <button type="button" class="step-tool" data-act="time"></button>
         <button type="button" class="step-tool" data-act="mark"></button>
+        <button type="button" class="step-tool" data-act="tempo"></button>
         <button type="button" class="step-tool" data-act="del"></button>`;
       const drag = tools.querySelector('[data-act="drag"]');
       tr(drag, 'toolDrag');
@@ -375,6 +376,12 @@ function renderBoard(next) {
       // Подсветить можно только то, во что план целится: наложение живёт на якоре,
       // а якорь берётся из действия.
       markTool.disabled = !s.action?.selector;
+      const tempoTool = tools.querySelector('[data-act="tempo"]');
+      tr(tempoTool, 'toolTempo');
+      trTitle(tempoTool, 'toolTempoTitle');
+      // Второй темп на одном плане означал бы две правды о ходе времени внутри него.
+      tempoTool.disabled = (storyboard.effects || [])
+        .some((e) => e.plan === s.id && e.kind === 'tempo');
       tools.addEventListener('click', async (e) => {
         const act = e.target.dataset?.act;
         if (!act || act === 'drag') return;
@@ -389,6 +396,15 @@ function renderBoard(next) {
             anchor: s.action.selector,
             params: { what: 'spotlight', text: '' },
             source: 'manual',
+          }];
+          await pushBoard({ effects });
+          return;
+        }
+        if (act === 'tempo') {
+          const effects = [...(storyboard.effects || []), {
+            id: `${s.id}-tempo`, plan: s.id, kind: 'tempo',
+            at: { from: 0, to: s.duration.seconds },
+            anchor: null, params: { rate: 0.5 }, source: 'manual',
           }];
           await pushBoard({ effects });
           return;
@@ -555,6 +571,8 @@ let openEffect = null;
 const MOVE_FIELDS = { push: ['depth'], pan: ['speed'], drift: [] };
 /** Что показывает наложение. Текст нужен только выноске — остальным его негде писать. */
 const OVERLAY_FIELDS = { spotlight: [], arrow: [], blur: [], callout: ['text'] };
+/** Темп задаётся одним числом: во сколько раз время внутри плана идёт быстрее. */
+const TEMPO_RATES = ['0', '0.5', '1', '2', '4'];
 
 function effectById(id) {
   return (storyboard?.effects || []).find((e) => e.id === id) || null;
@@ -569,17 +587,21 @@ function openInspector(id) {
   tr(el.inspector.querySelector('.inspector-title'), 'fxOn', { plan: plan?.title.text || e.plan });
 
   const наложение = e.kind === 'overlay';
+  const темп = e.kind === 'tempo';
   el.inspector.dataset.kind = e.kind;
   const move = наложение ? (e.params?.what || 'spotlight')
+    : темп ? String(e.params?.rate ?? 1)
     : e.kind === 'transition' ? 'drift' : (e.params?.move || 'drift');
   // Один выпадающий список на оба вида: у камеры это движение, у наложения — что
   // именно оно показывает. Два списка рядом означали бы, что один всегда пустой.
   // Подпись поля зависит от вида эффекта: у камеры это движение, у наложения — что
   // именно оно показывает. Одна подпись на оба означала бы, что одна из них врёт.
-  tr(el.inspector.querySelector('.fx-move-label'), наложение ? 'fxWhat' : 'fxMove');
+  tr(el.inspector.querySelector('.fx-move-label'),
+     наложение ? 'fxWhat' : темп ? 'fxRate' : 'fxMove');
   const sel = el.inspector.querySelector('.fx-move');
   sel.innerHTML = (наложение
     ? ['spotlight', 'arrow', 'callout', 'blur']
+    : темп ? TEMPO_RATES
     : ['push', 'pan', 'drift']).map((v) => `<option value="${v}" data-i="fx_${v}"></option>`).join('');
   window.taktApply?.();
   sel.value = move;
@@ -607,7 +629,10 @@ function syncInspectorFields() {
   if (!el.inspector) return;
   const наложение = el.inspector.dataset.kind === 'overlay';
   const move = el.inspector.querySelector('.fx-move').value;
-  const нужные = (наложение ? OVERLAY_FIELDS[move] : MOVE_FIELDS[move]) || [];
+  const вид = el.inspector.dataset.kind;
+  const нужные = (вид === 'overlay' ? OVERLAY_FIELDS[move]
+    : вид === 'tempo' ? []
+    : MOVE_FIELDS[move]) || [];
   el.inspector.querySelector('.fx-depth-row').hidden = !нужные.includes('depth');
   el.inspector.querySelector('.fx-speed-row').hidden = !нужные.includes('speed');
   el.inspector.querySelector('.fx-text-row').hidden = !нужные.includes('text');
@@ -619,7 +644,9 @@ async function saveInspector() {
   const move = el.inspector.querySelector('.fx-move').value;
   const num = (sel) => Number(el.inspector.querySelector(sel).value);
   const текст = el.inspector.querySelector('.fx-text').value;
-  const params = e.kind === 'overlay'
+  const params = e.kind === 'tempo'
+    ? { rate: Number(move) }
+    : e.kind === 'overlay'
     ? { what: move, ...(move === 'callout' ? { text: текст } : {}) }
     : e.kind === 'transition'
       ? { ...e.params }
@@ -686,12 +713,14 @@ function renderTracks() {
       const clip = document.createElement('span');
       clip.className = 'clip';
       clip.dataset.kind = e.kind === 'transition' ? 'cut'
-        : e.kind === 'overlay' ? 'mark' : 'camera';
+        : e.kind === 'overlay' ? 'mark'
+        : e.kind === 'tempo' ? 'tempo' : 'camera';
       if (e.source === 'manual') clip.dataset.source = 'manual';
       clip.style.left = pct(from);
       clip.style.width = pct(Math.max(0.25, to - from));
       const move = e.kind === 'transition' ? e.params?.style
-        : e.kind === 'overlay' ? e.params?.what : e.params?.move;
+        : e.kind === 'overlay' ? e.params?.what
+        : e.kind === 'tempo' ? String(e.params?.rate ?? 1) : e.params?.move;
       tr(clip, `fx_${move}`);
       trTitle(clip, e.source === 'manual' ? 'fxManual' : `fx_${move}`);
       clip.dataset.fx = e.id;

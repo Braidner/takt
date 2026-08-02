@@ -54,13 +54,32 @@ function cameraWindow(scale, ax, ay, { w, h }) {
   return { scale, x, y };
 }
 
+/**
+ * Ход времени внутри плана.
+ *
+ * Замедление, ускорение и стоп-кадр меняют не длительность плана — её задаёт
+ * раскадровка, — а то, как быстро внутри него идёт движение. Иначе о хронометраже
+ * было бы две правды: одна в раскадровке, другая в эффекте.
+ */
+function localTime(plan, raw) {
+  const tempo = plan.tempo;
+  if (!tempo || tempo.rate === 1) return raw;
+  if (raw <= tempo.from) return raw;
+  const прошло = Math.min(raw, tempo.to) - tempo.from;
+  // Стоп-кадр — это темп ноль: время внутри плана стоит, пока эффект длится.
+  const внутри = tempo.from + прошло * tempo.rate;
+  return raw <= tempo.to ? внутри : внутри + (raw - tempo.to);
+}
+
 function screenAt(film, plan, t) {
-  const local = clamp(t - plan.from, 0, plan.to - plan.from);
+  const local = localTime(plan, clamp(t - plan.from, 0, plan.to - plan.from));
   const cam = plan.camera;
 
   // Живой отрезок: вместо снимка кадр называет момент записи. Дальше его ставит
   // сцена, а привод вывода ждёт, пока видео этот момент действительно покажет.
   if (plan.kind === 'live') {
+    // У живого отрезка темп двигает точку записи: ускорение проматывает её быстрее,
+    // стоп-кадр держит на месте.
     return { plan: plan.id, live: true, opacity: 1,
              video: { t: Math.round((plan.videoFrom + local) * 1000) / 1000 },
              sticky: [], cursor: null,

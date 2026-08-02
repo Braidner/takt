@@ -187,6 +187,12 @@ export function buildFilm(manifest, storyboard) {
         // поверх него читается как тряска.
         camera: { kind: 'drift', from: 0, to: 0 },
         cursor: null,
+        tempo: (() => {
+          const fx = (storyboard.effects || [])
+            .find((e) => e.plan === plan.id && e.kind === 'tempo');
+          return fx ? { rate: fx.params?.rate ?? 1, from: fx.at?.from ?? 0,
+                        to: fx.at?.to ?? dur } : null;
+        })(),
         state: { sticky: [] },
         title: { text: plan.title.text, at: 0.15 },
         transition: cut ? { from: cut.at.from, to: cut.at.to, style: cut.params.style } : null,
@@ -204,6 +210,14 @@ export function buildFilm(manifest, storyboard) {
       .find((e) => e.plan === plan.id && e.kind === kind);
 
     const camera = cameraOf(forPlan('camera'), plan, state, issues);
+    // Темп меняет ход времени ВНУТРИ плана: длительность самого плана задаёт
+    // раскадровка, и растягивать её эффектом значило бы иметь две правды о
+    // хронометраже.
+    const tempoFx = forPlan('tempo');
+    const tempo = tempoFx
+      ? { rate: tempoFx.params?.rate ?? 1, from: tempoFx.at?.from ?? 0,
+          to: tempoFx.at?.to ?? plan.duration.seconds }
+      : null;
 
     // Курсор существует ради действия: без цели ему не к чему ехать и нечего нажимать.
     const point = plan.action?.selector ? anchorPoint(state, plan.action.selector) : null;
@@ -220,7 +234,7 @@ export function buildFilm(manifest, storyboard) {
       from: Math.round(at * 10) / 10,
       to: Math.round((at + dur) * 10) / 10,
       state: { ...state, sticky: visibleSticky(state.sticky, state.viewport) },
-      camera, cursor,
+      camera, cursor, tempo,
       title: { text: plan.title.text, at: 0.15 },
       transition: cut ? { from: cut.at.from, to: cut.at.to, style: cut.params.style } : null,
     });

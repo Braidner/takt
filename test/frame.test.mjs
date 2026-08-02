@@ -124,3 +124,26 @@ test('наложение живёт только в своём окне и не 
   assert.equal(composeFrame(f, Math.round(2 * 30)).screens[0].overlays[0].opacity, 1);
   assert.deepEqual(composeFrame(f, Math.round(3.5 * 30)).screens[0].overlays, []);
 });
+
+test('темп меняет ход времени внутри плана, но не его длительность', () => {
+  const f = film([{ title: { text: 'Лента' }, action: { kind: 'hold', seconds: 4 } }],
+                 [state()]);
+  const без = composeFrame(f, Math.round(2.6 * 30)).screens[0].scrollY;
+
+  // Вдвое быстрее: к той же секунде камера уехала дальше, а план длится столько же.
+  f.plans[0].tempo = { rate: 2, from: 0, to: 7.2 };
+  const быстрее = composeFrame(f, Math.round(2.6 * 30)).screens[0].scrollY;
+  assert.ok(быстрее > без, `${быстрее} против ${без}`);
+  assert.equal(f.plans[0].to - f.plans[0].from, 7.2);
+});
+
+test('стоп-кадр останавливает время внутри плана', () => {
+  const f = film([{ title: { text: 'Лента' }, action: { kind: 'hold', seconds: 4 } }],
+                 [state()]);
+  f.plans[0].tempo = { rate: 0, from: 1.5, to: 5 };
+  const замер = composeFrame(f, Math.round(1.5 * 30)).screens[0].scrollY;
+  assert.equal(composeFrame(f, Math.round(3 * 30)).screens[0].scrollY, замер);
+  assert.equal(composeFrame(f, Math.round(4.5 * 30)).screens[0].scrollY, замер);
+  // После окна время идёт снова, но со сдвигом на то, что простояло.
+  assert.ok(composeFrame(f, Math.round(6 * 30)).screens[0].scrollY > замер);
+});
