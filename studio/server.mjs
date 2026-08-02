@@ -230,6 +230,13 @@ const readBoard = () => {
 const writeBoard = (sb) => {
   const next = directStoryboard(normalizeStoryboard(sb), readStates());
   fs.writeFileSync(boardFile(), JSON.stringify(next, null, 2));
+  /**
+   * Исходная задача словами — первая ступень конвейера и источник перегенерации.
+   * Она приходит вместе с раскадровкой, поэтому и сохраняется здесь: держать её
+   * только внутри раскадровки значило бы потерять её при первой же пересборке,
+   * а показывать ступень «ещё нет» там, где задача давно поставлена, — врать.
+   */
+  if (next.task) fs.writeFileSync(inProject('prompt.txt'), `${next.task}\n`);
   return next;
 };
 
