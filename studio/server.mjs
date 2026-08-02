@@ -29,6 +29,7 @@ import { fileURLToPath } from 'node:url';
 import { planFor } from './classify-notes.mjs';
 import { fromScenario, normalizeStoryboard, checkStoryboard } from './compose/storyboard.mjs';
 import { directStoryboard } from './compose/director.mjs';
+import { STAGES, pipelineState } from './compose/pipeline.mjs';
 import { HOME, HOME_FROM, PROJECTS, VOICES, SERVER_INFO, ensureHome } from './home.mjs';
 import { listTargets, readTarget, writeTarget, readNotes as readTargetNotes,
          appendNote, slugifyTarget } from './target.mjs';
@@ -406,7 +407,10 @@ const server = http.createServer(async (req, res) => {
     // стоит минуты, дёргать агента на каждую метку бессмысленно.
     if (msg.type === 'note') {
       const notes = readNotes();
+      // Адрес важнее таймкода: «слишком долго висит пустой экран» на плане p04 говорит
+      // режиссёру, что переделывать, а «на 0:47» — только куда посмотреть.
       const note = { id: crypto.randomUUID(), t: msg.t ?? 0, kind: msg.kind || 'edit',
+                     plan: msg.plan || null, effect: msg.effect || null,
                      text: String(msg.text || '').slice(0, 2000), status: 'open' };
       notes.push(note);
       writeNotes(notes);
@@ -708,6 +712,50 @@ const server = http.createServer(async (req, res) => {
     });
   }
 
+  /**
+   * ── Ступени конвейера: что уже есть, что утверждено, что устарело.
+   *
+   * Времена берутся с файлов, а не из записей о работе: файл могли переписать мимо
+   * студии, и тогда запись врёт, а время — нет.
+   */
+  if (p === '/api/pipeline' && req.method === 'GET') {
+    const files = {};
+    for (const s of STAGES) {
+      try { files[s.file] = fs.statSync(inProject(s.file)).mtimeMs; } catch { /* нет и нет */ }
+    }
+    const project = readProject(currentId) || {};
+    return send(res, 200, {
+      stages: pipelineState({ files, approved: project.approved || [], gates: project.gates }),
+      gates: project.gates !== false,
+    });
+  }
+
+  /**
+   * Утверждение ступени — единственное решение, которое нельзя вывести из файлов,
+   * поэтому только оно и хранится.
+   */
+  if (p === '/api/approve' && req.method === 'POST') {
+    if (!authed) return send(res, 401, { error: 'unauthorized' });
+    const msg = await body(req);
+    if (!STAGES.some((s) => s.id === msg?.stage)) return send(res, 400, { error: 'no_stage' });
+    const project = readProject(currentId) || {};
+    const approved = new Set(project.approved || []);
+    if (msg.approved === false) approved.delete(msg.stage);
+    else approved.add(msg.stage);
+    writeProject(currentId, { approved: [...approved] });
+    // Раскадровка — та же ступень: утверждение здесь и «Снимать» в панели должны
+    // означать одно и то же, иначе съёмка стартует по неутверждённому.
+    if (msg.stage === 'storyboard') {
+      const sb = readBoard();
+      if (sb) {
+        sb.status = msg.approved === false ? 'draft' : 'ready';
+        broadcast({ type: 'storyboard', storyboard: writeBoard(sb) });
+      }
+    }
+    broadcast({ type: 'pipeline' });
+    return send(res, 200, { ok: true, approved: [...approved] });
+  }
+
   // ── План работ по накопленным замечаниям: что и сколько займёт
   if (p === '/api/plan') {
     const plan = planFor(readNotes());
@@ -721,6 +769,7 @@ const server = http.createServer(async (req, res) => {
     fs.writeFileSync(movieFile(), JSON.stringify(msg, null, 2));
     logEvent({ type: 'movie', duration: msg?.duration });
     broadcast({ type: 'movie', movie: msg });
+    broadcast({ type: 'pipeline' });
     return send(res, 200, { ok: true });
   }
 

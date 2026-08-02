@@ -49,6 +49,9 @@
       <span id="script-h" data-i="scriptTitle">Раскадровка</span>
       <span class="panel-count">8</span>
     </div>
+    <!-- Ступени конвейера: что уже есть, что утверждено, что устарело после правки.
+         Состояние выводится из файлов проекта, хранится только утверждение. -->
+    <ol class="stages" hidden></ol>
     <ul class="steps" hidden></ul>
 
     <div class="script-empty">
@@ -76,6 +79,10 @@
       <div class="frame" data-live="true">
         <span class="live-badge" data-i="live">Идёт съёмка</span>
         <img src="frame.jpg" data-i-alt="frameAlt" alt="Экран браузера, который ведёт агент">
+        <!-- Композиция во врезке: ролик смотрится без рендера, той же страницей,
+             которой он потом снимается покадрово. Источник подставляется из JS —
+             пустой iframe в разметке грузил бы страницу до всякой съёмки. -->
+        <iframe class="compose-frame" title="Композиция" hidden></iframe>
         <p class="caption" hidden></p>
       </div>
     </div>
@@ -89,6 +96,14 @@
       <span class="clock"><b>0:47</b> / 4:47</span>
       <!-- Версии ролика: мастер, смонтированный, хайлайты. Показываются только те,
            что реально собраны — пустой переключатель обещал бы несуществующее. -->
+      <!-- Что показывать в кадре: собранную композицию или отрендеренное видео.
+           Композиция доступна сразу после съёмки, видео — только после сборки. -->
+      <div class="sources" role="group" hidden>
+        <button class="cut-btn source-btn" type="button" data-source="compose"
+                data-i="sourceCompose" aria-pressed="true">Композиция</button>
+        <button class="cut-btn source-btn" type="button" data-source="video"
+                data-i="sourceVideo" aria-pressed="false">Видео</button>
+      </div>
       <div class="cuts" role="group" hidden></div>
       <div class="transport-actions">
         <button class="ghost script-shoot" type="button" data-i="shootRun" hidden>Снимать</button>
@@ -98,11 +113,6 @@
              задачу в очередь. Появляются только когда есть что монтировать. -->
         <button class="ghost cut-run" type="button" data-i="cutRun" hidden>Смонтировать</button>
         <button class="ghost short-run" type="button" data-i="shortRun" hidden>Хайлайты</button>
-        <!-- Композиция: ролик из состояний смотрится скраббером без рендера.
-             Ссылка появляется вместе с манифестом состояний. -->
-        <a class="ghost compose-open" href="/compose/player.html" target="_blank" hidden
-           data-i="composeOpen" data-i-title="composeOpenTitle"
-           title="Кадр вычисляется из позиции ползунка — рендер не нужен">Композиция</a>
       </div>
     </div>
 
@@ -133,6 +143,43 @@
         <span class="playhead"></span>
       </div>
     </div>
+
+    <!-- Инспектор эффекта: открывается кликом по клипу на дорожке. Правка идёт в
+         раскадровку, композиция перечитывается — съёмка при этом не запускается. -->
+    <form class="inspector" hidden>
+      <div class="inspector-head">
+        <span class="inspector-title"></span>
+        <button type="button" class="ghost inspector-auto" data-i="fxAuto"
+                data-i-title="fxAutoTitle">Вернуть автоматический</button>
+        <button type="button" class="ghost inspector-close" aria-label="Закрыть">✕</button>
+      </div>
+      <div class="inspector-rows">
+        <label class="inspector-row">
+          <span data-i="fxMove">Движение</span>
+          <select class="fx-move">
+            <option value="push" data-i="fx_push">наезд</option>
+            <option value="pan" data-i="fx_pan">панорама</option>
+            <option value="drift" data-i="fx_drift">дрейф</option>
+          </select>
+        </label>
+        <label class="inspector-row fx-depth-row">
+          <span data-i="fxDepth">Глубина</span>
+          <input class="fx-depth" type="number" min="1" max="2" step="0.02">
+        </label>
+        <label class="inspector-row fx-speed-row">
+          <span data-i="fxSpeed">Скорость</span>
+          <input class="fx-speed" type="number" min="100" max="2000" step="50">
+        </label>
+        <label class="inspector-row">
+          <span data-i="fxFrom">От</span>
+          <input class="fx-from" type="number" min="0" step="0.1">
+        </label>
+        <label class="inspector-row">
+          <span data-i="fxTo">До</span>
+          <input class="fx-to" type="number" min="0" step="0.1">
+        </label>
+      </div>
+    </form>
   </main>
 
   <!-- Замечания: очередь, уходящая агенту разом, а не диалог. -->
@@ -194,7 +241,13 @@
         <span class="plan-cost"></span>
       </div>
       <ul class="plan-list"></ul>
-      <button class="primary plan-apply" type="button" data-i="planApply">Применить</button>
+      <div class="plan-actions">
+        <button class="primary plan-apply" type="button" data-i="planApply">Применить</button>
+        <!-- Перегенерация: режиссёр перечитывает замечания вместе с сюжетом и выдаёт
+             новую раскадровку. Съёмка при этом не запускается. -->
+        <button class="ghost plan-regen" type="button" data-i="planRegen"
+                data-i-title="planRegenTitle">Пересобрать раскадровку</button>
+      </div>
     </div>
   </section>
 

@@ -602,8 +602,14 @@ button, input, textarea, select { font: inherit; color: inherit; }
 
 .frame {
   position: relative;
-  width: 100%;
-  max-width: 1040px;
+  /* Кадр идёт от ВЫСОТЫ, а ширину выводит соотношение: инспектор эффекта и панель
+     транспорта забирают место снизу, и кадр, растущий от ширины, уезжал под шапку.
+     Процентная max-height внутри flex-колонки для этого не годится — она схлопывает
+     элемент в ноль, потому что высота родителя сама зависит от содержимого. */
+  height: 100%;
+  width: auto;
+  max-width: min(1040px, 100%);
+  justify-self: center;
   aspect-ratio: 16 / 9;
   border-radius: var(--r-lg);
   border: 1px solid var(--line);
@@ -663,6 +669,17 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .caption[hidden] { display: none; }
 
 .live-badge[hidden] { display: none; }
+
+/* Врезка композиции занимает кадр целиком: это и есть просмотр ролика, а не
+   вспомогательная панель где-то сбоку. */
+.compose-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--bg);
+}
 
 .live-badge {
   position: absolute;
@@ -1258,10 +1275,146 @@ button, input, textarea, select { font: inherit; color: inherit; }
   .step-row.lit, .note.lit, .narration-line.lit { animation-duration: 0.01s; }
 }
 
+/* Ступени конвейера. Полосой, а не списком: их шесть, они идут строго по порядку,
+   и человеку нужно видеть весь путь разом — где он сейчас и что ниже устарело. */
+.stages {
+  display: flex;
+  gap: 2px;
+  margin: 0;
+  padding: var(--sp-2) var(--sp-3);
+  list-style: none;
+  border-bottom: 1px solid var(--line);
+}
+
+.stage-step {
+  flex: 1;
+  min-width: 0;
+}
+
+.stage-btn {
+  width: 100%;
+  padding: var(--sp-1) 2px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--ink-faint);
+  font-size: 10px;
+  line-height: 1.2;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.stage-btn:disabled { cursor: default; }
+.stage-btn::before {
+  content: "";
+  display: block;
+  height: 3px;
+  margin-bottom: 3px;
+  border-radius: 2px;
+  background: var(--line);
+}
+/* Черновик виден полосой поярче, утверждённое — брендовой, устаревшее —
+   предупреждающей: цвет здесь несёт смысл, поэтому дублируется подсказкой. */
+.stage-step[data-state="draft"] .stage-btn { color: var(--ink-muted); }
+.stage-step[data-state="draft"] .stage-btn::before { background: var(--line-strong); }
+.stage-step[data-state="ready"] .stage-btn { color: var(--ink); }
+.stage-step[data-state="ready"] .stage-btn::before { background: var(--brand-teal); }
+.stage-step[data-stale="true"] .stage-btn { color: var(--warn); }
+.stage-step[data-stale="true"] .stage-btn::before { background: var(--warn); }
+
+/* Адрес замечания: план или эффект рядом с таймкодом. Приглушён — это уточнение
+   к времени, а не второй заголовок. */
+.note-where {
+  font-size: var(--t-xs);
+  color: var(--ink-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 18ch;
+}
+
+/* Кнопки в столбик: «Применить» и «Пересобрать раскадровку» рядом не помещаются в
+   панель замечаний, а сокращать надписи нельзя — они называют разную работу. */
+.plan-actions { display: flex; flex-direction: column; gap: var(--sp-2); }
+
+/* Инспектор эффекта. Живёт под таймлайном, а не всплывающим окном: правка видна
+   сразу в кадре, и человек смотрит то на поле, то на картинку — перекрывать её
+   диалогом значило бы прятать единственную обратную связь. */
+.inspector {
+  /* flex: none — иначе инспектор растёт вместе с содержимым и выдавливает кадр
+     за пределы центральной колонки. */
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0 var(--sp-4) var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.inspector-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.inspector-title {
+  flex: 1;
+  font-size: var(--t-sm);
+  font-weight: 560;
+}
+
+.inspector-rows {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+
+.inspector-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: var(--t-xs);
+  color: var(--ink-muted);
+}
+
+/* Собственный display перебивает атрибут hidden — без этих правил у панорамы
+   оставалось бы поле глубины, которого у неё нет, а закрытый инспектор не
+   закрывался бы вовсе. */
+.inspector[hidden],
+.inspector-row[hidden],
+.inspector-head [hidden] { display: none; }
+
+.inspector-row input,
+.inspector-row select {
+  width: 8ch;
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--surface-raised);
+  color: var(--ink);
+  font-size: var(--t-xs);
+}
+.inspector-row select { width: auto; }
+
+/* Клип, который правится, виден на дорожке: иначе после прокрутки непонятно,
+   к чему относятся поля. */
+.clip[aria-current="true"] { box-shadow: inset 0 0 0 2px var(--focus); }
+
 /* Переключатель версий ролика. Сегментами, а не выпадающим списком: версий три-четыре,
    и видеть их все сразу важнее, чем экономить место — человек сравнивает. */
-.cuts { display: inline-flex; gap: 2px; padding: 2px; margin-left: var(--sp-3);
+.cuts,
+.sources { display: inline-flex; gap: 2px; padding: 2px; margin-left: var(--sp-3);
         border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+/* Источник в кадре — выбор более крупный, чем версия файла: композиция и видео
+   показывают разное состояние работы, поэтому переключатель идёт первым. */
+.sources { margin-left: var(--sp-4); }
+.cut-btn:disabled { opacity: 0.45; cursor: default; }
+.cut-btn:disabled:hover { color: var(--ink-faint); }
 .cut-btn {
   font: 500 var(--t-xs)/1 inherit;
   white-space: nowrap;

@@ -38,6 +38,9 @@ const el = {
   shoot: document.querySelector('.script-shoot'),
   cut: document.querySelector('.cut-run'),
   cuts: document.querySelector('.cuts'),
+  sources: document.querySelector('.sources'),
+  inspector: document.querySelector('.inspector'),
+  composeFrame: document.querySelector('.compose-frame'),
   short: document.querySelector('.short-run'),
   play: document.querySelector('.play'),
   caption: document.querySelector('.caption'),
@@ -45,6 +48,8 @@ const el = {
   planList: document.querySelector('.plan-list'),
   planCost: document.querySelector('.plan-cost'),
   planApply: document.querySelector('.plan-apply'),
+  planRegen: document.querySelector('.plan-regen'),
+  stages: document.querySelector('.stages'),
   inflight: document.querySelector('.script-actions .inflight'),
   inflightNotes: document.querySelector('.inflight-notes'),
   projectSelect: document.querySelector('.project-select'),
@@ -438,6 +443,12 @@ function renderBoard(next) {
   if (el.scriptCount) el.scriptCount.textContent = `${storyboard.plans.length} · ${mmss(DURATION)}`;
   renderRuler();
   renderTracks();
+  // Открытый инспектор перечитывается: сервер нормализовал правку, и показывать
+  // человеку его же ввод вместо принятого значения — самый тихий способ соврать.
+  if (openEffect) {
+    if (effectById(openEffect)) openInspector(openEffect);
+    else closeInspector();
+  }
 
   // Статус рядом с заголовком: пока черновик — съёмка не стартует, и человек должен
   // понимать, почему, не заглядывая в документацию.
@@ -459,6 +470,129 @@ function renderBoard(next) {
     if (el.shoot.disabled && !ready) trTitle(el.shoot, 'shootOffline');
     else { trTitle(el.shoot, null); el.shoot.title = ''; }
   }
+}
+
+/**
+ * Ступени конвейера.
+ *
+ * Показывают весь путь разом: где мы сейчас и что ниже устарело после правки. Состояние
+ * приходит с сервера, где выводится из файлов проекта, — здесь только рисунок и клик.
+ * Клик утверждает ступень или снимает утверждение: это единственное решение, которое
+ * из файлов не выводится.
+ */
+const STAGE_KEYS = {
+  prompt: 'stagePrompt', recon: 'stageRecon', story: 'stageStory',
+  storyboard: 'stageStoryboard', states: 'stageStates', movie: 'stageMovie',
+};
+
+async function renderStages() {
+  if (!el.stages) return;
+  const данные = await fetch('/api/pipeline').then((r) => r.json()).catch(() => null);
+  if (!данные?.stages) { el.stages.hidden = true; return; }
+  el.stages.hidden = false;
+  el.stages.innerHTML = '';
+
+  for (const s of данные.stages) {
+    const li = document.createElement('li');
+    li.className = 'stage-step';
+    li.dataset.state = s.state;
+    if (s.stale) li.dataset.stale = 'true';
+
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'stage-btn';
+    tr(b, STAGE_KEYS[s.id]);
+    const имя = window.taktText(STAGE_KEYS[s.id]) || s.id;
+    // Цвет несёт смысл, поэтому дублируется словами: без подсказки «жёлтая полоска»
+    // не читается никак.
+    trTitle(b, s.stale ? 'stageStale'
+      : s.state === 'ready' ? 'stageReady'
+      : s.state === 'draft' ? 'stageDraft' : 'stageMissing', { stage: имя });
+    b.disabled = s.state === 'missing';
+    b.addEventListener('click', async () => {
+      await post('/api/approve', { stage: s.id, approved: s.state !== 'ready' });
+      renderStages();
+    });
+
+    li.append(b);
+    el.stages.append(li);
+  }
+}
+
+/**
+ * Инспектор эффекта.
+ *
+ * Правка идёт в раскадровку, сервер её нормализует, композиция перечитывается —
+ * секунды вместо минут, потому что съёмка при этом не запускается. Любая правка
+ * помечает эффект ручным: перегенерация обязана обходить его стороной, иначе
+ * следующий заход режиссёра молча сотрёт работу человека.
+ */
+let openEffect = null;
+
+const MOVE_FIELDS = { push: ['depth'], pan: ['speed'], drift: [] };
+
+function effectById(id) {
+  return (storyboard?.effects || []).find((e) => e.id === id) || null;
+}
+
+function openInspector(id) {
+  const e = effectById(id);
+  if (!e || !el.inspector) return;
+  openEffect = id;
+  const plan = (storyboard?.plans || []).find((x) => x.id === e.plan);
+  el.inspector.hidden = false;
+  tr(el.inspector.querySelector('.inspector-title'), 'fxOn', { plan: plan?.title.text || e.plan });
+
+  const move = e.kind === 'transition' ? 'drift' : (e.params?.move || 'drift');
+  el.inspector.querySelector('.fx-move').value = move;
+  el.inspector.querySelector('.fx-depth').value = e.params?.depth ?? 1.26;
+  el.inspector.querySelector('.fx-speed').value = e.params?.speed ?? 600;
+  el.inspector.querySelector('.fx-from').value = e.at?.from ?? 0;
+  el.inspector.querySelector('.fx-to').value = e.at?.to ?? 0;
+  // Склейка своего движения не имеет: показывать ей поля камеры значит обещать
+  // правку, которой не будет.
+  el.inspector.querySelector('.fx-move').disabled = e.kind === 'transition';
+  el.inspector.querySelector('.inspector-auto').hidden = e.source !== 'manual';
+  syncInspectorFields();
+  renderTracks();
+}
+
+function closeInspector() {
+  openEffect = null;
+  if (el.inspector) el.inspector.hidden = true;
+  renderTracks();
+}
+
+/** Поля показываются по виду движения: у панорамы нет глубины, у наезда — скорости. */
+function syncInspectorFields() {
+  if (!el.inspector) return;
+  const move = el.inspector.querySelector('.fx-move').value;
+  const нужные = MOVE_FIELDS[move] || [];
+  el.inspector.querySelector('.fx-depth-row').hidden = !нужные.includes('depth');
+  el.inspector.querySelector('.fx-speed-row').hidden = !нужные.includes('speed');
+}
+
+async function saveInspector() {
+  const e = effectById(openEffect);
+  if (!e) return;
+  const move = el.inspector.querySelector('.fx-move').value;
+  const num = (sel) => Number(el.inspector.querySelector(sel).value);
+  const params = e.kind === 'transition'
+    ? { ...e.params }
+    : { move, ...(move === 'push' ? { depth: num('.fx-depth') } : {}),
+                ...(move === 'pan' ? { speed: num('.fx-speed') } : {}) };
+  const next = { ...e, params, source: 'manual',
+                 at: { from: num('.fx-from'), to: num('.fx-to') } };
+  const effects = (storyboard.effects || []).map((x) => (x.id === e.id ? next : x));
+  await pushBoard({ effects });
+}
+
+/** Вернуть автоматический: ручной эффект убирается, режиссёр ставит свой. */
+async function dropManualEffect() {
+  const e = effectById(openEffect);
+  if (!e) return;
+  closeInspector();
+  await pushBoard({ effects: (storyboard.effects || []).filter((x) => x.id !== e.id) });
 }
 
 /**
@@ -514,10 +648,14 @@ function renderTracks() {
       const move = e.kind === 'transition' ? e.params?.style : e.params?.move;
       tr(clip, `fx_${move}`);
       trTitle(clip, e.source === 'manual' ? 'fxManual' : `fx_${move}`);
+      clip.dataset.fx = e.id;
+      if (e.id === openEffect) clip.setAttribute('aria-current', 'true');
       clip.addEventListener('click', (ev) => {
         ev.stopPropagation();
         seek(from);
-        litStep(plan.n);
+        // Клик по эффекту ставит плейхед на его начало и открывает правку: смотреть
+        // наезд имеет смысл с того кадра, где он начинается.
+        openInspector(e.id);
       });
       fx.append(clip);
     }
@@ -644,6 +782,7 @@ const EVENT_TITLES = {
   voice_prepare: 'evVoicePrepare',
   cut: 'evCut',
   short: 'evShort',
+  regen: 'evRegen',
 };
 
 /**
@@ -753,13 +892,113 @@ function renderMovie(next) {
 
   const img = el.frame.querySelector('img');
   if (img) img.hidden = true;
-  DURATION = movie.duration || DURATION;
+  renderSources();
+  // Готовый файл не выталкивает композицию из кадра: человек смотрит то, что выбрал.
+  video.hidden = source === 'compose' && compose.ready;
+  if (source === 'video') DURATION = movie.duration || DURATION;
   renderRuler();
   renderTracks();
   // Позиция могла остаться от прежней длительности и оказаться за концом нового ролика:
   // тогда титр показывает последний кадр сценария ещё до нажатия «играть».
   if (cursor > DURATION) seek(0);
   else renderCaption(cursor);
+}
+
+/**
+ * Композиция во врезке — главный инструмент студии.
+ *
+ * Ролик смотрится без единого рендера: кадр вычисляется из позиции плейхеда той же
+ * страницей, которой он потом снимается покадрово в файл. Предпросмотр и вывод не
+ * могут разойтись, потому что это один код.
+ *
+ * Источник в кадре один за раз: композиция ИЛИ собранное видео. Показывать оба
+ * бессмысленно — это одно и то же с точностью до времени рендера, — а вот путать их
+ * опасно: правку эффекта видно только в композиции, и человек решил бы, что она не
+ * применилась.
+ */
+let compose = { ready: false, seconds: 0, playing: null };
+let source = 'compose';
+
+function setupCompose() {
+  if (!el.composeFrame) return;
+  addEventListener('message', (e) => {
+    if (e.data?.source !== 'takt-compose') return;
+    if (e.data.type === 'takt:ready') {
+      compose = { ...compose, ready: true, seconds: e.data.seconds || 0 };
+      if (e.data.issues?.length) console.warn('замечания композиции:', e.data.issues);
+    }
+    if (e.data.type === 'takt:error') compose = { ...compose, ready: false, seconds: 0 };
+    renderSources();
+    if (source === 'compose') setSource('compose');
+  });
+  reloadCompose();
+}
+
+/**
+ * Перечитать композицию. Вызывается на каждую правку раскадровки: «правка параметра
+ * видна сразу» — это обещание студии, и выполняет его именно перезагрузка врезки.
+ * Метка времени в адресе нужна против кеша снимков: имена файлов состояний не меняются.
+ */
+function reloadCompose() {
+  if (!el.composeFrame) return;
+  el.composeFrame.src = `/compose/player.html?embed=1&v=${Date.now()}`;
+}
+
+/** Показывать переключатель есть смысл, только когда есть между чем выбирать. */
+function renderSources() {
+  if (!el.sources) return;
+  const хоть_что_то = compose.ready || Boolean(movie?.url);
+  el.sources.hidden = !хоть_что_то;
+  for (const b of el.sources.querySelectorAll('.source-btn')) {
+    const свой = b.dataset.source;
+    b.disabled = свой === 'compose' ? !compose.ready : !movie?.url;
+    b.setAttribute('aria-pressed', String(source === свой));
+    trTitle(b, свой === 'compose' ? 'sourceComposeTitle' : 'sourceVideoTitle');
+  }
+}
+
+function setSource(next) {
+  source = next;
+  const показываем_композицию = next === 'compose' && compose.ready;
+  if (el.composeFrame) el.composeFrame.hidden = !показываем_композицию;
+  if (video) video.hidden = показываем_композицию;
+  const img = el.frame?.querySelector('img');
+  if (img && (показываем_композицию || movie?.url)) img.hidden = true;
+  // Титры композиции выжжены в самом кадре — накладывать их поверх значит показать
+  // каждый дважды.
+  if (el.caption) el.caption.hidden = показываем_композицию;
+
+  const длина = показываем_композицию ? compose.seconds : (movie?.duration || DURATION);
+  if (длина) { DURATION = длина; renderRuler(); renderTracks(); }
+  stopPlaying();
+  renderSources();
+  syncCursor(Math.min(cursor, DURATION));
+}
+
+/** Композицию проигрывает студия: у врезки нет своих органов управления намеренно. */
+function stopPlaying() {
+  if (compose.playing) { clearInterval(compose.playing); compose.playing = null; }
+  if (el.play) el.play.setAttribute('aria-pressed', 'false');
+  video?.pause?.();
+}
+
+function togglePlay() {
+  if (source === 'video') {
+    if (!video) return;
+    if (video.paused) video.play(); else video.pause();
+    return;
+  }
+  if (compose.playing) return stopPlaying();
+  if (!compose.ready) return;
+  if (cursor >= DURATION - 0.05) seek(0);
+  el.play?.setAttribute('aria-pressed', 'true');
+  // Шаг в 1/25 секунды: врезка всё равно вычисляет кадр по времени, а более частая
+  // отправка сообщений ничего не добавляет к плавности просмотра.
+  const шаг = 0.04;
+  compose.playing = setInterval(() => {
+    if (cursor + шаг >= DURATION) { seek(DURATION); return stopPlaying(); }
+    seek(cursor + шаг);
+  }, шаг * 1000);
 }
 
 /** Титр текущего момента: последний, чьё время уже наступило. */
@@ -781,6 +1020,10 @@ function syncCursor(t) {
   tr(el.pin, 'pin', { t: mmss(cursor) });
   trPh(el.composer, 'composerPh', { t: mmss(cursor) });
   renderCaption(cursor);
+  // Плейхед и кадр композиции — одна позиция, а не две синхронизируемые.
+  if (source === 'compose' && compose.ready && el.composeFrame?.contentWindow) {
+    el.composeFrame.contentWindow.postMessage({ type: 'takt:seek', t: cursor }, '*');
+  }
 }
 
 /**
@@ -791,6 +1034,7 @@ function syncCursor(t) {
  * увидеть эту разницу прежде, чем согласится ждать.
  */
 const PLAN_KINDS = {
+  direct: 'planDirect',
   shoot: 'planShoot',
   voice: 'planVoice',
   diagram: 'planDiagram',
@@ -827,6 +1071,13 @@ async function renderPlan() {
   // Пересъёмка — единственное, что стоит десятки минут: об этом говорим прямо в кнопке.
   tr(el.planApply, plan.needsShooting ? 'planApplyShoot' : 'planApply');
   el.planApply.disabled = el.agent?.dataset.state === 'offline';
+  // Перегенерация предлагается только когда есть что перечитывать: замечание с
+  // адресом. Без него режиссёру нечего учитывать, и кнопка обещала бы работу,
+  // которая ничего не изменит.
+  if (el.planRegen) {
+    el.planRegen.hidden = !plan.items.some((i) => i.kind === 'direct');
+    el.planRegen.disabled = el.agent?.dataset.state === 'offline';
+  }
 }
 
 /**
@@ -934,8 +1185,15 @@ function renderNotes(notes) {
     if (n.status === 'applied') art.dataset.status = 'applied';
     art.innerHTML = `<div class="note-head">
         <button class="time-chip" type="button">${mmss(n.t)}</button>
+        <span class="note-where"></span>
         <span class="note-kind"></span>
       </div><p class="note-body"></p>`;
+    // Адрес рядом с таймкодом: по нему видно, что именно переделывать, — время
+    // говорит лишь, куда смотреть.
+    const where = art.querySelector('.note-where');
+    const наплане = (storyboard?.plans || []).find((x) => x.id === n.plan);
+    if (наплане) tr(where, n.effect ? 'noteOnEffect' : 'noteOnPlan', { plan: наплане.title.text });
+    else where.hidden = true;
     tr(art.querySelector('.note-kind'),
        n.status === 'applied' ? 'kindApplied' : (kinds[n.kind] || 'kindEdit'));
     art.querySelector('.note-body').textContent = n.text;
@@ -1034,7 +1292,8 @@ function connect() {
     if (msg.type === 'status') { setAgent(msg.status, msg.agent); renderInFlight(msg.inFlight); }
     if (msg.type === 'stend') setStend(msg.stend);
     if (msg.type === 'project') renderProjects(msg.current, msg.projects);
-    if (msg.type === 'storyboard') renderBoard(msg.storyboard);
+    if (msg.type === 'storyboard') { renderBoard(msg.storyboard); reloadCompose(); }
+    if (msg.type === 'pipeline') renderStages();
     if (msg.type === 'movie') renderMovie(msg.movie);
     if (msg.type === 'voices') voicePanel?.render(msg.voices);
     if (msg.type === 'narration') { narrationData = msg.narration; narrationPanel?.render(msg.narration); renderTracks(); }
@@ -1072,17 +1331,34 @@ async function boot() {
   setStend(hello.stend);
   renderProjects(hello.project, hello.projects);
   setupDragAndDrop(el.steps);
+  setupCompose();
+  renderStages();
   renderBoard(hello.storyboard);
   renderMovie(hello.movie);
   renderNotes(hello.notes || []);
   seek(cursor);
   connect();
 
+  /**
+   * Адрес замечания — то, на что человек сейчас смотрит: открытый эффект или план
+   * под плейхедом. Без адреса «долго висит пустой экран» уходит в «непонятно», а с
+   * ним это внятная работа режиссёра над конкретным планом.
+   */
+  const noteAddress = () => {
+    if (openEffect) {
+      const e = effectById(openEffect);
+      if (e) return { plan: e.plan, effect: e.id };
+    }
+    const plan = (storyboard?.plans || [])
+      .find((x) => cursor >= x.at && cursor < x.at + x.duration.seconds);
+    return plan ? { plan: plan.id, effect: null } : { plan: null, effect: null };
+  };
+
   el.send?.addEventListener('click', async (e) => {
     e.preventDefault();
     const text = el.composer.value.trim();
     if (!text) return;
-    await post('/api/event', { type: 'note', t: cursor, text, kind: 'edit' });
+    await post('/api/event', { type: 'note', t: cursor, text, kind: 'edit', ...noteAddress() });
     el.composer.value = '';
   });
 
@@ -1153,14 +1429,28 @@ async function boot() {
     location.reload();
   });
 
+  el.planRegen?.addEventListener('click', async () => {
+    el.planRegen.disabled = true;
+    await post('/api/event', { type: 'regen', stage: 'storyboard' });
+  });
+
   el.planApply?.addEventListener('click', async () => {
     el.planApply.disabled = true;
     await post('/api/event', { type: 'apply' });
   });
 
-  el.play?.addEventListener('click', () => {
-    if (!video) return;
-    if (video.paused) video.play(); else video.pause();
+  el.play?.addEventListener('click', togglePlay);
+  el.inspector?.addEventListener('change', (e) => {
+    if (e.target.classList.contains('fx-move')) syncInspectorFields();
+    saveInspector();
+  });
+  el.inspector?.querySelector('.inspector-close')
+    ?.addEventListener('click', closeInspector);
+  el.inspector?.querySelector('.inspector-auto')
+    ?.addEventListener('click', dropManualEffect);
+  el.sources?.addEventListener('click', (e) => {
+    const b = e.target.closest('.source-btn');
+    if (b && !b.disabled) setSource(b.dataset.source);
   });
 
   el.stop?.addEventListener('click', () => post('/api/event', { type: 'stop' }));
