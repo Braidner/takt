@@ -14,7 +14,7 @@
  *
  * Без импортов Node: модуль грузит и браузер, и node:test.
  */
-import { planDuration } from './duration.mjs';
+import { planDuration, SLATE, END } from './duration.mjs';
 
 /** Шаг прокрутки клавишей: 0,9 экрана съёмки — как это делала старая съёмка. */
 const PAGE_STEP = Math.round(810 * 0.9);
@@ -96,7 +96,10 @@ export function fromScenario(scenario) {
  */
 export function normalizeStoryboard(sb) {
   const seen = [];
-  let at = 0;
+  // Обложка идёт первой и занимает своё время: планы начинаются после неё. Иначе
+  // таймкоды раскадровки разъезжаются с собранным роликом ровно на её длину.
+  const обложка = sb?.slate !== false && Boolean(sb?.title);
+  let at = обложка ? SLATE : 0;
 
   const plans = (sb?.plans || []).map((p, i) => {
     const id = p.id && !seen.includes(p.id) ? p.id : nextPlanId(seen.map((x) => ({ id: x })));
@@ -128,12 +131,14 @@ export function normalizeStoryboard(sb) {
     // Обложка и финальная плашка — решение человека, а не побочный эффект того,
     // что у ролика есть название. По умолчанию есть: ролик без начала и конца
     // выглядит куском чужой записи.
-    slate: sb?.slate !== false,
+    slate: обложка,
     url: sb?.url || null,
     // Частота следует самому строгому источнику: пересчёт 25 в 30 дублированием и есть
     // та судорога, ради устранения которой всё затевалось.
     fps: plans.some((p) => p.mode === 'live') ? 25 : 30,
-    seconds: Math.round(at * 10) / 10,
+    // Финальная плашка тоже входит в хронометраж: человек видит длину того, что
+    // соберётся, а не длину середины.
+    seconds: Math.round((at + (обложка ? END : 0)) * 10) / 10,
     plans,
     // Эффекты живут ссылками на планы, поэтому осиротевшие выбрасываются здесь же:
     // иначе они всплывут наездом в никуда через несколько правок.
