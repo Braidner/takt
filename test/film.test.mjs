@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { filmFps, visibleSticky, planCamera, buildFilm }
+import { filmFps, visibleSticky, planCamera, buildFilm, buildHighlightFilm }
   from '../studio/compose/film.mjs';
 
 const VIEWPORT = { width: 1440, height: 810 };
@@ -108,4 +108,41 @@ test('плёнка: шаг без seconds получает 6 по умолчан
   const film = buildFilm({ viewport: VIEWPORT, live: null, states: [state()] },
                          { title: 'Демо', steps: [{ n: 1, label: 'Без секунд' }] });
   assert.equal(film.plans[0].to, 6);
+});
+
+const longFilm = () => buildFilm(
+  { viewport: VIEWPORT, live: null, states: [
+    state(),                                                          // панорама
+    state({ id: 'p02', plan: 2, label: 'Клик',
+            anchors: [{ selector: 'x', rect: { x: 2000, y: 1200, w: 200, h: 80 } }] }),
+    state({ id: 'p03', plan: 3, label: 'Финал', size: { w: 2880, h: 1620 } }),
+  ] },
+  { title: 'Демо', steps: [
+    { n: 1, label: 'Лента', seconds: 8 },
+    { n: 2, label: 'Клик', seconds: 6 },
+    { n: 3, label: 'Финал', seconds: 7 },
+  ] },
+);
+
+test('хайлайты: действие важнее пейзажа, бюджет соблюдён', () => {
+  const hl = buildHighlightFilm(longFilm(), { seconds: 7 });
+  // Бюджет на два клипа по 3.2 c: действие + первый план; финал не влез.
+  assert.deepEqual(hl.plans.map((p) => p.id), ['p01', 'p02']);
+  assert.ok(hl.seconds <= 7 + 0.01);
+  // Планы перенумерованы встык.
+  assert.deepEqual(hl.plans.map((p) => [p.from, p.to]), [[0, 3.2], [3.2, 6.4]]);
+});
+
+test('хайлайты: щелчки пересчитаны в новую шкалу', () => {
+  const hl = buildHighlightFilm(longFilm(), { seconds: 7 });
+  // Клик был на CLICK_AT от начала своего плана; план p02 теперь начинается на 3.2.
+  assert.deepEqual(hl.clicks, [{ t: 3.2 + 1.5 }]);
+});
+
+test('хайлайты: панорама укорочена — дистанция пересчитана под 3.2 секунды', () => {
+  const hl = buildHighlightFilm(longFilm(), { seconds: 7 });
+  const pan = hl.plans[0].camera;
+  assert.equal(pan.kind, 'pan');
+  // Окно 3.2 − 0.6 − 1.6 = 1.0 c → 600 px.
+  assert.equal(pan.to, 600);
 });

@@ -3,11 +3,12 @@
  * ползунка той же функцией, которой привод вывода считает кадры для ffmpeg.
  * С ?render=1 страница отдаёт только сцену: панель управления в кадр не попадает.
  */
-import { buildFilm } from './film.mjs';
+import { buildFilm, buildHighlightFilm } from './film.mjs';
 import { composeFrame } from './frame.mjs';
 import { mountScene, applyFrame } from './apply.mjs';
 
-const render = new URLSearchParams(location.search).get('render') === '1';
+const q = new URLSearchParams(location.search);
+const render = q.get('render') === '1';
 
 try {
   const [manifest, scenario] = await Promise.all([
@@ -17,7 +18,11 @@ try {
     }),
     fetch('/api/scenario').then((r) => r.json()),
   ]);
-  const film = buildFilm(manifest, scenario);
+  let film = buildFilm(manifest, scenario);
+  // Хайлайты — та же композиция, другая плёнка: отбор планов вместо обрезки видео.
+  if (q.get('highlight') === '1') {
+    film = buildHighlightFilm(film, { seconds: Number(q.get('seconds')) || 25 });
+  }
   const frames = Math.round(film.seconds * film.fps);
 
   const scene = mountScene(document.getElementById('root'), film, '/project/');

@@ -44,6 +44,28 @@ const W = VERTICAL ? 1080 : 1920;
 const H = VERTICAL ? 1920 : 1080;
 const FPS = 30;
 
+/**
+ * Статичный проект: хайлайты рендерит та же композиция, меняется только плёнка —
+ * отбор планов вместо нарезки видео. Вертикали пока нет: её кадрирование — другая
+ * вёрстка сцены, и она появится вместе с раскадровкой.
+ */
+const manifestPath = inProject('states.json');
+if (fs.existsSync(manifestPath)
+    && !JSON.parse(fs.readFileSync(manifestPath, 'utf8')).live) {
+  if (VERTICAL) {
+    console.error('Вертикальные хайлайты статичного проекта появятся вместе с раскадровкой (стадия 3)');
+    process.exit(1);
+  }
+  const { spawn } = await import('node:child_process');
+  const { fileURLToPath } = await import('node:url');
+  const dir = path.dirname(fileURLToPath(import.meta.url));
+  const child = spawn(process.execPath,
+    [path.join(dir, 'render.mjs'), '--highlight', '--seconds', String(TARGET)],
+    { stdio: 'inherit' });
+  child.on('close', (code) => process.exit(code ?? 1));
+  await new Promise(() => {});   // дальше живёт только дочерний процесс
+}
+
 const timeline = JSON.parse(fs.readFileSync(inProject('timeline.json'), 'utf8'));
 const master = inProject('movie.mp4');
 if (!fs.existsSync(master)) {

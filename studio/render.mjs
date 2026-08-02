@@ -21,6 +21,11 @@ import { buildSound } from './sound.mjs';
 
 const run = promisify(execFile);
 const silent = process.argv.includes('--silent');
+const highlight = process.argv.includes('--highlight');
+const seconds = (() => {
+  const i = process.argv.indexOf('--seconds');
+  return i !== -1 ? Number(process.argv[i + 1]) : 25;
+})();
 const outArg = (() => {
   const i = process.argv.indexOf('--out');
   return i !== -1 ? process.argv[i + 1] : null;
@@ -55,7 +60,8 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: W, height: H } });
 const t0 = Date.now();
 try {
-  await page.goto(`${base}/compose/player.html?render=1`, { waitUntil: 'domcontentloaded' });
+  const hq = highlight ? `&highlight=1&seconds=${seconds}` : '';
+  await page.goto(`${base}/compose/player.html?render=1${hq}`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.__takt !== undefined, null, { timeout: 60000 });
   const film = await page.evaluate(() => window.__takt.film ?? { error: window.__takt.error });
   if (!film.frames) throw new Error(film.error || 'плёнка не собралась');
@@ -85,7 +91,8 @@ try {
   ff.stdin.end();
   await ffDone;
 
-  const out = outArg ? path.resolve(outArg) : inProject('movie.mp4');
+  const out = outArg ? path.resolve(outArg)
+    : inProject(highlight ? 'movie-short.mp4' : 'movie.mp4');
   if (silent) {
     fs.copyFileSync(body, out);
   } else {
@@ -98,8 +105,11 @@ try {
   const meta = JSON.parse(stdout).format;
 
   // Титры выжжены композицией, поэтому плееру студии накладывать нечего.
-  await api('/api/movie', { url: '/project/movie.mp4', duration: Number(meta.duration),
-                            captions: [], builtAt: new Date().toISOString() });
+  // Хайлайты плеер студии не подменяют: он показывает полный ролик.
+  if (!highlight) {
+    await api('/api/movie', { url: '/project/movie.mp4', duration: Number(meta.duration),
+                              captions: [], builtAt: new Date().toISOString() });
+  }
   await api('/api/status', { state: 'listening', text: 'Ролик собран', step: null, of: null });
   console.log(JSON.stringify({
     ok: true, out, fps: film.fps, frames: film.frames,

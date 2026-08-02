@@ -95,3 +95,36 @@ export function buildFilm(manifest, scenario) {
     plans, clicks,
   };
 }
+
+/** Длина клипа хайлайтов: короче — рвано, длиннее — скучно (перенято из highlight.mjs). */
+export const CLIP = 3.2;
+
+/**
+ * Хайлайты — отбор, а не обрезка: сначала действия (видно функциональность),
+ * потом открывающий план (что это вообще), потом финал (к чему всё шло).
+ */
+export function buildHighlightFilm(film, { seconds = 25 } = {}) {
+  const weight = (p, i) =>
+    (p.cursor ? 3 : 0) + (i === 0 ? 2 : 0) + (i === film.plans.length - 1 ? 1 : 0);
+  const picked = film.plans
+    .map((p, i) => ({ p, i, w: weight(p, i) }))
+    .sort((a, b) => b.w - a.w || a.i - b.i)
+    .slice(0, Math.max(1, Math.floor(seconds / CLIP)))
+    .sort((a, b) => a.i - b.i)
+    .map(({ p }) => p);
+
+  const plans = [];
+  const clicks = [];
+  let at = 0;
+  for (const p of picked) {
+    // Камера пересчитывается под длину клипа: панорама на 3.2 с едет меньше.
+    const camera = planCamera(p.state, CLIP);
+    const cursor = camera.kind === 'push'
+      ? { x: camera.anchor.cx, y: camera.anchor.cy, at: CLICK_AT } : null;
+    if (cursor) clicks.push({ t: at + cursor.at });
+    plans.push({ ...p, from: at, to: at + CLIP, camera, cursor,
+                 title: { text: p.title.text, at: at + 0.15 } });
+    at += CLIP;
+  }
+  return { ...film, plans, clicks, seconds: at };
+}
