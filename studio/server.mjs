@@ -766,7 +766,10 @@ const server = http.createServer(async (req, res) => {
     const msg = await body(req);
     fs.writeFileSync(movieFile(), JSON.stringify(msg, null, 2));
     logEvent({ type: 'movie', duration: msg?.duration });
-    broadcast({ type: 'movie', movie: msg });
+    // Рассылаем ПРОЧИТАННОЕ, а не присланное: список готовых версий собирается при
+    // чтении с диска, и без него страница прячет переключатель. Иначе новая версия
+    // не появлялась бы до перезагрузки — а собирают их как раз чтобы сравнить.
+    broadcast({ type: 'movie', movie: readMovie() });
     broadcast({ type: 'pipeline' });
     return send(res, 200, { ok: true });
   }
