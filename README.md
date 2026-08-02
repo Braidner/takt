@@ -15,14 +15,14 @@ Feedback goes straight onto the timeline as markers.
 
 [Quick Start](#quick-start) · [How It Works](#how-it-works) · [As an Agent Skill](#as-an-agent-skill) · [FAQ](#where-things-live)
 
-<img src="docs/assets/studio.png" alt="Takt studio: scenario on the left, frame in the center, notes on the right" width="800">
+<img src="docs/assets/studio.png" alt="Takt studio: storyboard on the left, frame in the center, notes on the right" width="800">
 
 </div>
 
 ---
 
 Takt is built for working in tandem with an AI agent (Claude Code and friends):
-the agent scouts the interface and drafts the scenario; you review, tweak, and approve.
+the agent scouts the interface and drafts the storyboard; you review, tweak, and approve.
 
 ## Why
 
@@ -30,7 +30,7 @@ Demo videos are usually made one of two ways, and both hurt. A screen recording 
 live narration has to be reshot end-to-end because of a single slip of the tongue.
 Editing in a video editor is a separate profession and days of work.
 
-Here, **the video is a build artifact**. The scenario, captions, diagrams, and narration
+Here, **the video is a build artifact**. The storyboard, captions, diagrams, and narration
 script live as data — so changing a phrase or a timestamp doesn't mean reshooting:
 only what changed gets rebuilt. You reshoot only when what happens *on screen* changes.
 
@@ -38,8 +38,8 @@ only what changed gets rebuilt. You reshoot only when what happens *on screen* c
 
 | | |
 |---|---|
-| 🎭 **Playwright is the actor** | Drives the browser through the scenario steps and logs telemetry along the way: what happened and when. Capture runs headless, so your machine stays free. |
-| 🎬 **The studio is your workbench** | A local page: scenario on the left, frame or finished video in the center, notes on the right, voices at the bottom. During capture, the center shows the live browser screen with per-step progress — you see what's happening and where it got stuck. |
+| 🎭 **Playwright is the actor** | Drives the browser through the storyboard plans, capturing a full-page state per plan. Panning, push-ins and holds are then *composed* — each frame is computed from its number, so no frame can ever drop. Capture runs headless, so your machine stays free. |
+| 🎬 **The studio is your workbench** | A local page: storyboard on the left, frame or finished video in the center, notes on the right, voices at the bottom. During capture, the center shows the live browser screen with per-step progress — you see what's happening and where it got stuck. |
 | 📡 **The agent listens for events** | Studio and agent talk over long polling: the connection resolves exactly when you click, no periodic checks. Every request is visible in the UI ("pending" / "in progress"), and if no agent is attached, buttons lock so you never shout into the void. |
 | 🗣️ **Narration via voice cloning** | Record a voice right in the browser or upload a file. The narration script is laid out across caption markers and checked for fit *before* synthesis: a line that doesn't fit its window would collide with the next one. |
 
@@ -81,13 +81,13 @@ stand chip in the header. The password stays on your machine: it never lands in 
 and is never echoed back to the browser.
 
 From there, everything happens in the studio: describe the video in words, adjust the
-scenario, hit **Shoot**.
+storyboard, hit **Shoot**.
 
 ## As an Agent Skill
 
 Takt is designed to be operated by an agent. [`SKILL.md`](SKILL.md) at the repo root
 describes the procedure: the agent starts the studio, attaches to the long poll, and works
-event by event — draft the scenario, shoot, edit, narrate, apply timeline notes. Details
+event by event — draft the storyboard, shoot, edit, narrate, apply timeline notes. Details
 for each event live in [`references/`](references/).
 
 Install with `npx skills add Braidner/takt` — the CLI distributes the skill across agents
@@ -102,7 +102,7 @@ Three layers, and mixing them up is expensive:
 |---|---|---|
 | Code | how to shoot in general | this repository |
 | **Target** | URL, login, sections, selectors, what not to touch | `$TAKT_HOME/targets/<slug>/` |
-| Project | scenario, takes, video, notes, narration | `$TAKT_HOME/projects/<id>/` |
+| Project | storyboard, states, video, notes, narration | `$TAKT_HOME/projects/<id>/` |
 
 **A project is one video. A target is the system being filmed** — and one system can star
 in many videos. Scouting an interface costs minutes, so its results live in the target:
