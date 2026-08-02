@@ -200,6 +200,7 @@ export function buildFilm(manifest, storyboard) {
 
   return {
     fps: storyboard.fps || 30,
+    format: 'wide',
     screen: { w: manifest.viewport.width, h: manifest.viewport.height },
     title: storyboard.title || '',
     seconds: Math.round(at * 10) / 10,
@@ -211,7 +212,7 @@ export function buildFilm(manifest, storyboard) {
  * Хайлайты — отбор, а не обрезка: сначала действия (видно функциональность),
  * потом открывающий план (что это вообще), потом финал (к чему всё шло).
  */
-export function buildHighlightFilm(film, { seconds = 25 } = {}) {
+export function buildHighlightFilm(film, { seconds = 25, format = 'wide' } = {}) {
   // Карточки в отбор не идут: хайлайты отвечают «а что это вообще» за время, которое
   // человек готов потратить на незнакомый продукт в ленте, и тратить его на заставку
   // значит не ответить вовсе.
@@ -245,5 +246,7 @@ export function buildHighlightFilm(film, { seconds = 25 } = {}) {
                    : { from: CLIP - 0.35, to: CLIP, style: 'dissolve' } });
     at += CLIP;
   }
-  return { ...film, plans, clicks, seconds: Math.round(at * 10) / 10 };
+  // Формат живёт в плёнке, а не в приводе: сцена строится из неё, и знать про 9:16
+  // должен тот, кто её строит.
+  return { ...film, format, plans, clicks, seconds: Math.round(at * 10) / 10 };
 }

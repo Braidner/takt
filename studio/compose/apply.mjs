@@ -7,19 +7,34 @@
  * радиальными пятнами, окно с горошинами, виньетка. Титры и курсор — брендовая
  * типографика, та же, что в студии, а не системный шрифт.
  */
-const W = 1920, H = 1080;
+/**
+ * Формат кадра. Вертикаль — не обрезанная широкая сцена, а своя вёрстка: интерфейс
+ * горизонтальный, и в 9:16 он помещается только целиком и мельче, зато остаётся
+ * читаемым. Пустоту сверху и снизу занимает титр — в ленте смотрят без звука, и
+ * текст там важнее воздуха.
+ */
+export const FORMATS = {
+  wide: { w: 1920, h: 1080, window: 1330, top: 54, capBottom: 58, capSize: 50, capPad: 140 },
+  // Окно вертикали выше пропорций экрана намеренно: масштаб интерфейса тот же, но в
+  // кадр попадает больше страницы. Вписать экран целиком значило бы отдать две трети
+  // кадра пустоте, а в ленте пустота — это пролистывание.
+  vertical: { w: 1080, h: 1920, window: 1010, top: 210, stage: 1060,
+              capBottom: 300, capSize: 56, capPad: 60 },
+};
 
 export function mountScene(root, film, base) {
   const { w: sw, h: sh } = film.screen;
-  // Окно прототипа: 1330 из 1920 по ширине, экран вписан масштабом.
-  const winW = 1330, scale = winW / sw;
+  const fmt = FORMATS[film.format] || FORMATS.wide;
+  const W = fmt.w, H = fmt.h;
+  // Окно вписывается по ширине формата, экран внутри — масштабом.
+  const winW = fmt.window, scale = winW / sw;
 
   root.innerHTML = `
     <div class="scene" style="position:relative;width:${W}px;height:${H}px;overflow:hidden;
       background:radial-gradient(72% 92% at 78% 4%,#14335f,transparent 62%),
                  radial-gradient(60% 80% at 8% 98%,#0d3b34,transparent 60%),
                  linear-gradient(158deg,#0b1120,#070a11 72%)">
-      <div class="window" style="position:absolute;left:${(W - winW) / 2}px;top:54px;width:${winW}px;
+      <div class="window" style="position:absolute;left:${(W - winW) / 2}px;top:${fmt.top}px;width:${winW}px;
         border-radius:14px;overflow:hidden;background:#12161d;
         box-shadow:0 60px 120px -22px rgba(0,0,0,.8),0 0 0 1px rgba(255,255,255,.07),
                    0 0 160px -50px rgba(1,98,228,.5)">
@@ -31,14 +46,15 @@ export function mountScene(root, film, base) {
           <span style="margin-left:18px;color:rgba(255,255,255,.45);
             font:500 15px 'Golos Text',system-ui,sans-serif">${film.title}</span>
         </div>
-        <div class="stage" style="position:relative;width:${winW}px;height:${Math.round(sh * scale)}px;
-          overflow:hidden"></div>
+        <div class="stage" style="position:relative;width:${winW}px;
+          height:${fmt.stage || Math.round(sh * scale)}px;overflow:hidden"></div>
       </div>
       <div style="position:absolute;inset:0;pointer-events:none;
         background:radial-gradient(118% 90% at 50% 42%,transparent 54%,rgba(0,0,0,.5))"></div>
-      <div class="caption" style="position:absolute;left:0;right:0;bottom:58px;text-align:center;
-        padding:0 140px"><div style="overflow:hidden;padding-bottom:12px"><div class="caption-text"
-        style="font:800 50px/1.1 'Unbounded',system-ui,sans-serif;color:#fff;
+      <div class="caption" style="position:absolute;left:0;right:0;bottom:${fmt.capBottom}px;
+        text-align:center;
+        padding:0 ${fmt.capPad}px"><div style="overflow:hidden;padding-bottom:12px"><div class="caption-text"
+        style="font:800 ${fmt.capSize}px/1.1 'Unbounded',system-ui,sans-serif;color:#fff;
         letter-spacing:-.035em;text-shadow:0 12px 48px rgba(0,0,0,.9);
         transform:translateY(110%)"></div></div></div>
     </div>`;
@@ -54,9 +70,9 @@ export function mountScene(root, film, base) {
         justify-items:center;text-align:center;gap:26px;
         background:${plan.card === 'end' ? 'rgba(9,11,16,.92)' : 'transparent'}`;
       el.innerHTML = `
-        <div class="card-text" style="font:800 ${plan.card === 'end' ? 84 : 96}px/1.05
+        <div class="card-text" style="font:800 ${Math.round((plan.card === 'end' ? 84 : 96) * W / 1920)}px/1.05
           'Unbounded',system-ui,sans-serif;color:#f4f6fa;letter-spacing:-.03em;
-          max-width:1500px"></div>
+          max-width:${Math.round(W * 0.78)}px"></div>
         ${plan.subtitle ? `<div class="card-sub" style="font:500 34px/1.4 'Golos Text',
           system-ui,sans-serif;color:#aab3c2;max-width:1300px"></div>` : ''}
         <div style="width:${plan.card === 'end' ? 140 : 120}px;height:4px;border-radius:2px;
