@@ -102,9 +102,10 @@ const card = (id, kind, at, seconds, fields) => ({
 });
 
 export function buildFilm(manifest, storyboard) {
-  if (manifest.live || (storyboard.plans || []).some((p) => p.mode === 'live')) {
-    throw new Error('в раскадровке есть живые планы — такой проект пока собирается старым монтажом (takt build/edit)');
-  }
+  // Живой отрезок берётся из записи по границам, размеченным съёмкой, и сдвигается
+  // на длину входа в систему: запись начинается раньше первого плана.
+  const live = manifest.live || null;
+  const отрезок = (id) => (live?.ranges || []).find((r) => r.plan === id) || null;
 
   const byId = new Map((manifest.states || []).map((s) => [s.id, s]));
   const issues = [];
@@ -127,6 +128,38 @@ export function buildFilm(manifest, storyboard) {
 
   for (const plan of storyboard.plans || []) {
     const state = byId.get(plan.id);
+
+    if (plan.mode === 'live') {
+      const range = отрезок(plan.id);
+      if (!live?.video || !range) {
+        issues.push({ plan: plan.id,
+          text: `«${plan.title.text}» живой, но отрезка нет в записи — план пропущен` });
+        continue;
+      }
+      const dur = plan.duration.seconds;
+      const cut = (storyboard.effects || [])
+        .find((e) => e.plan === plan.id && e.kind === 'transition');
+      plans.push({
+        id: plan.id,
+        kind: 'live',
+        from: Math.round(at * 10) / 10,
+        to: Math.round((at + dur) * 10) / 10,
+        video: live.video,
+        // Отрезок может быть короче или длиннее плана: длительность считает
+        // раскадровка, а запись идёт как шла. Берём начало и играем сколько нужно.
+        videoFrom: Math.round(((live.offset || 0) + range.from) * 100) / 100,
+        // Камера по живому отрезку не ездит: в кадре и так движение, а наезд
+        // поверх него читается как тряска.
+        camera: { kind: 'drift', from: 0, to: 0 },
+        cursor: null,
+        state: { sticky: [] },
+        title: { text: plan.title.text, at: 0.15 },
+        transition: cut ? { from: cut.at.from, to: cut.at.to, style: cut.params.style } : null,
+      });
+      at += dur;
+      continue;
+    }
+
     if (!state) {
       issues.push({ plan: plan.id, text: `«${plan.title.text}» не снят — плана нет в манифесте состояний` });
       continue;

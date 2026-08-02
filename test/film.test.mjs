@@ -133,13 +133,6 @@ test('плёнка: план без снятого состояния пропу
   assert.match(film.issues.find((i) => /Неснятый/.test(i.text)).text, /не снят/);
 });
 
-test('плёнка: живой план — отказ с объяснением, а не молчаливый пропуск', () => {
-  const states = [state({ mode: 'live' })];
-  const sb = board([{ title: { text: 'Живой' }, mode: 'live', action: null }], states);
-  assert.throws(() => buildFilm({ ...manifest(states), live: { video: 'x.webm' } }, sb),
-                /старым монтажом/);
-});
-
 test('хайлайты: действие важнее пейзажа, бюджет соблюдён', () => {
   const states = [state(),
                   state({ id: 'p02', anchors: [anchor('x', { x: 400, y: 600, w: 80, h: 40 })] }),
@@ -204,4 +197,43 @@ test('хайлайты карточек не берут', () => {
   const film = buildFilm(manifest(states), { ...sb, title: 'Демо', slate: true });
   const hl = buildHighlightFilm(film, { seconds: 25 });
   assert.deepEqual(hl.plans.map((p) => p.id), ['p01', 'p02']);
+});
+
+const liveManifest = (states) => ({
+  viewport: VIEWPORT,
+  live: { video: 'takes/take.webm', offset: 12.4, ranges: [{ plan: 'p02', from: 5, to: 9 }] },
+  states,
+});
+
+const liveBoard = () => directStoryboard(normalizeStoryboard({
+  title: 'Демо', slate: false,
+  plans: [
+    { title: { text: 'Статичный' }, action: { kind: 'hold', seconds: 2 } },
+    { title: { text: 'Живой' }, mode: 'live', action: { kind: 'hold', seconds: 3 } },
+  ],
+}), [state()]);
+
+test('живой план берётся из записи со сдвигом на длину входа в систему', () => {
+  const film = buildFilm(liveManifest([state(), state({ id: 'p02', mode: 'live' })]), liveBoard());
+
+  assert.equal(film.fps, 25, 'один живой план переводит весь ролик в 25 кадров');
+  const живой = film.plans.find((p) => p.id === 'p02');
+  assert.equal(живой.kind, 'live');
+  assert.equal(живой.video, 'takes/take.webm');
+  // Отрезок начинается на 5-й секунде часов съёмки, запись идёт на 12.4 с раньше.
+  assert.equal(живой.videoFrom, 17.4);
+});
+
+test('живой план без отрезка в записи пропускается с замечанием', () => {
+  const manifest = { viewport: VIEWPORT, live: { video: 'x.webm', offset: 0, ranges: [] },
+                     states: [state()] };
+  const film = buildFilm(manifest, liveBoard());
+  assert.deepEqual(film.plans.map((p) => p.id), ['p01']);
+  assert.match(film.issues[0].text, /Живой/);
+});
+
+test('камера по живому отрезку не ездит', () => {
+  // В кадре и так движение: наезд поверх него читается как тряска.
+  const film = buildFilm(liveManifest([state(), state({ id: 'p02', mode: 'live' })]), liveBoard());
+  assert.equal(film.plans.find((p) => p.id === 'p02').camera.kind, 'drift');
 });

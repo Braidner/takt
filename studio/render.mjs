@@ -45,10 +45,6 @@ if (!fs.existsSync(manifestPath)) {
   process.exit(1);
 }
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-if (manifest.live) {
-  console.error('В съёмке есть живые планы — собирайте старым монтажом: takt build, takt edit');
-  process.exit(1);
-}
 
 const W = 1920, H = 1080;
 const work = inProject('edit');

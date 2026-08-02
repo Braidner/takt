@@ -58,6 +58,15 @@ function screenAt(film, plan, t) {
   const local = clamp(t - plan.from, 0, plan.to - plan.from);
   const cam = plan.camera;
 
+  // Живой отрезок: вместо снимка кадр называет момент записи. Дальше его ставит
+  // сцена, а привод вывода ждёт, пока видео этот момент действительно покажет.
+  if (plan.kind === 'live') {
+    return { plan: plan.id, live: true, opacity: 1,
+             video: { t: Math.round((plan.videoFrom + local) * 1000) / 1000 },
+             sticky: [], cursor: null,
+             camera: { scale: 1, x: 0, y: 0 }, scrollY: 0 };
+  }
+
   // Карточка живёт своей жизнью: у неё нет ни снимка, ни камеры по нему — только
   // текст, который проявляется и держится.
   if (plan.kind === 'card') {

@@ -76,6 +76,19 @@ export function mountScene(root, film, base) {
     // пересоздавать DOM на каждом кадре — значит терять кеш декодированных картинок.
     const el = document.createElement('div');
     el.style.cssText = 'position:absolute;inset:0;display:none';
+    // Живой план показывает запись, а не снимок: содержание такого плана — само
+    // движение интерфейса, и собрать его из состояний нельзя.
+    if (plan.kind === 'live') {
+      const el = document.createElement('div');
+      el.style.cssText = 'position:absolute;inset:0;display:none';
+      el.innerHTML = `<video class="live" src="${base}${plan.video}" muted playsinline
+        preload="auto" style="position:absolute;inset:0;width:100%;height:100%;
+        object-fit:cover"></video>`;
+      stage.appendChild(el);
+      screens.set(plan.id, { el, live: el.querySelector('video') });
+      continue;
+    }
+
     // Внутри — виртуальный экран в CSS-пикселях съёмки, вписанный масштабом:
     // так вся геометрия кадра остаётся в одной шкале со снимками и якорями.
     el.innerHTML = `
@@ -113,6 +126,12 @@ export function applyFrame(scene, desc) {
     s.el.style.display = s.card ? 'grid' : '';
     s.el.style.opacity = String(d.opacity * (d.appear ?? 1));
     if (s.card) continue;
+    if (s.live) {
+      // Перематываем только когда действительно надо: лишний seek сбрасывает
+      // декодер и заставляет кадр моргнуть.
+      if (Math.abs(s.live.currentTime - d.video.t) > 0.005) s.live.currentTime = d.video.t;
+      continue;
+    }
     s.body.style.transform = `translateY(${-d.scrollY}px)`;
     // Окно камеры: сначала сдвиг к окну, затем масштаб — семантика zoompan.
     s.zoom.style.transform =
