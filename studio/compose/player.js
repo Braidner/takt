@@ -6,19 +6,24 @@
 import { buildFilm, buildHighlightFilm } from './film.mjs';
 import { composeFrame } from './frame.mjs';
 import { mountScene, applyFrame } from './apply.mjs';
+import { directStoryboard } from './director.mjs';
 
 const q = new URLSearchParams(location.search);
 const render = q.get('render') === '1';
 
 try {
-  const [manifest, scenario] = await Promise.all([
+  const [manifest, storyboard] = await Promise.all([
     fetch('/project/states.json').then((r) => {
-      if (!r.ok) throw new Error('нет манифеста состояний — сначала снимите сценарий (takt shoot)');
+      if (!r.ok) throw new Error('нет манифеста состояний — сначала снимите раскадровку (takt shoot)');
       return r.json();
     }),
-    fetch('/api/scenario').then((r) => r.json()),
+    fetch('/api/storyboard').then((r) => r.json()),
   ]);
-  let film = buildFilm(manifest, scenario);
+  // Режиссёр прогоняется и здесь: он идемпотентен и не трогает ручные эффекты, зато
+  // страхует от раскадровки, утверждённой до съёмки, — тогда камере неоткуда было
+  // узнать, есть ли на странице куда ехать.
+  let film = buildFilm(manifest, directStoryboard(storyboard, manifest.states));
+  if (film.issues.length) console.warn('замечания композиции:', film.issues);
   // Хайлайты — та же композиция, другая плёнка: отбор планов вместо обрезки видео.
   if (q.get('highlight') === '1') {
     film = buildHighlightFilm(film, { seconds: Number(q.get('seconds')) || 25 });
@@ -48,7 +53,8 @@ try {
   seek(0);
 
   window.__takt = { ready: true, seek,
-    film: { fps: film.fps, seconds: film.seconds, frames, clicks: film.clicks } };
+    film: { fps: film.fps, seconds: film.seconds, frames,
+            clicks: film.clicks, issues: film.issues } };
 
   if (!render) {
     const controls = document.getElementById('controls');

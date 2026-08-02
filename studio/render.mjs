@@ -65,6 +65,9 @@ try {
   await page.waitForFunction(() => window.__takt !== undefined, null, { timeout: 60000 });
   const film = await page.evaluate(() => window.__takt.film ?? { error: window.__takt.error });
   if (!film.frames) throw new Error(film.error || 'плёнка не собралась');
+  // Замечания композиции печатаются до рендера, а не после: две минуты работы
+  // впустую человек прощает хуже, чем строку предупреждения.
+  for (const i of film.issues || []) console.error(`  · ${i.text}`);
 
   const body = path.join(work, 'body.mp4');
   const ff = spawn('ffmpeg', [
