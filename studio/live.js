@@ -448,6 +448,9 @@ function renderBoard(next) {
     if (effectById(openEffect)) openInspector(openEffect);
     else closeInspector();
   }
+  // Панель дикторского текста живёт планами: пока их не было, ей нечего было
+  // предложить, и кнопка пряталась даже там, где реплики уже можно писать.
+  narrationPanel?.render(narrationData);
 
   // Статус рядом с заголовком: пока черновик — съёмка не стартует, и человек должен
   // понимать, почему, не заглядывая в документацию.
@@ -1288,7 +1291,7 @@ async function boot() {
   token = hello.token;
   voicePanel = setupVoice({ post, getToken: () => token });
   voicePanel.render(hello.voices || []);
-  narrationPanel = setupNarration({ post });
+  narrationPanel = setupNarration({ post, getPlans: () => storyboard?.plans || [] });
   narrationData = hello.narration;
   narrationPanel.render(hello.narration);
   setAgent(hello.status, hello.agent);

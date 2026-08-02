@@ -225,6 +225,11 @@ const RU = {
   narrationTitle: "Дикторский текст",
   narrationClose: "Закрыть",
   narrationVoice: "Озвучить",
+  narrationFill: "Собрать по планам",
+  narrationFillTitle: "На каждый план — своя реплика: метка и окно проставятся из раскадровки",
+  narrationEmpty: "Реплик пока нет. Соберите каркас по планам раскадровки — метки и окна "
+    + "проставятся сами, останется написать текст.",
+  narrationDrop: "Убрать реплику",
   narrationTotal: "{n} реплик · речи ≈ {time}",
   narrationVoiced: " · озвучено {n}",
   fitEst: "≈ {est} с",
@@ -433,6 +438,11 @@ const EN = {
   narrationTitle: "Narration script",
   narrationClose: "Close",
   narrationVoice: "Synthesize",
+  narrationFill: "Build from plans",
+  narrationFillTitle: "One line per plan: marks and windows come from the storyboard",
+  narrationEmpty: "No lines yet. Build a skeleton from the storyboard plans — marks and "
+    + "windows fill in by themselves, you only write the text.",
+  narrationDrop: "Remove the line",
   narrationTotal: "{n} lines · speech ≈ {time}",
   narrationVoiced: " · {n} voiced",
   fitEst: "≈ {est} s",
