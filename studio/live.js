@@ -868,6 +868,7 @@ const EVENT_TITLES = {
   cut: 'evCut',
   short: 'evShort',
   regen: 'evRegen',
+  insert: 'evInsert',
 };
 
 /**
