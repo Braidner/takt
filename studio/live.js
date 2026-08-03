@@ -284,6 +284,35 @@ function renderBoard(next) {
   const editable = storyboard.status !== 'ready' && !shooting;
   el.steps.innerHTML = '';
 
+  /* Заставка и финал стоят в списке всегда, даже выключенные.
+     Иначе выключить их можно было бы, а включить обратно — уже нет: клип с дорожки
+     исчезает вместе с временем, которое он занимал. */
+  const строкаКарточки = (which) => {
+    const c = storyboard[which] || {};
+    const li = document.createElement('li');
+    li.className = 'step-row card-row';
+    if (!c.on) li.dataset.off = 'true';
+    const b = document.createElement('button');
+    b.className = 'step';
+    b.type = 'button';
+    b.dataset.t = String(which === 'slate' ? 0 : Math.max(0, DURATION - (c.seconds || 0)));
+    b.innerHTML = `<span class="step-time"></span>
+      <span class="step-dur"></span>
+      <span class="step-label"></span>`;
+    tr(b.querySelector('.step-label'), which === 'slate' ? 'cardTitleSlate' : 'cardTitleEnd');
+    b.querySelector('.step-time').textContent = c.on ? mmss(Number(b.dataset.t)) : '—';
+    const dur = b.querySelector('.step-dur');
+    if (c.on) dur.textContent = `${c.seconds} с`;
+    else tr(dur, 'cardOff');
+    b.addEventListener('click', () => {
+      if (c.on) seek(Number(b.dataset.t));
+      openCardInspector(which);
+    });
+    li.append(b);
+    return li;
+  };
+  el.steps.append(строкаКарточки('slate'));
+
   storyboard.plans.forEach((s, i) => {
     const li = document.createElement('li');
     li.className = 'step-row';
@@ -500,13 +529,15 @@ function renderBoard(next) {
 
     el.steps.append(li);
   });
+  el.steps.append(строкаКарточки('end'));
 
   if (el.scriptCount) el.scriptCount.textContent = `${storyboard.plans.length} · ${mmss(DURATION)}`;
   renderRuler();
   renderTracks();
   // Открытый инспектор перечитывается: сервер нормализовал правку, и показывать
   // человеку его же ввод вместо принятого значения — самый тихий способ соврать.
-  if (openEffect) {
+  if (openCard) openCardInspector(openCard);
+  else if (openEffect) {
     if (effectById(openEffect)) openInspector(openEffect);
     else closeInspector();
   }
@@ -613,6 +644,7 @@ async function renderStages() {
  * следующий заход режиссёра молча сотрёт работу человека.
  */
 let openEffect = null;
+let openCard = null;                  // 'slate' | 'end', когда правится карточка
 /** Врезки проекта: их рисует агент, студия только предлагает выбрать. */
 let insertsList = [];
 
@@ -680,7 +712,38 @@ function openInspector(id) {
   renderTracks();
 }
 
+/**
+ * Инспектор карточки — тот же, что у эффекта.
+ *
+ * Разные записи внутри, но человеку это знать незачем: он щёлкает по клипу на
+ * шкале и правит то, что видит в кадре. Ради этого поля инспектора и переключаются
+ * по виду, а не разводятся по разным панелям.
+ */
+function openCardInspector(which) {
+  if (!el.inspector) return;
+  const c = storyboard?.[which] || {};
+  openCard = which;
+  openEffect = null;
+  el.inspector.hidden = false;
+  el.inspector.dataset.kind = 'card';
+  tr(el.inspector.querySelector('.inspector-title'),
+     which === 'slate' ? 'cardTitleSlate' : 'cardTitleEnd');
+  el.inspector.querySelector('.card-on').checked = c.on !== false;
+  // Пустое поле показывает название ролика подсказкой: видно, что подставится,
+  // и видно, что своего текста пока нет.
+  const текст = el.inspector.querySelector('.fx-text');
+  текст.value = c.text || '';
+  текст.placeholder = storyboard?.title || '';
+  el.inspector.querySelector('.card-sub').value = c.subtitle || '';
+  el.inspector.querySelector('.card-url').value = c.url || '';
+  el.inspector.querySelector('.card-seconds').value = c.seconds ?? '';
+  el.inspector.querySelector('.inspector-auto').hidden = true;
+  syncInspectorFields();
+  renderTracks();
+}
+
 function closeInspector() {
+  openCard = null;
   openEffect = null;
   if (el.inspector) el.inspector.hidden = true;
   renderTracks();
@@ -689,9 +752,30 @@ function closeInspector() {
 /** Поля показываются по виду движения: у панорамы нет глубины, у наезда — скорости. */
 function syncInspectorFields() {
   if (!el.inspector) return;
-  const наложение = el.inspector.dataset.kind === 'overlay';
-  const move = el.inspector.querySelector('.fx-move').value;
   const вид = el.inspector.dataset.kind;
+  const карточка = вид === 'card';
+  // Карточка и эффект делят одну панель, поэтому чужие поля не прячутся сами:
+  // оставь их — и у заставки появится «глубина наезда».
+  for (const кл of ['fx-move-row', 'fx-from-row', 'fx-to-row']) {
+    el.inspector.querySelector(`.${кл}`).hidden = карточка;
+  }
+  for (const кл of ['card-on-row', 'card-sub-row', 'card-url-row', 'card-seconds-row']) {
+    el.inspector.querySelector(`.${кл}`).hidden = !карточка;
+  }
+  if (карточка) {
+    // Подзаголовок бывает только у обложки, ссылка — только у финала: на обложке
+    // ссылку читать некогда, а под финалом нет чему быть подзаголовком.
+    el.inspector.querySelector('.card-sub-row').hidden = openCard !== 'slate';
+    el.inspector.querySelector('.card-url-row').hidden = openCard !== 'end';
+    el.inspector.querySelector('.fx-text-row').hidden = false;
+    el.inspector.querySelector('.fx-depth-row').hidden = true;
+    el.inspector.querySelector('.fx-speed-row').hidden = true;
+    el.inspector.querySelector('.fx-src-row').hidden = true;
+    el.inspector.querySelector('.fx-place-row').hidden = true;
+    return;
+  }
+  const наложение = вид === 'overlay';
+  const move = el.inspector.querySelector('.fx-move').value;
   const нужные = (вид === 'overlay' ? OVERLAY_FIELDS[move]
     : вид === 'tempo' ? []
     : MOVE_FIELDS[move]) || [];
@@ -703,6 +787,19 @@ function syncInspectorFields() {
 }
 
 async function saveInspector() {
+  if (openCard) {
+    const seconds = Number(el.inspector.querySelector('.card-seconds').value);
+    const карточка = {
+      on: el.inspector.querySelector('.card-on').checked,
+      text: el.inspector.querySelector('.fx-text').value.trim() || null,
+      seconds: Number.isFinite(seconds) && seconds > 0 ? seconds : undefined,
+      ...(openCard === 'slate'
+        ? { subtitle: el.inspector.querySelector('.card-sub').value.trim() || null }
+        : { url: el.inspector.querySelector('.card-url').value.trim() || null }),
+    };
+    await pushBoard({ [openCard]: карточка });
+    return;
+  }
   const e = effectById(openEffect);
   if (!e) return;
   const move = el.inspector.querySelector('.fx-move').value;
@@ -757,16 +854,19 @@ function renderTracks() {
        являются и в раскадровке их нет. Без них дорожка начиналась с пустоты, и было
        непонятно, чем занято начало ролика: человек видел на кадре заголовок, а на
        шкале — ничего. Двигать и править их нельзя, поэтому они помечены отдельно. */
-    const карточка = (at, seconds, подпись) => {
-      const seg = document.createElement('span');
+    const карточка = (which, at, seconds) => {
+      const seg = document.createElement('button');
+      seg.type = 'button';
       seg.className = 'step-seg';
-      seg.dataset.card = '1';
+      seg.dataset.card = which;
       seg.style.left = `calc(${pct(at)} + 1px)`;
       seg.style.width = `calc(${pct(seconds)} - 2px)`;
-      seg.title = подпись;
+      trTitle(seg, which === 'slate' ? 'cardTitleSlate' : 'cardTitleEnd');
+      if (openCard === which) seg.setAttribute('aria-current', 'true');
+      seg.addEventListener('click', () => { seek(at); openCardInspector(which); });
       steps.append(seg);
     };
-    if (storyboard?.slate) карточка(0, SLATE, window.taktText?.('cardSlate') || 'Заставка');
+    if (storyboard?.slate?.on) карточка('slate', 0, storyboard.slate.seconds || SLATE);
 
     for (const s of storyboard?.plans || []) {
       const seg = document.createElement('span');
@@ -779,8 +879,9 @@ function renderTracks() {
     }
 
     const последний = (storyboard?.plans || []).at(-1);
-    if (storyboard?.slate && последний) {
-      карточка(последний.at + последний.duration.seconds, END, window.taktText?.('cardEnd') || 'Финальная плашка');
+    if (storyboard?.end?.on && последний) {
+      карточка('end', последний.at + последний.duration.seconds,
+               storyboard.end.seconds || END);
     }
   }
 

@@ -897,13 +897,31 @@ button, input, textarea, select { font: inherit; color: inherit; }
   background: color-mix(in oklch, var(--ink) 7%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--line-strong) 55%, transparent);
 }
+.step-seg[data-card]:hover,
+.step-seg[data-card]:focus-visible {
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--ink) 45%, transparent);
+}
+.step-seg[data-card][aria-current="true"] {
+  box-shadow: inset 0 0 0 2px var(--brand-teal);
+}
+
+/* Строка карточки в списке планов: тот же ряд, но без номера и инструментов —
+   у неё нет ни съёмки, ни намерения, только текст и длина. */
+.card-row .step { opacity: .78; }
+.card-row .step:hover { opacity: 1; }
+.card-row[data-off] .step-dur { color: var(--ink-faint); font-style: italic; }
+
 .step-seg[data-state="done"] {
   background: color-mix(in oklch, var(--brand-teal) 24%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--brand-teal) 45%, transparent);
 }
-/* Заставка и финал — не планы: их нельзя переснять, передвинуть или удалить.
-   Полосатая заливка говорит это до того, как человек попробует по ним кликнуть. */
+/* Заставка и финал — не планы: переснять их нечем, снимать нечего. Полосатая
+   заливка отличает их от снятого материала, но щёлкнуть по ним можно: за клипом
+   стоит запись раскадровки с текстом и длиной. */
 .step-seg[data-card] {
+  border: 0;
+  padding: 0;
+  cursor: pointer;
   background: repeating-linear-gradient(
     -45deg,
     color-mix(in oklch, var(--ink) 9%, transparent) 0 4px,

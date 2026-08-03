@@ -153,7 +153,7 @@
         <button type="button" class="ghost inspector-close" aria-label="Закрыть">✕</button>
       </div>
       <div class="inspector-rows">
-        <label class="inspector-row">
+        <label class="inspector-row fx-move-row">
           <span class="fx-move-label" data-i="fxMove">Движение</span>
           <select class="fx-move">
             <option value="push" data-i="fx_push">наезд</option>
@@ -185,13 +185,31 @@
           <span data-i="fxText">Текст</span>
           <input class="fx-text" type="text" maxlength="60">
         </label>
-        <label class="inspector-row">
+        <label class="inspector-row fx-from-row">
           <span data-i="fxFrom">От</span>
           <input class="fx-from" type="number" min="0" step="0.1">
         </label>
-        <label class="inspector-row">
+        <label class="inspector-row fx-to-row">
           <span data-i="fxTo">До</span>
           <input class="fx-to" type="number" min="0" step="0.1">
+        </label>
+        <!-- Поля карточки: заставка и финал правятся тем же инспектором, что и
+             эффекты, — человеку незачем знать, что внутри это разные записи. -->
+        <label class="inspector-row card-on-row">
+          <span data-i="cardOn">Показывать</span>
+          <input class="card-on" type="checkbox">
+        </label>
+        <label class="inspector-row card-sub-row">
+          <span data-i="cardSub">Подзаголовок</span>
+          <input class="card-sub" type="text" maxlength="90">
+        </label>
+        <label class="inspector-row card-url-row">
+          <span data-i="cardUrl">Ссылка</span>
+          <input class="card-url" type="text" maxlength="60">
+        </label>
+        <label class="inspector-row card-seconds-row">
+          <span data-i="cardSeconds">Длительность</span>
+          <input class="card-seconds" type="number" min="0.4" max="15" step="0.1">
         </label>
       </div>
     </form>
