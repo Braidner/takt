@@ -263,8 +263,22 @@ async function pushBoard(patch = {}) {
   await post('/api/storyboard', storyboard);
 }
 
+/**
+ * Карточка в той форме, в какой её ждёт студия.
+ *
+ * Сервер держит модули в памяти, поэтому после обновления кода он какое-то время
+ * отдаёт старую форму — булево вместо записи. Читая его буквально, студия говорила
+ * «выключена» про включённую заставку и не рисовала её нигде: ни в списке, ни на
+ * дорожке. Разбираться в этом человеку незачем.
+ */
+const карточкаИз = (v, seconds) => (v && typeof v === 'object'
+  ? v
+  : { on: v !== false, text: null, subtitle: null, seconds });
+
 function renderBoard(next) {
-  storyboard = next;
+  storyboard = next
+    ? { ...next, slate: карточкаИз(next.slate, SLATE), end: карточкаИз(next.end, END) }
+    : next;
   const has = Boolean(storyboard?.plans?.length);
   if (el.scriptEmpty) el.scriptEmpty.hidden = has;
   if (el.steps) el.steps.hidden = !has;

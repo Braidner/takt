@@ -7,6 +7,7 @@ import { buildFilm, buildHighlightFilm } from './film.mjs';
 import { composeFrame } from './frame.mjs';
 import { mountScene, applyFrame, FORMATS } from './apply.mjs';
 import { directStoryboard } from './director.mjs';
+import { normalizeStoryboard } from './storyboard.mjs';
 
 const q = new URLSearchParams(location.search);
 const render = q.get('render') === '1';
@@ -25,10 +26,18 @@ try {
     }),
     fetch('/api/storyboard').then((r) => r.json()),
   ]);
-  // Режиссёр прогоняется и здесь: он идемпотентен и не трогает ручные эффекты, зато
-  // страхует от раскадровки, утверждённой до съёмки, — тогда камере неоткуда было
-  // узнать, есть ли на странице куда ехать.
-  let film = buildFilm(manifest, directStoryboard(storyboard, manifest.states));
+  /* Нормализация прогоняется и здесь — по той же причине, что и режиссёр ниже:
+     она идемпотентна, а полагаться на то, что сервер уже свежей версии, нельзя.
+     Он держит модули в памяти, и после обновления кода какое-то время отдаёт
+     раскадровку в старой форме — с булевой заставкой вместо записи. Композиция
+     молча собиралась без карточек, и ролик оказывался на пять секунд короче
+     того, что показывал список планов.
+
+     Режиссёр прогоняется здесь же: он не трогает ручные эффекты, зато страхует от
+     раскадровки, утверждённой до съёмки, — тогда камере неоткуда было узнать,
+     есть ли на странице куда ехать. */
+  const board = normalizeStoryboard(storyboard);
+  let film = buildFilm(manifest, directStoryboard(board, manifest.states));
   if (film.issues.length) console.warn('замечания композиции:', film.issues);
   // Хайлайты — та же композиция, другая плёнка: отбор планов вместо обрезки видео.
   if (q.get('highlight') === '1') {
