@@ -168,6 +168,18 @@
           <span data-i="fxSpeed">Скорость</span>
           <input class="fx-speed" type="number" min="100" max="2000" step="50">
         </label>
+        <label class="inspector-row fx-src-row">
+          <span data-i="fxSrc">Файл</span>
+          <select class="fx-src"></select>
+        </label>
+        <label class="inspector-row fx-place-row">
+          <span data-i="fxPlace">Место</span>
+          <select class="fx-place">
+            <option value="cover" data-i="place_cover">во весь кадр</option>
+            <option value="side" data-i="place_side">сбоку</option>
+            <option value="corner" data-i="place_corner">в углу</option>
+          </select>
+        </label>
         <label class="inspector-row fx-text-row">
           <span data-i="fxText">Текст</span>
           <input class="fx-text" type="text" maxlength="60">

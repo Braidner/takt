@@ -136,7 +136,7 @@ export function mountScene(root, film, base) {
     });
   }
 
-  return { screens, window: root.querySelector('.window'),
+  return { screens, window: root.querySelector('.window'), base,
            inserts: root.querySelector('.inserts'), insertNodes: new Map(),
            captionText: root.querySelector('.caption-text'), lastText: '' };
 }
@@ -169,7 +169,9 @@ function drawOverlays(scene, screen, desc) {
         scene.insertNodes.set(o.id, слой);
       }
       Object.assign(слой.style, INSERT_BOX[o.box] || INSERT_BOX.cover);
-      loadInsert(слой, o.src);
+      // Путь врезки — от корня проекта, как у снимков: относительный уходил бы
+      // рядом со страницей плеера, где никаких врезок нет.
+      loadInsert(слой, `${scene.base}${o.src}`);
       // Время анимаций задаётся кадром, а не часами: иначе скраббер показывал бы одно,
       // а покадровый привод снимал другое — каждый в своём темпе.
       setInsertTime(слой, o.t);
@@ -201,9 +203,6 @@ function drawOverlays(scene, screen, desc) {
   }
   for (const [id, node] of screen.drawn) {
     if (!живые.has(id)) node.style.opacity = '0';
-  }
-  for (const [id, слой] of scene.insertNodes) {
-    if (!живые.has(id)) слой.style.opacity = '0';
   }
 }
 
@@ -296,6 +295,20 @@ function overlayHTML(o) {
 
 export function applyFrame(scene, desc) {
   for (const [, s] of scene.screens) s.el.style.display = 'none';
+
+  /**
+   * Врезки гасятся раз в кадр, а не внутри экрана.
+   *
+   * Экран может до отрисовки наложений и не дойти — у карточки-заставки их нет вовсе,
+   * и цикл для неё прерывается раньше. Врезка тогда оставалась висеть поверх обложки
+   * от прошлого кадра.
+   */
+  const живыеВрезки = new Set(
+    desc.screens.flatMap((d) => (d.overlays || []).map((o) => o.id)));
+  for (const [id, слой] of scene.insertNodes) {
+    if (!живыеВрезки.has(id)) слой.style.opacity = '0';
+  }
+
   for (const d of desc.screens) {
     const s = scene.screens.get(d.plan);
     s.el.style.display = s.card ? 'grid' : '';
