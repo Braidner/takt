@@ -905,24 +905,6 @@ function renderTracks() {
   if (steps) {
     steps.querySelectorAll('.step-seg').forEach((x) => x.remove());
 
-    /* Заставка и финал занимают в ролике первые и последние секунды, но планами не
-       являются и в раскадровке их нет. Без них дорожка начиналась с пустоты, и было
-       непонятно, чем занято начало ролика: человек видел на кадре заголовок, а на
-       шкале — ничего. Двигать и править их нельзя, поэтому они помечены отдельно. */
-    const карточка = (which, at, seconds) => {
-      const seg = document.createElement('button');
-      seg.type = 'button';
-      seg.className = 'step-seg';
-      seg.dataset.card = which;
-      seg.style.left = `calc(${pct(at)} + 1px)`;
-      seg.style.width = `calc(${pct(seconds)} - 2px)`;
-      trTitle(seg, which === 'slate' ? 'cardTitleSlate' : 'cardTitleEnd');
-      if (openCard === which) seg.setAttribute('aria-current', 'true');
-      seg.addEventListener('click', () => { seek(at); openCardInspector(which); });
-      steps.append(seg);
-    };
-    if (storyboard?.slate?.on) карточка('slate', 0, storyboard.slate.seconds || SLATE);
-
     for (const s of storyboard?.plans || []) {
       const seg = document.createElement('span');
       seg.className = 'step-seg';
@@ -933,11 +915,6 @@ function renderTracks() {
       steps.append(seg);
     }
 
-    const последний = (storyboard?.plans || []).at(-1);
-    if (storyboard?.end?.on && последний) {
-      карточка('end', последний.at + последний.duration.seconds,
-               storyboard.end.seconds || END);
-    }
   }
 
   /**
@@ -950,6 +927,30 @@ function renderTracks() {
   const fx = track('effects');
   if (fx) {
     fx.innerHTML = '';
+
+    /* Заставка и финал живут на дорожке эффектов, рядом с наездами и склейками:
+       для человека это такое же решение о том, как ролик выглядит, — правится там
+       же и теми же движениями. Планами они не являются: снимать в них нечего. */
+    const карточка = (which, at, seconds) => {
+      const clip = document.createElement('button');
+      clip.type = 'button';
+      clip.className = 'clip';
+      clip.dataset.kind = 'card';
+      clip.style.left = `calc(${pct(at)} + 1px)`;
+      clip.style.width = `calc(${pct(seconds)} - 2px)`;
+      tr(clip, which === 'slate' ? 'cardTitleSlate' : 'cardTitleEnd');
+      trTitle(clip, which === 'slate' ? 'cardTitleSlate' : 'cardTitleEnd');
+      if (openCard === which) clip.setAttribute('aria-current', 'true');
+      clip.addEventListener('click', () => { seek(at); openCardInspector(which); });
+      fx.append(clip);
+    };
+    if (storyboard?.slate?.on) карточка('slate', 0, storyboard.slate.seconds || SLATE);
+    const последний = (storyboard?.plans || []).at(-1);
+    if (storyboard?.end?.on && последний) {
+      карточка('end', последний.at + последний.duration.seconds,
+               storyboard.end.seconds || END);
+    }
+
     const byId = new Map((storyboard?.plans || []).map((x) => [x.id, x]));
     for (const e of storyboard?.effects || []) {
       const plan = byId.get(e.plan);

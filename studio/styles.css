@@ -920,6 +920,16 @@ button, input, textarea, select { font: inherit; color: inherit; }
   border-color: color-mix(in oklch, var(--warn) 52%, transparent);
 }
 
+/* Карточка — не эффект плана, а край ролика: полосатая заливка отличает её от
+   наездов и склеек, оставляя на той же дорожке. */
+.clip[data-kind="card"] {
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in oklch, var(--ink) 14%, transparent) 0 4px,
+    transparent 4px 8px);
+  border-color: color-mix(in oklch, var(--ink) 30%, transparent);
+}
+
 .clip[data-source="manual"] {
   box-shadow: inset 0 0 0 1px var(--brand-cyan);
 }
