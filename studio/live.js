@@ -341,6 +341,11 @@ function renderBoard(next) {
       <span class="step-dur"></span>
       <span class="step-label"></span>${s.intent ? '<span class="step-note"></span>' : ''}`;
     b.querySelector('.step-label').textContent = s.title.text;
+    if (s.mode === 'insert') {
+      li.dataset.insert = 'true';
+      // Без титра строка была бы пустой: называем её видом, а не выдуманным именем.
+      if (!s.title.text) tr(b.querySelector('.step-label'), 'planInsert');
+    }
     // Длительность видна всегда и всегда говорит, откуда взялась: «выведена» и
     // «назначена человеком» — разные вещи, и пересчёт трогает только первую.
     const dur = b.querySelector('.step-dur');
@@ -368,6 +373,9 @@ function renderBoard(next) {
       el.steps.querySelectorAll('.step').forEach((x) => x.removeAttribute('aria-current'));
       b.setAttribute('aria-current', 'true');
       seek(s.at);
+      // У вставки нет ни экрана, ни действия: единственное, что в ней можно
+      // смотреть, — она сама. Поэтому щелчок сразу открывает её правку.
+      if (s.mode === 'insert') openWedgeInspector(s.id);
     });
     li.append(b);
 
@@ -412,6 +420,7 @@ function renderBoard(next) {
         <button type="button" class="step-tool" data-act="mark"></button>
         <button type="button" class="step-tool" data-act="insert"></button>
         <button type="button" class="step-tool" data-act="tempo"></button>
+        <button type="button" class="step-tool" data-act="wedge"></button>
         <button type="button" class="step-tool" data-act="del"></button></div>`;
       const drag = tools.querySelector('[data-act="drag"]');
       tr(drag, 'toolDrag');
@@ -424,13 +433,18 @@ function renderBoard(next) {
       tr(markTool, 'toolMark');
       trTitle(markTool, 'toolMarkTitle');
       // Подсветить можно только то, во что план целится: наложение живёт на якоре,
-      // а якорь берётся из действия.
+      // а якорь берётся из действия. У вставки действия нет вовсе.
       markTool.disabled = !s.action?.selector;
       const insertTool = tools.querySelector('[data-act="insert"]');
       tr(insertTool, 'toolInsert');
       trTitle(insertTool, 'toolInsertTitle');
       // Вставлять нечего, пока в проекте нет ни одной врезки: их рисует агент.
       insertTool.disabled = !insertsList.length;
+      const wedgeTool = tools.querySelector('[data-act="wedge"]');
+      tr(wedgeTool, 'toolWedge');
+      trTitle(wedgeTool, 'toolWedgeTitle');
+      // Как и наложению, вставке нужен файл: пока их нет, обещать нечего.
+      wedgeTool.disabled = !insertsList.length;
       const tempoTool = tools.querySelector('[data-act="tempo"]');
       tr(tempoTool, 'toolTempo');
       trTitle(tempoTool, 'toolTempoTitle');
@@ -475,6 +489,20 @@ function renderBoard(next) {
             anchor: null, params: { rate: 0.5 }, source: 'manual',
           }];
           await pushBoard({ effects });
+          return;
+        }
+        /* Вставка встаёт СЛЕДОМ за планом, а не вместо него: она объясняет то, что
+           человек только что увидел на экране. Класть её перед планом значило бы
+           рассказывать про экран, которого зритель ещё не видел. */
+        if (act === 'wedge') {
+          /* Титр пустой намеренно: графика объясняет себя сама, а служебное имя,
+             выжженное в кадр, — мусор поверх схемы. Захочет подписать — впишет. */
+          plans.splice(i + 1, 0, {
+            mode: 'insert',
+            insert: { src: insertsList[0]?.file || null },
+            title: { text: '', style: 'lower' },
+          });
+          await pushBoard({ plans });
           return;
         }
         if (act === 'del') plans.splice(i, 1);
@@ -550,7 +578,10 @@ function renderBoard(next) {
   renderTracks();
   // Открытый инспектор перечитывается: сервер нормализовал правку, и показывать
   // человеку его же ввод вместо принятого значения — самый тихий способ соврать.
-  if (openCard) openCardInspector(openCard);
+  if (openWedge) {
+    if ((storyboard.plans || []).some((p) => p.id === openWedge)) openWedgeInspector(openWedge);
+    else closeInspector();
+  } else if (openCard) openCardInspector(openCard);
   else if (openEffect) {
     if (effectById(openEffect)) openInspector(openEffect);
     else closeInspector();
@@ -665,6 +696,7 @@ async function renderStages() {
  */
 let openEffect = null;
 let openCard = null;                  // 'slate' | 'end', когда правится карточка
+let openWedge = null;                 // идентификатор плана-вставки, когда правится он
 let zoom = 1;                         // во сколько раз шкала шире своей колонки
 
 /**
@@ -797,7 +829,36 @@ function openCardInspector(which) {
   renderTracks();
 }
 
+/**
+ * Инспектор вставки: файл врезки и сколько она держится.
+ *
+ * Отдельного окна ей не нужно — это тот же инспектор, что у эффектов и карточек.
+ * Человек правит то, что видит в кадре, и видит результат там же.
+ */
+function openWedgeInspector(id) {
+  const plan = (storyboard?.plans || []).find((p) => p.id === id);
+  if (!plan || !el.inspector) return;
+  openWedge = id;
+  openCard = null;
+  openEffect = null;
+  el.inspector.hidden = false;
+  el.inspector.dataset.kind = 'wedge';
+  el.inspector.querySelector('.inspector-title').textContent = plan.title.text
+    || window.taktText?.('wedgeTitle') || 'Вставка';
+  const src = el.inspector.querySelector('.fx-src');
+  src.innerHTML = insertsList.length
+    ? insertsList.map((i) => `<option value="${i.file}">${i.name}</option>`).join('')
+    : '<option value="">—</option>';
+  src.value = plan.insert?.src || insertsList[0]?.file || '';
+  el.inspector.querySelector('.card-seconds').value = plan.duration.seconds;
+  el.inspector.querySelector('.fx-text').value = plan.title.text || '';
+  el.inspector.querySelector('.inspector-auto').hidden = true;
+  syncInspectorFields();
+  renderTracks();
+}
+
 function closeInspector() {
+  openWedge = null;
   openCard = null;
   openEffect = null;
   if (el.inspector) el.inspector.hidden = true;
@@ -816,6 +877,17 @@ function syncInspectorFields() {
   }
   for (const кл of ['card-on-row', 'card-sub-row', 'card-url-row', 'card-seconds-row']) {
     el.inspector.querySelector(`.${кл}`).hidden = !карточка;
+  }
+  if (вид === 'wedge') {
+    for (const кл of ['fx-move-row', 'fx-from-row', 'fx-to-row', 'fx-depth-row',
+                      'fx-speed-row', 'fx-place-row', 'card-on-row', 'card-sub-row',
+                      'card-url-row']) {
+      el.inspector.querySelector(`.${кл}`).hidden = true;
+    }
+    el.inspector.querySelector('.fx-src-row').hidden = false;
+    el.inspector.querySelector('.fx-text-row').hidden = false;
+    el.inspector.querySelector('.card-seconds-row').hidden = false;
+    return;
   }
   if (карточка) {
     // Подзаголовок бывает только у обложки, ссылка — только у финала: на обложке
@@ -842,6 +914,21 @@ function syncInspectorFields() {
 }
 
 async function saveInspector() {
+  if (openWedge) {
+    const seconds = Number(el.inspector.querySelector('.card-seconds').value);
+    const текст = el.inspector.querySelector('.fx-text').value.trim();
+    const plans = (storyboard.plans || []).map((p) => (p.id === openWedge
+      ? { ...p,
+          insert: { src: el.inspector.querySelector('.fx-src').value || null },
+          title: { ...p.title, text: текст },
+          // Пустое поле возвращает выведенное время — как и у обычного плана.
+          duration: Number.isFinite(seconds) && seconds > 0
+            ? { source: 'manual', seconds: Math.round(seconds * 10) / 10 }
+            : undefined }
+      : p));
+    await pushBoard({ plans });
+    return;
+  }
   if (openCard) {
     const seconds = Number(el.inspector.querySelector('.card-seconds').value);
     const карточка = {
@@ -909,6 +996,7 @@ function renderTracks() {
       const seg = document.createElement('span');
       seg.className = 'step-seg';
       seg.dataset.state = s.state || 'pending';
+      if (s.mode === 'insert') seg.dataset.insert = 'true';
       seg.style.left = `calc(${pct(s.at)} + 1px)`;
       seg.style.width = `calc(${pct(s.duration.seconds)} - 2px)`;
       seg.title = `${s.n}. ${s.title.text}`;

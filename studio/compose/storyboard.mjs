@@ -133,8 +133,16 @@ export function normalizeStoryboard(sb) {
   const финал = end.on && Boolean(sb?.title || end.text);
   let at = обложка ? slate.seconds : 0;
 
+  /* Свободный номер ищется среди ВСЕХ планов, а не только уже просмотренных.
+     Иначе план, добавленный в середину, забирал идентификатор у того, кто шёл
+     следом, и дальше по цепочке: снятые состояния оставались под прежними
+     именами, а половина ролика разом становилась «не снятой». */
+  const занятые = (sb?.plans || []).map((p) => p.id).filter(Boolean);
   const plans = (sb?.plans || []).map((p, i) => {
-    const id = p.id && !seen.includes(p.id) ? p.id : nextPlanId(seen.map((x) => ({ id: x })));
+    const свободен = p.id && !seen.includes(p.id);
+    const id = свободен
+      ? p.id
+      : nextPlanId([...занятые, ...seen].map((x) => ({ id: x })));
     seen.push(id);
     const plan = {
       ...p,
@@ -200,7 +208,9 @@ export function checkStoryboard(sb) {
   const name = (p) => p.title?.text || `план ${p.n}`;
 
   for (const p of sb.plans || []) {
-    if (!p.title?.text) {
+    // Вставка без титра — норма: её содержание нарисовано в ней самой, и подпись
+    // поверх схемы только отнимает у схемы место.
+    if (!p.title?.text && p.mode !== 'insert') {
       issues.push({ plan: p.id, text: `План ${p.n} без титра: зритель не поймёт, что ему показывают` });
     }
     if (p.duration?.over) {
