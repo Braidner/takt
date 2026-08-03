@@ -106,6 +106,15 @@
                 data-i="sourceVideo" aria-pressed="false">Видео</button>
       </div>
       <div class="cuts" role="group" hidden></div>
+      <!-- Размер окна приложения в кадре: решение о том, как ролик выглядит,
+           поэтому стоит рядом с просмотром, а не в настройках проекта. -->
+      <div class="screen-size" role="group" data-i-aria="screenSize" aria-label="Размер экрана">
+        <button type="button" class="zoom-btn" data-screen="out"
+                data-i-aria="screenSmaller" aria-label="Уменьшить экран">−</button>
+        <span class="screen-size-value">80%</span>
+        <button type="button" class="zoom-btn" data-screen="in"
+                data-i-aria="screenBigger" aria-label="Увеличить экран">+</button>
+      </div>
       <div class="transport-actions">
         <button class="ghost script-shoot" type="button" data-i="shootRun" hidden>Снимать</button>
         <button class="ghost" type="button" data-i="stop">Остановить</button>

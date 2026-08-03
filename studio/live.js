@@ -575,6 +575,7 @@ function renderBoard(next) {
   el.steps.append(строкаКарточки('end'));
 
   renderScriptCount();
+  renderScreenSize();
   renderRuler();
   renderTracks();
   // Открытый инспектор перечитывается: сервер нормализовал правку, и показывать
@@ -1312,7 +1313,9 @@ function setupCompose() {
   addEventListener('message', (e) => {
     if (e.data?.source !== 'takt-compose') return;
     if (e.data.type === 'takt:ready') {
-      compose = { ...compose, ready: true, seconds: e.data.seconds || 0 };
+      compose = { ...compose, ready: true, seconds: e.data.seconds || 0,
+                  screenFit: e.data.screenFit || null };
+      renderScreenSize();
       if (e.data.issues?.length) console.warn('замечания композиции:', e.data.issues);
     }
     if (e.data.type === 'takt:error') compose = { ...compose, ready: false, seconds: 0 };
@@ -1407,6 +1410,24 @@ function togglePlay() {
  * показывал новую длину, а шапка — прежнюю, и человек видел два разных ответа
  * на один вопрос.
  */
+/** Размер окна в кадре — числом рядом с кнопками: «плюс» без числа ничего не говорит. */
+function renderScreenSize() {
+  const узел = document.querySelector('.screen-size-value');
+  if (!узел || !storyboard) return;
+  const задано = storyboard.screenSize || 0.8;
+  /* Показываем то, что применилось, а не то, что записано: окно упирается в высоту
+     кадра раньше, чем в единицу, и на широком интерфейсе потолок наступает около
+     девяноста процентов. Рисуй мы заданное — «плюс» продолжал бы менять число,
+     ничего не меняя в кадре. */
+  const реально = compose.screenFit || задано;
+  узел.textContent = `${Math.round(реально * 100)}%`;
+  for (const b of document.querySelectorAll('[data-screen]')) {
+    b.disabled = b.dataset.screen === 'in'
+      ? задано >= 1 || реально < задано - 0.005
+      : задано <= 0.5;
+  }
+}
+
 function renderScriptCount() {
   if (!el.scriptCount || !storyboard?.plans) return;
   el.scriptCount.textContent = `${storyboard.plans.length} · ${mmss(DURATION)}`;
@@ -1854,6 +1875,19 @@ async function boot() {
   });
 
   el.play?.addEventListener('click', togglePlay);
+
+  /* Размер окна приложения. Шаг в пять процентов: мельче человек не видит разницы
+     и жмёт вслепую, крупнее — проскакивает то, что искал. */
+  document.querySelector('.screen-size')?.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-screen]');
+    if (!b || !storyboard?.plans) return;
+    const было = storyboard.screenSize || 0.8;
+    const стало = Math.min(1, Math.max(0.5,
+      Math.round((было + (b.dataset.screen === 'in' ? 0.05 : -0.05)) * 100) / 100));
+    if (стало === было) return;
+    await pushBoard({ screenSize: стало });
+    reloadCompose();
+  });
 
   document.querySelector('.zoom')?.addEventListener('click', (e) => {
     const b = e.target.closest('.zoom-btn');

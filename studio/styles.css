@@ -811,6 +811,21 @@ button, input, textarea, select { font: inherit; color: inherit; }
   min-width: 100%;
 }
 
+/* Размер экрана — та же пара кнопок, что у масштаба шкалы: одинаковое движение
+   для одинакового по смыслу действия. */
+.screen-size {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+.screen-size-value {
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  color: var(--ink-muted);
+  min-width: 34px;
+  text-align: center;
+}
+
 .zoom {
   display: flex;
   gap: 2px;
