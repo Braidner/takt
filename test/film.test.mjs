@@ -160,7 +160,8 @@ test('хайлайты: укороченный план едет меньше, �
 test('заставка и финал встают по краям и входят в хронометраж', () => {
   const states = [state()];
   const sb = board([{ title: { text: 'Лента' }, action: { kind: 'hold', seconds: 2 } }], states);
-  const film = buildFilm(manifest(states), { ...sb, title: 'Демо', slate: true, task: 'о чём ролик' });
+  const film = buildFilm(manifest(states),
+    normalizeStoryboard({ ...sb, title: 'Демо', slate: true, end: true, task: 'о чём ролик' }));
 
   assert.deepEqual(film.plans.map((p) => p.id), ['slate', 'p01', 'end']);
   assert.equal(film.plans[0].kind, 'card');
@@ -172,11 +173,28 @@ test('заставка и финал встают по краям и входя�
   assert.equal(film.seconds, 2.6 + sb.seconds + 2.2);
 });
 
+test('длина карточки идёт из раскадровки, а не из константы', () => {
+  const states = [state()];
+  const sb = board([{ title: { text: 'Лента' }, action: { kind: 'hold', seconds: 2 } }], states);
+  const film = buildFilm(manifest(states), normalizeStoryboard({
+    ...sb, title: 'Демо',
+    slate: { on: true, text: 'Своя обложка', subtitle: 'и свой подзаголовок', seconds: 4 },
+    end: { on: true, text: 'Конец', url: 'takt.dev', seconds: 1.5 },
+  }));
+  assert.equal(film.plans[0].text, 'Своя обложка');
+  assert.equal(film.plans[0].subtitle, 'и свой подзаголовок');
+  assert.equal(film.plans[0].to, 4, 'обложка длится столько, сколько задано');
+  assert.equal(film.plans[1].from, 4, 'первый план начинается после неё');
+  assert.equal(film.plans.at(-1).text, 'Конец');
+  assert.equal(film.plans.at(-1).url, 'takt.dev');
+  assert.equal(film.plans.at(-1).to - film.plans.at(-1).from, 1.5);
+});
+
 test('заставка склеивается с первым планом, финал ни с чем', () => {
   const states = [state()];
   const film = buildFilm(manifest(states),
-    { ...board([{ title: { text: 'Лента' }, action: null }], states),
-      title: 'Демо', slate: true });
+    normalizeStoryboard({ ...board([{ title: { text: 'Лента' }, action: null }], states),
+                          title: 'Демо', slate: true, end: true }));
   assert.equal(film.plans[0].transition.style, 'dissolve');
   assert.equal(film.plans.at(-1).transition, null);
 });
@@ -184,7 +202,8 @@ test('заставка склеивается с первым планом, фи
 test('без названия карточек нет: обложке неоткуда взяться', () => {
   const states = [state()];
   const sb = board([{ title: { text: 'Лента' }, action: null }], states);
-  const film = buildFilm(manifest(states), { ...sb, title: '', slate: true });
+  const film = buildFilm(manifest(states),
+    normalizeStoryboard({ ...sb, title: '', slate: true, end: true }));
   assert.deepEqual(film.plans.map((p) => p.id), ['p01']);
 });
 
@@ -194,7 +213,8 @@ test('хайлайты карточек не берут', () => {
     { title: { text: 'Первый' }, action: { kind: 'hold', seconds: 2 } },
     { title: { text: 'Второй' }, action: { kind: 'hold', seconds: 2 } },
   ], states);
-  const film = buildFilm(manifest(states), { ...sb, title: 'Демо', slate: true });
+  const film = buildFilm(manifest(states),
+    normalizeStoryboard({ ...sb, title: 'Демо', slate: true, end: true }));
   const hl = buildHighlightFilm(film, { seconds: 25 });
   assert.deepEqual(hl.plans.map((p) => p.id), ['p01', 'p02']);
 });

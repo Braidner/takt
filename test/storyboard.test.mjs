@@ -104,10 +104,67 @@ test('нормализация: номера и время выводятся, �
 });
 
 test('нормализация: без обложки планы начинаются с нуля', () => {
-  const sb = normalizeStoryboard({ ...fromScenario(MC), slate: false });
+  const sb = normalizeStoryboard({ ...fromScenario(MC), slate: { on: false }, end: { on: false } });
   assert.equal(sb.plans[0].at, 0);
   const sum = sb.plans.reduce((s, p) => s + p.duration.seconds, 0);
   assert.ok(Math.abs(sb.seconds - sum) < 0.05);
+});
+
+test('карточки независимы: обложку можно снять, оставив финал', () => {
+  // Пока это был один флаг, финал уходил вместе с обложкой. Ролик, который
+  // начинается сразу с дела и заканчивается плашкой со ссылкой, — обычная просьба.
+  const sb = normalizeStoryboard({ ...fromScenario(MC), slate: { on: false } });
+  assert.equal(sb.slate.on, false);
+  assert.equal(sb.end.on, true);
+  assert.equal(sb.plans[0].at, 0);
+  const sum = sb.plans.reduce((s, p) => s + p.duration.seconds, 0);
+  assert.ok(Math.abs(sb.seconds - (sum + END)) < 0.05, `${sb.seconds}`);
+});
+
+test('карточки — данные, а не флаг: старое булево переезжает в объект', () => {
+  // Заставка была включателем, и всё её содержание выводилось из названия ролика.
+  // Теперь это запись, которую человек правит, поэтому старые раскадровки надо
+  // прочитать так, будто они всегда такими и были.
+  const был = normalizeStoryboard({ ...fromScenario(MC), slate: true });
+  assert.equal(был.slate.on, true);
+  assert.equal(был.slate.seconds, SLATE);
+  assert.equal(был.end.on, true);
+  assert.equal(был.end.seconds, END);
+
+  // Сырая раскадровка со старым флагом: финал в ней шёл в комплекте с обложкой,
+  // и прочитать её надо так же, иначе у старого проекта вырастет лишняя плашка.
+  const старая = normalizeStoryboard({ title: 'Демо', slate: false,
+                                       plans: [{ title: { text: 'раз' } }] });
+  assert.equal(старая.slate.on, false);
+  assert.equal(старая.end.on, false);
+});
+
+test('карточка держит свой текст, а пустой наследует название ролика', () => {
+  // Текст по умолчанию не копируется в данные: иначе переименование ролика
+  // оставило бы на обложке старое название, и понять почему было бы нечем.
+  const свой = normalizeStoryboard({ ...fromScenario(MC), title: 'Демо',
+                                     slate: { on: true, text: 'Своя обложка' } });
+  assert.equal(свой.slate.text, 'Своя обложка');
+  assert.equal(свой.end.text, null, 'финал названия не задавали — наследует');
+});
+
+test('длительность карточки задаётся и сдвигает всё, что после неё', () => {
+  const sb = normalizeStoryboard({ ...fromScenario(MC),
+                                   slate: { on: true, seconds: 4 },
+                                   end: { on: true, seconds: 1.5 } });
+  assert.equal(sb.plans[0].at, 4, 'первый план начинается после своей обложки');
+  const sum = sb.plans.reduce((s, p) => s + p.duration.seconds, 0);
+  assert.ok(Math.abs(sb.seconds - (4 + sum + 1.5)) < 0.05, `${sb.seconds}`);
+});
+
+test('длительность карточки не бывает нулевой или отрицательной', () => {
+  // Ноль здесь означал бы карточку, которая есть в данных, занимает место
+  // в интерфейсе и не видна в ролике ни одним кадром.
+  const sb = normalizeStoryboard({ ...fromScenario(MC),
+                                   slate: { on: true, seconds: 0 },
+                                   end: { on: true, seconds: -3 } });
+  assert.ok(sb.slate.seconds >= 0.4, `обложка ${sb.slate.seconds}`);
+  assert.ok(sb.end.seconds >= 0.4, `финал ${sb.end.seconds}`);
 });
 
 test('нормализация: время раскадровки совпадает со временем собранной плёнки', () => {
@@ -115,7 +172,7 @@ test('нормализация: время раскадровки совпада
   // на чужой кадр, а замечание по таймкоду приезжало бы агенту не туда.
   const sb = normalizeStoryboard(fromScenario(MC));
   assert.equal(sb.plans[0].at, SLATE);
-  assert.equal(sb.slate, true);
+  assert.equal(sb.slate.on, true);
 });
 
 test('нормализация: идентификатор переживает перестановку планов', () => {

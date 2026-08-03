@@ -152,17 +152,23 @@ export function buildFilm(manifest, storyboard) {
   const clicks = [];
   let at = 0;
 
-  // Заставка идёт первой и в хронометраж входит: иначе таймкоды замечаний и реплик
-  // разъедутся с картинкой ровно на её длину.
-  const заставка = storyboard.slate !== false && Boolean(storyboard.title);
-  if (заставка) {
+  /* Заставка идёт первой и в хронометраж входит: иначе таймкоды замечаний и реплик
+     разъедутся с картинкой ровно на её длину.
+
+     Карточки приходят готовыми записями раскадровки — с текстом и длиной. Плёнка их
+     не сочиняет: пустое поле означает «взять у ролика», и решает это нормализация,
+     а не тот, кто собирает кадры. */
+  const обложка = storyboard.slate || {};
+  const концовка = storyboard.end || {};
+  if (обложка.on) {
     // Задача идёт подзаголовком, только если она короткая: человек пишет её абзацем,
     // а на обложке абзац превращается в стену текста, которую никто не читает.
-    const подзаголовок = storyboard.task && storyboard.task.length <= 90
-      ? storyboard.task : null;
-    plans.push(card('slate', 'slate', 0, SLATE,
-                    { text: storyboard.title, subtitle: подзаголовок }));
-    at += SLATE;
+    const подзаголовок = обложка.subtitle
+      || (storyboard.task && storyboard.task.length <= 90 ? storyboard.task : null);
+    const seconds = обложка.seconds || SLATE;
+    plans.push(card('slate', 'slate', 0, seconds,
+                    { text: обложка.text || storyboard.title, subtitle: подзаголовок }));
+    at += seconds;
   }
 
   for (const plan of storyboard.plans || []) {
@@ -251,11 +257,13 @@ export function buildFilm(manifest, storyboard) {
     at += dur;
   }
 
-  if (заставка) {
-    plans.push(card('end', 'end', at, END,
-                    { text: storyboard.title, url: storyboard.url || null,
+  if (концовка.on) {
+    const seconds = концовка.seconds || END;
+    plans.push(card('end', 'end', at, seconds,
+                    { text: концовка.text || storyboard.title,
+                      url: концовка.url || storyboard.url || null,
                       transition: null }));
-    at += END;
+    at += seconds;
   }
 
   return {
