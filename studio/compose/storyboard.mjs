@@ -121,7 +121,10 @@ const карточка = (v, было, по_умолчанию) => {
   };
 };
 
-export function normalizeStoryboard(sb) {
+export function normalizeStoryboard(sb, states = []) {
+  // Снятое приходит сюда затем, чтобы живой план знал свою настоящую длину:
+  // время ролика считается в одном месте, и факт съёмки — часть этого счёта.
+  const снято = new Map((states || []).map((s) => [s.id, s]));
   const seen = [];
   // Обложка идёт первой и занимает своё время: планы начинаются после неё. Иначе
   // таймкоды раскадровки разъезжаются с собранным роликом ровно на её длину.
@@ -171,7 +174,7 @@ export function normalizeStoryboard(sb) {
     } else {
       delete plan.insert;
     }
-    plan.duration = planDuration(plan);
+    plan.duration = planDuration(plan, снято.get(id) || null);
     at += plan.duration.seconds;
     return plan;
   });

@@ -222,13 +222,15 @@ const readBoard = () => {
       console.log(`раскадровка собрана из старого сценария: ${raw.plans.length} планов`);
     } catch { return null; }
   }
-  // Эффекты пересчитываются по снятым состояниям: их размер решает, куда ехать камере,
-  // а ручные правки режиссёр не трогает.
-  return directStoryboard(normalizeStoryboard(raw), readStates());
+  /* Снятое нужно обоим: нормализации — чтобы живой план знал свою настоящую длину,
+     режиссёру — чтобы решить, куда ехать камере. Ручные правки он не трогает. */
+  const states = readStates();
+  return directStoryboard(normalizeStoryboard(raw, states), states);
 };
 
 const writeBoard = (sb) => {
-  const next = directStoryboard(normalizeStoryboard(sb), readStates());
+  const states = readStates();
+  const next = directStoryboard(normalizeStoryboard(sb, states), states);
   fs.writeFileSync(boardFile(), JSON.stringify(next, null, 2));
   /**
    * Исходная задача словами — первая ступень конвейера и источник перегенерации.

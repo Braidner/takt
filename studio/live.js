@@ -351,7 +351,8 @@ function renderBoard(next) {
     const dur = b.querySelector('.step-dur');
     dur.textContent = `${s.duration.seconds} с`;
     dur.dataset.source = s.duration.source;
-    trTitle(dur, s.duration.source === 'manual' ? 'durManual' : 'durDerived');
+    trTitle(dur, s.duration.source === 'manual' ? 'durManual'
+      : s.duration.source === 'shot' ? 'durShot' : 'durDerived');
     // Намерение плана пишет агент, поэтому оно не переводится.
     const note = b.querySelector('.step-note');
     if (note) note.textContent = s.intent;

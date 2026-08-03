@@ -62,7 +62,14 @@ function actSeconds(action) {
  */
 export const INSERT = 5.5;
 
-export function planDuration(plan) {
+export function planDuration(plan, state = null) {
+  /* Снятое движение нельзя ни растянуть, ни обрезать: длину живого плана задаёт
+     запись, и она главнее назначенного человеком. Иначе раскадровка считает одно,
+     плёнка — другое, и всё, что идёт следом, разъезжается с картинкой. */
+  if (plan?.mode === 'live') {
+    const снято = Math.round((state?.seconds || 0) * 10) / 10;
+    if (снято > 0.4) return { seconds: снято, source: 'shot', over: false };
+  }
   if (plan?.duration?.source === 'manual') {
     return { seconds: plan.duration.seconds, source: 'manual', over: false };
   }

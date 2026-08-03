@@ -36,7 +36,7 @@ try {
      Режиссёр прогоняется здесь же: он не трогает ручные эффекты, зато страхует от
      раскадровки, утверждённой до съёмки, — тогда камере неоткуда было узнать,
      есть ли на странице куда ехать. */
-  const board = normalizeStoryboard(storyboard);
+  const board = normalizeStoryboard(storyboard, manifest.states);
   let film = buildFilm(manifest, directStoryboard(board, manifest.states));
   if (film.issues.length) console.warn('замечания композиции:', film.issues);
   // Хайлайты — та же композиция, другая плёнка: отбор планов вместо обрезки видео.
