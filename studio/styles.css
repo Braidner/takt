@@ -821,6 +821,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
   background: var(--lane);
   box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--line) 45%, transparent);
   cursor: pointer;
+  /* Клип шире дорожки на ширину своей подписи, и без обрезки он вылезал за
+     колонку — вплоть до чужой панели справа. */
+  overflow: hidden;
 }
 
 .marker {
@@ -963,7 +966,11 @@ button, input, textarea, select { font: inherit; color: inherit; }
   font-size: 10px;
   color: var(--ink-faint);
 }
-.ruler span { position: absolute; translate: -50% 0; }
+.ruler span { position: absolute; translate: -50% 0; white-space: nowrap; }
+/* Крайние метки не центрируются по своей засечке: половина «0:00» ушла бы левее
+   нуля, а половина последней — за правый край колонки, на соседнюю панель. */
+.ruler span:first-child { translate: 0 0; }
+.ruler span:last-child { translate: -100% 0; }
 
 /* ── Замечания ─────────────────────────────────────────────────────────────
    Очередь, а не чат «вопрос-ответ»: замечания копятся по ходу просмотра и
