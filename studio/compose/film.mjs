@@ -66,6 +66,12 @@ function overlaysOf(storyboard, plan, state, issues) {
   const out = [];
   for (const e of storyboard.effects || []) {
     if (e.plan !== plan.id || e.kind !== 'overlay') continue;
+    // Врезке якорь не нужен: она не указывает на элемент, а заменяет собой кадр.
+    if (e.params?.what === 'insert' && !e.params?.src) {
+      issues.push({ plan: plan.id,
+        text: `«${plan.title.text}»: у врезки не указан файл — показывать нечего` });
+      continue;
+    }
     const rect = e.anchor ? anchorRect(state, e.anchor) : null;
     if (e.anchor && !rect) {
       issues.push({ plan: plan.id,
@@ -76,6 +82,10 @@ function overlaysOf(storyboard, plan, state, issues) {
       id: e.id,
       what: e.params?.what || 'spotlight',
       text: e.params?.text || '',
+      // Врезка — произвольная графика поверх кадра: у неё есть файл и место, а якорь
+      // не нужен, она объясняет то, чего на экране нет вовсе.
+      src: e.params?.src || null,
+      place: e.params?.place || 'cover',
       rect,
       from: e.at?.from ?? 0,
       to: e.at?.to ?? plan.duration.seconds,

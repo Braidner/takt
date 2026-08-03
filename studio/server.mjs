@@ -718,6 +718,23 @@ const server = http.createServer(async (req, res) => {
   }
 
   /**
+   * ── Врезки проекта: своя графика поверх кадра.
+   *
+   * Рисует их агент и кладёт файлами; студия только предлагает выбрать. Каталог
+   * заводится при первом обращении, чтобы человеку не приходилось создавать его
+   * руками ради того, чтобы увидеть пустой список.
+   */
+  if (p === '/api/inserts' && req.method === 'GET') {
+    const dir = inProject('inserts');
+    fs.mkdirSync(dir, { recursive: true });
+    const files = fs.readdirSync(dir)
+      .filter((f) => /\.(html|svg)$/i.test(f))
+      .sort()
+      .map((f) => ({ file: `inserts/${f}`, name: f.replace(/\.(html|svg)$/i, '') }));
+    return send(res, 200, { inserts: files });
+  }
+
+  /**
    * ── Ступени конвейера: что уже есть, что утверждено, что устарело.
    *
    * Времена берутся с файлов, а не из записей о работе: файл могли переписать мимо

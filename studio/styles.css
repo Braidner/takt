@@ -1428,6 +1428,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 }
 .inspector-row select { width: auto; }
 .inspector-row .fx-text { width: 24ch; }
+.inspector-row .fx-src { max-width: 20ch; }
 
 /* Клип, который правится, виден на дорожке: иначе после прокрутки непонятно,
    к чему относятся поля. */

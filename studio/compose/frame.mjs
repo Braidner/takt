@@ -135,6 +135,10 @@ function overlaysAt(plan, local, scrollY, screen) {
       interpolate(local, [o.to - OVERLAY_FADE, o.to], [1, 0], { easing: easeInOut }),
     );
     out.push({ id: o.id, what: o.what, text: o.text, rect: o.rect, opacity,
+               src: o.src, box: o.place,
+               // Время внутри врезки идёт от её начала: анимация не должна зависеть
+               // от того, в какой момент ролика её поставили.
+               t: Math.round((local - o.from) * 1000) / 1000,
                place: сверху ? 'below' : 'above' });
   }
   return out;

@@ -147,3 +147,18 @@ test('стоп-кадр останавливает время внутри пл�
   // После окна время идёт снова, но со сдвигом на то, что простояло.
   assert.ok(composeFrame(f, Math.round(6 * 30)).screens[0].scrollY > замер);
 });
+
+test('время врезки идёт от её начала, а не от начала ролика', () => {
+  // Анимация внутри врезки не должна зависеть от того, в какой момент её поставили:
+  // иначе одна и та же схема играла бы по-разному в разных планах.
+  const f = film([{ title: { text: 'Пауза' }, action: { kind: 'hold', seconds: 3 } }],
+                 [state()]);
+  f.plans[0].overlays = [{ id: 'ins', what: 'insert', src: 'inserts/x.html',
+                           place: 'cover', from: 1, to: 5, rect: null }];
+
+  const в_начале = composeFrame(f, Math.round(1.2 * 30)).screens[0].overlays[0];
+  assert.ok(Math.abs(в_начале.t - 0.2) < 0.05, `t=${в_начале.t}`);
+  const позже = composeFrame(f, Math.round(3 * 30)).screens[0].overlays[0];
+  assert.ok(Math.abs(позже.t - 2) < 0.05, `t=${позже.t}`);
+  assert.equal(позже.box, 'cover');
+});

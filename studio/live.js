@@ -361,6 +361,7 @@ function renderBoard(next) {
         <button type="button" class="step-tool" data-act="edit"></button>
         <button type="button" class="step-tool" data-act="time"></button>
         <button type="button" class="step-tool" data-act="mark"></button>
+        <button type="button" class="step-tool" data-act="insert"></button>
         <button type="button" class="step-tool" data-act="tempo"></button>
         <button type="button" class="step-tool" data-act="del"></button>`;
       const drag = tools.querySelector('[data-act="drag"]');
@@ -376,6 +377,11 @@ function renderBoard(next) {
       // Подсветить можно только то, во что план целится: наложение живёт на якоре,
       // а якорь берётся из действия.
       markTool.disabled = !s.action?.selector;
+      const insertTool = tools.querySelector('[data-act="insert"]');
+      tr(insertTool, 'toolInsert');
+      trTitle(insertTool, 'toolInsertTitle');
+      // Вставлять нечего, пока в проекте нет ни одной врезки: их рисует агент.
+      insertTool.disabled = !insertsList.length;
       const tempoTool = tools.querySelector('[data-act="tempo"]');
       tr(tempoTool, 'toolTempo');
       trTitle(tempoTool, 'toolTempoTitle');
@@ -395,6 +401,19 @@ function renderBoard(next) {
             at: { from: 0.6, to: Math.max(1.2, s.duration.seconds - 0.4) },
             anchor: s.action.selector,
             params: { what: 'spotlight', text: '' },
+            source: 'manual',
+          }];
+          await pushBoard({ effects });
+          return;
+        }
+        if (act === 'insert') {
+          const effects = [...(storyboard.effects || []), {
+            id: `${s.id}-ins${(storyboard.effects || [])
+              .filter((e) => e.plan === s.id && e.params?.what === 'insert').length + 1}`,
+            plan: s.id, kind: 'overlay',
+            at: { from: 0.3, to: Math.max(1, s.duration.seconds - 0.3) },
+            anchor: null,
+            params: { what: 'insert', src: insertsList[0].file, place: 'cover' },
             source: 'manual',
           }];
           await pushBoard({ effects });
@@ -567,10 +586,18 @@ async function renderStages() {
  * следующий заход режиссёра молча сотрёт работу человека.
  */
 let openEffect = null;
+/** Врезки проекта: их рисует агент, студия только предлагает выбрать. */
+let insertsList = [];
+
+async function loadInserts() {
+  insertsList = await fetch('/api/inserts').then((r) => r.json())
+    .then((d) => d.inserts || []).catch(() => []);
+}
 
 const MOVE_FIELDS = { push: ['depth'], pan: ['speed'], drift: [] };
 /** Что показывает наложение. Текст нужен только выноске — остальным его негде писать. */
-const OVERLAY_FIELDS = { spotlight: [], arrow: [], blur: [], callout: ['text'] };
+const OVERLAY_FIELDS = { spotlight: [], arrow: [], blur: [], callout: ['text'],
+                         insert: ['src', 'place'] };
 /** Темп задаётся одним числом: во сколько раз время внутри плана идёт быстрее. */
 const TEMPO_RATES = ['0', '0.5', '1', '2', '4'];
 
@@ -600,7 +627,7 @@ function openInspector(id) {
      наложение ? 'fxWhat' : темп ? 'fxRate' : 'fxMove');
   const sel = el.inspector.querySelector('.fx-move');
   sel.innerHTML = (наложение
-    ? ['spotlight', 'arrow', 'callout', 'blur']
+    ? ['spotlight', 'arrow', 'callout', 'blur', 'insert']
     : темп ? TEMPO_RATES
     : ['push', 'pan', 'drift']).map((v) => `<option value="${v}" data-i="fx_${v}"></option>`).join('');
   window.taktApply?.();
@@ -608,6 +635,14 @@ function openInspector(id) {
   el.inspector.querySelector('.fx-depth').value = e.params?.depth ?? 1.26;
   el.inspector.querySelector('.fx-speed').value = e.params?.speed ?? 600;
   el.inspector.querySelector('.fx-text').value = e.params?.text ?? '';
+  // Файл врезки выбирается из того, что лежит в проекте: печатать путь руками —
+  // верный способ опечататься и увидеть пустой кадр.
+  const src = el.inspector.querySelector('.fx-src');
+  src.innerHTML = insertsList.length
+    ? insertsList.map((i) => `<option value="${i.file}">${i.name}</option>`).join('')
+    : '<option value="">—</option>';
+  src.value = e.params?.src || insertsList[0]?.file || '';
+  el.inspector.querySelector('.fx-place').value = e.params?.place || 'cover';
   el.inspector.querySelector('.fx-from').value = e.at?.from ?? 0;
   el.inspector.querySelector('.fx-to').value = e.at?.to ?? 0;
   // Склейка своего движения не имеет: показывать ей поля камеры значит обещать
@@ -636,6 +671,8 @@ function syncInspectorFields() {
   el.inspector.querySelector('.fx-depth-row').hidden = !нужные.includes('depth');
   el.inspector.querySelector('.fx-speed-row').hidden = !нужные.includes('speed');
   el.inspector.querySelector('.fx-text-row').hidden = !нужные.includes('text');
+  el.inspector.querySelector('.fx-src-row').hidden = !нужные.includes('src');
+  el.inspector.querySelector('.fx-place-row').hidden = !нужные.includes('place');
 }
 
 async function saveInspector() {
@@ -647,7 +684,12 @@ async function saveInspector() {
   const params = e.kind === 'tempo'
     ? { rate: Number(move) }
     : e.kind === 'overlay'
-    ? { what: move, ...(move === 'callout' ? { text: текст } : {}) }
+    ? { what: move,
+        ...(move === 'callout' ? { text: текст } : {}),
+        ...(move === 'insert'
+          ? { src: el.inspector.querySelector('.fx-src').value,
+              place: el.inspector.querySelector('.fx-place').value }
+          : {}) }
     : e.kind === 'transition'
       ? { ...e.params }
       : { move, ...(move === 'push' ? { depth: num('.fx-depth') } : {}),
@@ -826,6 +868,7 @@ const EVENT_TITLES = {
   cut: 'evCut',
   short: 'evShort',
   regen: 'evRegen',
+  insert: 'evInsert',
 };
 
 /**
@@ -1054,6 +1097,9 @@ function renderCaption(t) {
 
 /** Перемещение позиции без обратного дёрганья видео. */
 function syncCursor(t) {
+  // Не-число здесь стоит дорого: плейхед, часы и метка замечания разом показывают
+  // NaN, а вернуть их обратно можно только перезагрузкой страницы.
+  if (!Number.isFinite(t) || !Number.isFinite(DURATION)) return;
   cursor = Math.max(0, Math.min(DURATION, t));
   const head = document.querySelector('.playhead');
   if (head) head.style.left = `${(cursor / DURATION) * 100}%`;
@@ -1374,6 +1420,7 @@ async function boot() {
   setupDragAndDrop(el.steps);
   setupCompose();
   renderStages();
+  await loadInserts();
   renderBoard(hello.storyboard);
   renderMovie(hello.movie);
   renderNotes(hello.notes || []);
