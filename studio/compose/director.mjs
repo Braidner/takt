@@ -37,6 +37,22 @@ export function autoEffects(plan, state, { last = false } = {}) {
   const dur = plan.duration.seconds;
   const out = [];
 
+  /* Вставке камера не нужна: двигать нечего — графика нарисована ровно под кадр,
+     и наезд на неё выглядел бы съехавшей вёрсткой. Склейка нужна, поэтому ниже
+     она добавляется всем одинаково. */
+  if (plan.mode === 'insert') {
+    if (!last) {
+      out.push({
+        id: `${plan.id}-cut`, plan: plan.id, kind: 'transition',
+        at: { from: Math.round((dur - TRANSITION) * 100) / 100, to: dur },
+        anchor: null,
+        params: { style: 'dissolve' },
+        source: 'auto',
+      });
+    }
+    return out;
+  }
+
   const target = plan.action?.selector || null;
   if (target) {
     out.push({

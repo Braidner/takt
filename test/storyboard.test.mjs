@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { fromScenario, normalizeStoryboard, checkStoryboard, nextPlanId }
   from '../studio/compose/storyboard.mjs';
 import { SLATE, END } from '../studio/compose/duration.mjs';
+import { directStoryboard } from '../studio/compose/director.mjs';
 
 /** Настоящий сценарий mc-медиа: на нём миграция и проверяется. */
 const MC = {
@@ -152,6 +153,19 @@ test('вставка без файла названа в замечаниях, �
   });
   const issues = checkStoryboard(sb);
   assert.ok(issues.some((i) => /врезк|файл/i.test(i.text)), JSON.stringify(issues));
+});
+
+test('режиссёр не двигает камеру по вставке', () => {
+  // Графика нарисована ровно под кадр: наезд на неё читается как съехавшая вёрстка.
+  const sb = directStoryboard(normalizeStoryboard({
+    title: 'Демо',
+    plans: [
+      { id: 'p01', mode: 'insert', insert: { src: 'inserts/схема.html' }, title: { text: 'Схема' } },
+      { id: 'p02', title: { text: 'Итог' }, action: { kind: 'hold', seconds: 2 } },
+    ],
+  }), []);
+  const свои = (sb.effects || []).filter((e) => e.plan === 'p01');
+  assert.deepEqual(свои.map((e) => e.kind), ['transition']);
 });
 
 test('нормализация повторяется без последствий', () => {
