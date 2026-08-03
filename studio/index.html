@@ -52,12 +52,13 @@
     <!-- Ступени конвейера: что уже есть, что утверждено, что устарело после правки.
          Состояние выводится из файлов проекта, хранится только утверждение. -->
     <ol class="stages" hidden></ol>
+    <p class="stages-now" hidden></p>
     <ul class="steps" hidden></ul>
 
     <div class="script-empty">
       <p class="script-empty-text" data-i="scriptEmpty">Опишите, что показать в ролике. Обычными
         словами — на них соберётся раскадровка, которую можно будет поправить до съёмки.</p>
-      <textarea class="task-input" rows="4" data-i-ph="taskPh"
+      <textarea class="task-input" rows="4" data-i-ph="taskPh" data-i-aria="taskPh"
         placeholder="Например: показать, как создать домен, добавить в него маршрут на очередь и запустить"></textarea>
       <button class="primary task-send" type="button" data-i="taskSend">Собрать раскадровку</button>
     </div>
@@ -65,7 +66,7 @@
     <!-- Добавление шага требует знания интерфейса стенда, поэтому уходит агенту;
          остальные правки человек делает сам и мгновенно. -->
     <div class="script-actions" hidden>
-      <textarea class="scenario-note" rows="2" data-i-ph="scenarioNotePh"
+      <textarea class="scenario-note" rows="2" data-i-ph="scenarioNotePh" data-i-aria="scenarioNoteAria"
         placeholder="Опишите изменение, которое хотите увидеть в раскадровке"></textarea>
       <button class="ghost scenario-note-send" type="button"
               data-i="scenarioNoteSend">Передать агенту</button>
@@ -108,10 +109,10 @@
       <div class="transport-actions">
         <button class="ghost script-shoot" type="button" data-i="shootRun" hidden>Снимать</button>
         <button class="ghost" type="button" data-i="stop">Остановить</button>
-        <button class="ghost" type="button" data-i="retake">Переснять сцену</button>
+        <button class="ghost" type="button" data-i="retake">Переснять с этого места</button>
         <!-- Монтаж и короткая версия — работа агента, поэтому кнопки просто ставят
              задачу в очередь. Появляются только когда есть что монтировать. -->
-        <button class="ghost cut-run" type="button" data-i="cutRun" hidden>Смонтировать</button>
+        <button class="ghost cut-run" type="button" data-i="cutRun" hidden>Пересобрать</button>
         <button class="ghost short-run" type="button" data-i="shortRun" hidden>Хайлайты</button>
       </div>
     </div>
@@ -238,7 +239,7 @@
     </div>
 
     <form class="composer" onsubmit="return false">
-      <textarea data-i-ph="composerPh" data-i-args='{"t":"0:47"}'
+      <textarea data-i-ph="composerPh" data-i-aria="composerAria" data-i-args='{"t":"0:47"}'
         placeholder="Что поправить в этот момент? Метка встанет на 0:47"></textarea>
       <div class="composer-row">
         <button class="ghost" type="button" data-i="pin" data-i-args='{"t":"0:47"}'>Метка на 0:47</button>

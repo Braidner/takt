@@ -121,6 +121,10 @@ button, input, textarea, select { font: inherit; color: inherit; }
    кадр, справа копятся замечания, снизу — голос. Прятать их по фазам значит
    заставлять человека переключаться там, где он работает со всем сразу.       */
 
+/* min-width: 0 обязателен для всех областей: без него длинное имя проекта или
+   ряд кнопок расширяет колонку сверх заданной ширины, и грид уезжает за экран. */
+.app > * { min-width: 0; }
+
 .app {
   display: grid;
   grid-template-columns: 264px minmax(0, 1fr) 340px;
@@ -138,10 +142,20 @@ button, input, textarea, select { font: inherit; color: inherit; }
   grid-area: head;
   display: flex;
   align-items: center;
-  gap: var(--sp-4);
+  /* Переносится, а не выталкивает страницу. Студию держат открытой рядом с
+     редактором, то есть в половину экрана: без переноса шапка раздувала грид и
+     давала шестьсот пикселей горизонтальной прокрутки. */
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4);
   padding: var(--sp-3) var(--sp-4);
   border-bottom: 1px solid var(--line);
   background: var(--surface);
+}
+
+/* Распорка работает, только пока строка одна: после переноса она отправляла бы
+   каждую следующую кнопку на свою строку. */
+@media (max-width: 1180px) {
+  .head-spacer { display: none; }
 }
 
 .brand {
@@ -243,6 +257,11 @@ button, input, textarea, select { font: inherit; color: inherit; }
   transition: color var(--fast) var(--ease), border-color var(--fast) var(--ease);
 }
 .ghost:hover { color: var(--ink); border-color: var(--line-strong); }
+/* Нажатие обязано отзываться: без :active кнопка ощущается неживой, и человек
+   жмёт второй раз, не поняв, сработала ли первая. */
+.ghost:active:not(:disabled) { background: var(--surface-raised); }
+.ghost:disabled { opacity: 0.45; cursor: not-allowed; }
+.ghost:disabled:hover { color: var(--ink-muted); border-color: var(--line); }
 .ghost[aria-pressed="true"] { color: var(--ink); border-color: var(--brand-blue); }
 
 /* ── Панели ────────────────────────────────────────────────────────────────── */
@@ -545,20 +564,37 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .step-row.drop-before { box-shadow: inset 0 2px 0 var(--brand-teal); }
 .step-row.drop-after { box-shadow: inset 0 -2px 0 var(--brand-teal); }
 
+/* Раскрытие через grid-template-rows, а не max-height: высота — свойство лейаута,
+   и её анимация заставляет браузер пересчитывать раскладку каждый кадр. Здесь же
+   строк в списке десяток, и каждая наведённая строка платила бы этим пересчётом.
+   Заодно исчезает магическое число 32px, которое врало бы при переносе кнопок. */
 .step-tools {
-  display: flex;
-  gap: var(--sp-1);
-  /* Выравнивание по колонке подписи (58px) съедало треть ширины, и подписи кнопок
-     обрезались на «уб». Панель узкая — здесь важнее уместиться, чем выровняться. */
-  padding: 0 var(--sp-2) var(--sp-2) var(--sp-2);
-  flex-wrap: wrap;
-  max-height: 0;
-  overflow: hidden;
+  display: grid;
+  grid-template-rows: 0fr;
   opacity: 0;
-  transition: max-height var(--fast) var(--ease), opacity var(--fast) var(--ease);
+  transition: grid-template-rows var(--fast) var(--ease), opacity var(--fast) var(--ease);
 }
 .step-row:hover .step-tools,
-.step-row:focus-within .step-tools { max-height: 32px; opacity: 1; }
+.step-row:focus-within .step-tools { grid-template-rows: 1fr; opacity: 1; }
+
+.step-tools-row {
+  display: flex;
+  gap: var(--sp-1);
+  flex-wrap: wrap;
+  /* Выравнивание по колонке подписи (58px) съедало треть ширины, и подписи кнопок
+     обрезались на «уб». Панель узкая — здесь важнее уместиться, чем выровняться. */
+  padding: 0 var(--sp-2);
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Нижний отступ живёт на кнопках, а не на обёртке: собственный padding обёртки
+   не схлопывается вместе с треком, и в закрытом состоянии под каждой строкой
+   оставалась полоска пустоты. */
+.step-tools-row > * { margin-bottom: var(--sp-2); }
+
+.step-tool:active:not(:disabled) { color: var(--ink); }
+.step-tool:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .step-tool {
   display: inline-flex;
@@ -712,7 +748,8 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .transport {
   display: flex;
   align-items: center;
-  gap: var(--sp-3);
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-3);
   padding: var(--sp-3) var(--sp-4);
   border-top: 1px solid var(--line);
   background: var(--surface);
@@ -740,7 +777,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 }
 .clock b { color: var(--ink); font-weight: 560; }
 
-.transport-actions { margin-left: auto; display: flex; gap: var(--sp-2); }
+.transport-actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 
 /* Подписи дорожек живут в своей колонке, а не поверх содержимого: клип или
    засечка в начале ролика иначе ложится ровно на подпись и делает нечитаемым
@@ -801,6 +838,8 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .marker:hover { transform: scale(1.25); }
 .marker[data-kind="voice"] { background: var(--brand-cyan); }
 
+/* Текст клипа читается на своей заливке в обеих темах: светлая давала 3:1 на
+   десяти пикселях — размер, на котором и 4.5:1 уже впритык. */
 .clip {
   position: absolute;
   top: 3px;
@@ -809,8 +848,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
   background: color-mix(in oklch, var(--brand-teal) 30%, transparent);
   border: 1px solid color-mix(in oklch, var(--brand-teal) 52%, transparent);
   overflow: hidden;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 16px;
+  color: var(--ink);
   padding: 0 5px;
   color: var(--ink);
   white-space: nowrap;
@@ -990,6 +1030,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
   transition: background var(--fast) var(--ease);
 }
 .primary:hover { background: oklch(0.58 0.215 259.6); }
+.primary:active:not(:disabled) { filter: brightness(0.92); }
 .primary:disabled { background: var(--surface-raised); color: var(--ink-faint); cursor: not-allowed; filter: none; }
 
 /* ── Голос ─────────────────────────────────────────────────────────────────
@@ -1303,52 +1344,70 @@ button, input, textarea, select { font: inherit; color: inherit; }
 }
 
 /* Ступени конвейера. Полосой, а не списком: их шесть, они идут строго по порядку,
-   и человеку нужно видеть весь путь разом — где он сейчас и что ниже устарело. */
+   и человеку нужно видеть весь путь разом — где он сейчас и что ниже устарело.
+   Подписи на всех шести не помещаются в панель шириной 264 пикселя ни при каком
+   кегле: слово «раскадровка» вдвое шире своей доли. Поэтому полоса показывает
+   риски, а называет только ту ступень, на которой человек сейчас; остальные
+   называет подсказка. */
 .stages {
   display: flex;
-  gap: 2px;
+  gap: 3px;
   margin: 0;
-  padding: var(--sp-2) var(--sp-3);
+  padding: var(--sp-2) var(--sp-3) var(--sp-1);
   list-style: none;
-  border-bottom: 1px solid var(--line);
 }
+
+.stages-now {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-3) var(--sp-2);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--t-xs);
+  color: var(--ink-muted);
+}
+
+.stages-now b { font-weight: 560; color: var(--ink); }
+.stages-now[data-state="stale"] b { color: var(--warn); }
 
 .stage-step {
   flex: 1;
   min-width: 0;
+  /* Кнопки тянутся на высоту самой высокой: иначе полоса, где одно слово
+     переносится, а другие нет, выглядит рваной ступенькой. */
+  display: flex;
 }
 
 .stage-btn {
   width: 100%;
-  padding: var(--sp-1) 2px;
+  /* Риска тонкая, но зона клика — во всю высоту полосы: попадать в четыре пикселя
+     мышью невозможно. */
+  min-height: 22px;
+  display: flex;
+  align-items: center;
+  padding: 0;
   border: none;
-  border-radius: var(--r-sm);
+  border-radius: 2px;
   background: none;
-  color: var(--ink-faint);
-  font-size: 10px;
-  line-height: 1.2;
-  text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   cursor: pointer;
 }
 .stage-btn:disabled { cursor: default; }
+.stage-btn:active:not(:disabled)::before { filter: brightness(1.25); }
 .stage-btn::before {
   content: "";
   display: block;
-  height: 3px;
-  margin-bottom: 3px;
+  width: 100%;
+  height: 4px;
   border-radius: 2px;
   background: var(--line);
+  transition: background var(--fast) var(--ease);
 }
-/* Черновик виден полосой поярче, утверждённое — брендовой, устаревшее —
-   предупреждающей: цвет здесь несёт смысл, поэтому дублируется подсказкой. */
-.stage-step[data-state="draft"] .stage-btn { color: var(--ink-muted); }
+.stage-btn:hover::before { background: var(--line-strong); }
+/* Черновик виден полоской поярче, утверждённое — брендовой, устаревшее —
+   предупреждающей: цвет здесь несёт смысл, поэтому дублируется подписью и
+   подсказкой. */
 .stage-step[data-state="draft"] .stage-btn::before { background: var(--line-strong); }
-.stage-step[data-state="ready"] .stage-btn { color: var(--ink); }
 .stage-step[data-state="ready"] .stage-btn::before { background: var(--brand-teal); }
-.stage-step[data-stale="true"] .stage-btn { color: var(--warn); }
 .stage-step[data-stale="true"] .stage-btn::before { background: var(--warn); }
 
 /* Адрес замечания: план или эффект рядом с таймкодом. Приглушён — это уточнение
@@ -1442,6 +1501,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 /* Источник в кадре — выбор более крупный, чем версия файла: композиция и видео
    показывают разное состояние работы, поэтому переключатель идёт первым. */
 .sources { margin-left: var(--sp-4); }
+.cut-btn:active:not(:disabled) { background: var(--surface-raised); }
 .cut-btn:disabled { opacity: 0.45; cursor: default; }
 .cut-btn:disabled:hover { color: var(--ink-faint); }
 .cut-btn {

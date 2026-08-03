@@ -50,6 +50,7 @@ const el = {
   planApply: document.querySelector('.plan-apply'),
   planRegen: document.querySelector('.plan-regen'),
   stages: document.querySelector('.stages'),
+  stagesNow: document.querySelector('.stages-now'),
   inflight: document.querySelector('.script-actions .inflight'),
   inflightNotes: document.querySelector('.inflight-notes'),
   projectSelect: document.querySelector('.project-select'),
@@ -329,8 +330,11 @@ function renderBoard(next) {
     if (!editable) {
       const retake = document.createElement('div');
       retake.className = 'step-tools';
-      retake.innerHTML = '<button type="button" class="step-tool" data-act="from"></button>';
-      tr(retake.firstElementChild, 'toolFrom');
+      retake.innerHTML = '<div class="step-tools-row">'
+        + '<button type="button" class="step-tool" data-act="from"></button></div>';
+      // Ищем саму кнопку, а не первого потомка: между ними теперь стоит обёртка,
+      // и подпись, поставленная ей, затирала кнопку целиком.
+      tr(retake.querySelector('[data-act="from"]'), 'toolFrom');
       retake.addEventListener('click', (e) => {
         if (e.target.dataset?.act !== 'from') return;
         post('/api/event', { type: 'retake', from: s.n, label: s.title.text });
@@ -357,13 +361,14 @@ function renderBoard(next) {
       const tools = document.createElement('div');
       tools.className = 'step-tools';
       tools.innerHTML = `
+        <div class="step-tools-row">
         <span class="step-tool" data-act="drag"></span>
         <button type="button" class="step-tool" data-act="edit"></button>
         <button type="button" class="step-tool" data-act="time"></button>
         <button type="button" class="step-tool" data-act="mark"></button>
         <button type="button" class="step-tool" data-act="insert"></button>
         <button type="button" class="step-tool" data-act="tempo"></button>
-        <button type="button" class="step-tool" data-act="del"></button>`;
+        <button type="button" class="step-tool" data-act="del"></button></div>`;
       const drag = tools.querySelector('[data-act="drag"]');
       tr(drag, 'toolDrag');
       trTitle(drag, 'toolDragTitle');
@@ -559,8 +564,9 @@ async function renderStages() {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'stage-btn';
-    tr(b, STAGE_KEYS[s.id]);
     const имя = window.taktText(STAGE_KEYS[s.id]) || s.id;
+    // Риска без подписи: имя ступени живёт в подсказке и в строке «где мы сейчас».
+    b.setAttribute('aria-label', имя);
     // Цвет несёт смысл, поэтому дублируется словами: без подсказки «жёлтая полоска»
     // не читается никак.
     trTitle(b, s.stale ? 'stageStale'
@@ -574,6 +580,26 @@ async function renderStages() {
 
     li.append(b);
     el.stages.append(li);
+  }
+
+  /**
+   * Где человек сейчас — последняя ступень, которая уже существует.
+   *
+   * Полоса из шести рисок показывает путь, но сама по себе не отвечает на главный
+   * вопрос «что происходит»; ответ и есть эта строка.
+   */
+  const пройденные = данные.stages.filter((s) => s.state !== 'missing');
+  const текущая = пройденные[пройденные.length - 1] || данные.stages[0];
+  if (el.stagesNow) {
+    el.stagesNow.hidden = false;
+    el.stagesNow.dataset.state = текущая.stale ? 'stale' : текущая.state;
+    const имя = window.taktText(STAGE_KEYS[текущая.id]) || текущая.id;
+    el.stagesNow.innerHTML = '<b></b><span></span>';
+    el.stagesNow.firstElementChild.textContent = имя;
+    tr(el.stagesNow.lastElementChild,
+       текущая.stale ? 'stageNowStale'
+       : текущая.state === 'ready' ? 'stageNowReady'
+       : текущая.state === 'draft' ? 'stageNowDraft' : 'stageNowMissing');
   }
 }
 
@@ -758,8 +784,10 @@ function renderTracks() {
         : e.kind === 'overlay' ? 'mark'
         : e.kind === 'tempo' ? 'tempo' : 'camera';
       if (e.source === 'manual') clip.dataset.source = 'manual';
-      clip.style.left = pct(from);
-      clip.style.width = pct(Math.max(0.25, to - from));
+      clip.style.left = `calc(${pct(from)} + 1px)`;
+      // Зазор в пиксель с каждой стороны: без него соседние клипы сливаются в одну
+      // полосу, и границу эффекта не видно вовсе.
+      clip.style.width = `calc(${pct(Math.max(0.25, to - from))} - 2px)`;
       const move = e.kind === 'transition' ? e.params?.style
         : e.kind === 'overlay' ? e.params?.what
         : e.kind === 'tempo' ? String(e.params?.rate ?? 1) : e.params?.move;
@@ -808,8 +836,8 @@ function renderTracks() {
       const seconds = l.seconds || l.text.trim().length / 13;
       const clip = document.createElement('span');
       clip.className = 'clip';
-      clip.style.left = pct(l.at);
-      clip.style.width = pct(seconds);
+      clip.style.left = `calc(${pct(l.at)} + 1px)`;
+      clip.style.width = `calc(${pct(seconds)} - 2px)`;
       clip.style.opacity = l.seconds ? '1' : '0.5';
       clip.textContent = l.text.slice(0, 40);
       clip.title = l.text;
