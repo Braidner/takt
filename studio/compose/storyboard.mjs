@@ -142,7 +142,7 @@ export function normalizeStoryboard(sb) {
       n: i + 1,
       at: Math.round(at * 10) / 10,
       title: { text: p.title?.text || '', style: p.title?.style || 'lower' },
-      mode: p.mode === 'live' ? 'live' : 'static',
+      mode: p.mode === 'live' ? 'live' : p.mode === 'insert' ? 'insert' : 'static',
       screen: { route: p.screen?.route ?? null, waitFor: p.screen?.waitFor || null },
       action: p.action || null,
       state: p.state || 'pending',
@@ -153,6 +153,16 @@ export function normalizeStoryboard(sb) {
     // Поля, которых больше нет, вычищаются при первом же чтении: без этого они
     // переживают в сохранённых раскадровках и всплывают в экспорте.
     delete plan.diagram;
+    /* Вставка не снимается: экрана у неё нет, действия тоже. Оставь их — и съёмка
+       пойдёт открывать несуществующий маршрут, а режиссёр повесит на неё наезд
+       по якорю, которого ни в одном состоянии нет. */
+    if (plan.mode === 'insert') {
+      plan.insert = { src: p.insert?.src || null };
+      plan.action = null;
+      plan.screen = { route: null, waitFor: null };
+    } else {
+      delete plan.insert;
+    }
     plan.duration = planDuration(plan);
     at += plan.duration.seconds;
     return plan;
@@ -196,6 +206,11 @@ export function checkStoryboard(sb) {
     if (p.duration?.over) {
       issues.push({ plan: p.id,
         text: `«${name(p)}» длиннее ${p.duration.seconds} с — такой план надо разбить надвое` });
+    }
+    // Вставка без файла соберётся в чёрный прямоугольник на пять секунд: формально
+    // это работающий план, и заметить подмену можно только на просмотре готового.
+    if (p.mode === 'insert' && !p.insert?.src) {
+      issues.push({ plan: p.id, text: `«${name(p)}»: вставка без файла врезки — показывать нечего` });
     }
     if (p.action && !KINDS.includes(p.action.kind)) {
       issues.push({ plan: p.id, text: `«${name(p)}»: неизвестное действие «${p.action.kind}»` });

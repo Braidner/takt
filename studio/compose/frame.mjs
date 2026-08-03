@@ -91,6 +91,9 @@ function screenAt(film, plan, t) {
   if (plan.kind === 'card') {
     return { plan: plan.id, card: plan.card, opacity: 1,
              text: plan.text, subtitle: plan.subtitle || null, url: plan.url || null,
+             // Время от начала карточки: врезке-вставке оно нужно, чтобы её
+             // анимации играли от своего нуля, а не от начала ролика.
+             t: Math.round(local * 1000) / 1000,
              appear: interpolate(local, [0, 0.5], [0, 1], { easing: easeInOut }) };
   }
 

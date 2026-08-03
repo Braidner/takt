@@ -55,10 +55,18 @@ function actSeconds(action) {
   }
 }
 
+/**
+ * Вставка держится дольше обычного плана: на ней не смотрят на действие, а читают.
+ * Схему из трёх блоков глазами проходят секунд за пять — короче человек успевает
+ * только заметить, что что-то мелькнуло.
+ */
+export const INSERT = 5.5;
+
 export function planDuration(plan) {
   if (plan?.duration?.source === 'manual') {
     return { seconds: plan.duration.seconds, source: 'manual', over: false };
   }
+  if (plan?.mode === 'insert') return { seconds: INSERT, source: 'derived', over: false };
   const raw = LEAD_IN + actSeconds(plan?.action) + HOLD_OUT;
   return {
     seconds: round(Math.min(MAX, Math.max(MIN, raw))),

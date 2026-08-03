@@ -110,6 +110,50 @@ test('нормализация: без обложки планы начинаю�
   assert.ok(Math.abs(sb.seconds - sum) < 0.05);
 });
 
+test('вставка — план без съёмки: занимает время и несёт файл врезки', () => {
+  // Между сценами нужно объяснить то, чего на экране нет: схему обмена, график,
+  // страницу презентации. Наложением этого не сделать — наложение живёт поверх
+  // снятого плана, а объяснению нужно своё время.
+  const sb = normalizeStoryboard({
+    title: 'Демо',
+    plans: [
+      { title: { text: 'Лента' }, action: { kind: 'hold', seconds: 3 } },
+      { mode: 'insert', insert: { src: 'inserts/схема.html' }, title: { text: 'Как устроен обмен' } },
+      { title: { text: 'Итог' }, action: { kind: 'hold', seconds: 2 } },
+    ],
+  });
+  const вставка = sb.plans[1];
+  assert.equal(вставка.mode, 'insert');
+  assert.equal(вставка.insert.src, 'inserts/схема.html');
+  assert.ok(вставка.duration.seconds >= 3, `вставке нужно время на прочтение: ${вставка.duration.seconds}`);
+  // Съёмке она не адресуется вовсе: снимать в ней нечего.
+  assert.equal(вставка.action, null);
+  assert.equal(вставка.screen.route, null);
+  // Время идёт насквозь: план после вставки начинается после неё.
+  assert.equal(sb.plans[2].at, sb.plans[1].at + вставка.duration.seconds);
+});
+
+test('вставке можно назначить своё время, как любому плану', () => {
+  const sb = normalizeStoryboard({
+    title: 'Демо',
+    plans: [
+      { mode: 'insert', insert: { src: 'inserts/схема.html' },
+        title: { text: 'Схема' }, duration: { source: 'manual', seconds: 8 } },
+    ],
+  });
+  assert.equal(sb.plans[0].duration.seconds, 8);
+  assert.equal(sb.plans[0].duration.source, 'manual');
+});
+
+test('вставка без файла названа в замечаниях, а не собрана вслепую', () => {
+  const sb = normalizeStoryboard({
+    title: 'Демо',
+    plans: [{ mode: 'insert', insert: {}, title: { text: 'Пустая' } }],
+  });
+  const issues = checkStoryboard(sb);
+  assert.ok(issues.some((i) => /врезк|файл/i.test(i.text)), JSON.stringify(issues));
+});
+
 test('нормализация повторяется без последствий', () => {
   // Композиция прогоняет её у себя, не полагаясь на то, что сервер свежей версии.
   // Значит она обязана быть идемпотентной: второй проход не должен сдвинуть ни

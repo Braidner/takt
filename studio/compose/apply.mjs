@@ -67,6 +67,24 @@ export function mountScene(root, film, base) {
   for (const plan of film.plans) {
     // Карточка рисуется поверх всей сцены, а не внутри окна-мокапа: заставка — это
     // не экран продукта, а обложка ролика.
+    /* Вставка: карточка, у которой вместо титра своя графика во весь кадр.
+       Слой тот же, что у наложения-врезки, — и загрузка, и остановка анимаций
+       живут в одном месте, иначе они разъедутся при первой же правке. */
+    if (plan.kind === 'card' && plan.card === 'insert') {
+      const el = document.createElement('div');
+      el.className = 'insert-plan';
+      el.style.cssText = `position:absolute;inset:0;display:none;
+        background:rgba(9,11,16,.96)`;
+      el.innerHTML = `<div class="insert-layer" style="position:absolute">
+        <div class="insert-body" style="position:absolute;inset:0"></div></div>`;
+      const слой = el.querySelector('.insert-layer');
+      Object.assign(слой.style, INSERT_BOX.cover);
+      loadInsert(слой, `${base}${plan.src}`);
+      root.querySelector('.scene').append(el);
+      screens.set(plan.id, { el, card: true, insert: слой });
+      continue;
+    }
+
     if (plan.kind === 'card') {
       const el = document.createElement('div');
       el.style.cssText = `position:absolute;inset:0;display:none;place-content:center;
@@ -311,9 +329,14 @@ export function applyFrame(scene, desc) {
 
   for (const d of desc.screens) {
     const s = scene.screens.get(d.plan);
-    s.el.style.display = s.card ? 'grid' : '';
+    s.el.style.display = s.card ? (s.insert ? 'block' : 'grid') : '';
     s.el.style.opacity = String(d.opacity * (d.appear ?? 1));
-    if (s.card) continue;
+    if (s.card) {
+      // Время врезки идёт от начала её плана: одна и та же схема должна одинаково
+      // играть, куда бы её ни поставили.
+      if (s.insert) setInsertTime(s.insert, d.t ?? 0);
+      continue;
+    }
     if (s.live) {
       // Перематываем только когда действительно надо: лишний seek сбрасывает
       // декодер и заставляет кадр моргнуть.

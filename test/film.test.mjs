@@ -190,6 +190,47 @@ test('длина карточки идёт из раскадровки, а не 
   assert.equal(film.plans.at(-1).to - film.plans.at(-1).from, 1.5);
 });
 
+test('вставка встаёт между планами и несёт свой файл', () => {
+  const states = [state(), state({ id: 'p03' })];
+  const sb = normalizeStoryboard({
+    title: 'Демо', slate: false, end: false,
+    plans: [
+      { id: 'p01', title: { text: 'Лента' }, action: { kind: 'hold', seconds: 2 } },
+      { id: 'p02', mode: 'insert', insert: { src: 'inserts/схема.html' },
+        title: { text: 'Как устроен обмен' }, duration: { source: 'manual', seconds: 6 } },
+      { id: 'p03', title: { text: 'Итог' }, action: { kind: 'hold', seconds: 2 } },
+    ],
+  });
+  const film = buildFilm(manifest(states), directStoryboard(sb, states));
+
+  assert.deepEqual(film.plans.map((p) => p.id), ['p01', 'p02', 'p03']);
+  const вставка = film.plans[1];
+  assert.equal(вставка.kind, 'card');
+  assert.equal(вставка.card, 'insert');
+  assert.equal(вставка.src, 'inserts/схема.html');
+  // Сравниваем границы, а не разность: 8.6 − 2.6 в двоичной дроби даёт 5.999…,
+  // и тест ловил бы арифметику, а не поведение.
+  // Первый план длится 5.2 с (подводка, действие, удержание), вставка идёт следом.
+  assert.equal(вставка.from, 5.2);
+  assert.equal(вставка.to, 11.2);
+  // Планы идут встык: вставка занимает своё время, а не наслаивается на соседа.
+  assert.equal(film.plans[2].from, вставка.to);
+});
+
+test('вставка без файла пропускается и называет план', () => {
+  const states = [state()];
+  const sb = normalizeStoryboard({
+    title: 'Демо', slate: false, end: false,
+    plans: [
+      { id: 'p01', title: { text: 'Лента' }, action: { kind: 'hold', seconds: 2 } },
+      { id: 'p02', mode: 'insert', insert: {}, title: { text: 'Пустая' } },
+    ],
+  });
+  const film = buildFilm(manifest(states), directStoryboard(sb, states));
+  assert.deepEqual(film.plans.map((p) => p.id), ['p01']);
+  assert.match(film.issues[0].text, /Пустая/);
+});
+
 test('заставка склеивается с первым планом, финал ни с чем', () => {
   const states = [state()];
   const film = buildFilm(manifest(states),

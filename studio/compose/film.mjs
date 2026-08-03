@@ -174,6 +174,32 @@ export function buildFilm(manifest, storyboard) {
   for (const plan of storyboard.plans || []) {
     const state = byId.get(plan.id);
 
+    /* Вставка — план, у которого вместо снятого экрана лежит своя графика: схема
+       обмена, график, страница презентации. Снимать в ней нечего, поэтому состояние
+       ей не нужно; кадром она распоряжается целиком, как заставка. */
+    if (plan.mode === 'insert') {
+      if (!plan.insert?.src) {
+        issues.push({ plan: plan.id,
+          text: `«${plan.title.text}»: вставка без файла врезки — план пропущен` });
+        continue;
+      }
+      const dur = plan.duration.seconds;
+      const cut = (storyboard.effects || [])
+        .find((e) => e.plan === plan.id && e.kind === 'transition');
+      plans.push(card(plan.id, 'insert', at, dur, {
+        src: plan.insert.src,
+        title: { text: plan.title.text || '', at: 0 },
+        // Своя склейка, если человек её поставил; иначе обычное растворение,
+        // как между планами: вставка вклинивается в ролик, а не прерывает его.
+        transition: cut
+          ? { from: dur - (cut.params?.seconds ?? 0.35), to: dur,
+              style: cut.params?.style || 'dissolve' }
+          : { from: dur - 0.35, to: dur, style: 'dissolve' },
+      }));
+      at += dur;
+      continue;
+    }
+
     if (plan.mode === 'live') {
       if (!state?.video) {
         issues.push({ plan: plan.id,
