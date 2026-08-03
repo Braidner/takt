@@ -545,7 +545,7 @@ function renderBoard(next) {
   });
   el.steps.append(строкаКарточки('end'));
 
-  if (el.scriptCount) el.scriptCount.textContent = `${storyboard.plans.length} · ${mmss(DURATION)}`;
+  renderScriptCount();
   renderRuler();
   renderTracks();
   // Открытый инспектор перечитывается: сервер нормализовал правку, и показывать
@@ -611,8 +611,14 @@ async function renderStages() {
     b.type = 'button';
     b.className = 'stage-btn';
     const имя = window.taktText(STAGE_KEYS[s.id]) || s.id;
-    // Риска без подписи: имя ступени живёт в подсказке и в строке «где мы сейчас».
     b.setAttribute('aria-label', имя);
+    // Ступень называет себя: пока имя жило только в подсказке, полоса читалась как
+    // ряд разноцветных чёрточек, и понять, какая из них съёмка, можно было лишь
+    // наведя мышь на каждую.
+    const подпись = document.createElement('span');
+    подпись.className = 'stage-name';
+    подпись.textContent = имя;
+    b.append(подпись);
     // Цвет несёт смысл, поэтому дублируется словами: без подсказки «жёлтая полоска»
     // не читается никак.
     trTitle(b, s.stale ? 'stageStale'
@@ -1261,7 +1267,7 @@ function setSource(next) {
   if (el.caption) el.caption.hidden = показываем_композицию;
 
   const длина = показываем_композицию ? compose.seconds : (movie?.duration || DURATION);
-  if (длина) { DURATION = длина; renderRuler(); renderTracks(); }
+  if (длина) { DURATION = длина; renderRuler(); renderTracks(); renderScriptCount(); }
   stopPlaying();
   renderSources();
   syncCursor(Math.min(cursor, DURATION));
@@ -1300,6 +1306,20 @@ function togglePlay() {
     if (t >= DURATION) { seek(DURATION); return stopPlaying(); }
     seek(t);
   }, 40);
+}
+
+/**
+ * Счётчик в шапке раскадровки: сколько планов и сколько это по времени.
+ *
+ * Считается там же, где всё остальное время, и обновляется при каждой смене
+ * длины. Пока он рисовался только при перечитывании раскадровки, шапка держала
+ * старое число: выключенная заставка укорачивала ролик на своей длине, транспорт
+ * показывал новую длину, а шапка — прежнюю, и человек видел два разных ответа
+ * на один вопрос.
+ */
+function renderScriptCount() {
+  if (!el.scriptCount || !storyboard?.plans) return;
+  el.scriptCount.textContent = `${storyboard.plans.length} · ${mmss(DURATION)}`;
 }
 
 /** Титр текущего момента: последний, чьё время уже наступило. */
