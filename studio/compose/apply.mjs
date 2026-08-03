@@ -26,8 +26,17 @@ export function mountScene(root, film, base) {
   const { w: sw, h: sh } = film.screen;
   const fmt = FORMATS[film.format] || FORMATS.wide;
   const W = fmt.w, H = fmt.h;
-  // Окно вписывается по ширине формата, экран внутри — масштабом.
-  const winW = fmt.window, scale = winW / sw;
+
+  /* Ширина окна — доля кадра, заданная в раскадровке. Расти она может до нижнего
+     края кадра, а не до титра: титр лежит поверх картинки и всегда лежал — у него
+     своя тень, и низ интерфейса под ним обычно пуст. Упрись мы в титр, ползунок
+     переставал бы действовать на трёх четвертях своего хода. */
+  const CHROME = 40;                                  // высота шапки окна-мокапа
+  const свободно = H - fmt.top - CHROME - 24;
+  const поШирине = Math.round(W * (film.screenSize || 0.8));
+  const поВысоте = Math.floor((свободно / sh) * sw);
+  const winW = fmt.stage ? fmt.window : Math.max(600, Math.min(поШирине, поВысоте));
+  const scale = winW / sw;
 
   root.innerHTML = `
     <div class="scene" style="position:relative;width:${W}px;height:${H}px;overflow:hidden;
@@ -155,6 +164,9 @@ export function mountScene(root, film, base) {
   }
 
   return { screens, window: root.querySelector('.window'), base,
+           // Доля, которая реально применилась: заданная могла упереться в высоту
+           // кадра, и студии надо об этом сказать — иначе её «плюс» жмут вслепую.
+           screenFit: Math.round((winW / W) * 100) / 100,
            inserts: root.querySelector('.inserts'), insertNodes: new Map(),
            captionText: root.querySelector('.caption-text'), lastText: '' };
 }

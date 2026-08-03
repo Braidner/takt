@@ -138,7 +138,7 @@ try {
     fitEmbed();
     addEventListener('resize', fitEmbed);
     toParent({ type: 'takt:ready', seconds: film.seconds, fps: film.fps,
-               issues: film.issues });
+               screenFit: scene.screenFit, issues: film.issues });
   }
 
   if (!render && !embed) {

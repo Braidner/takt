@@ -12,7 +12,7 @@
  *
  * Без импортов Node: модуль грузит и браузер, и node:test.
  */
-import { LEAD_IN, HOLD_OUT, SCROLL_SPEED, SLATE, END } from './duration.mjs';
+import { LEAD_IN, HOLD_OUT, SCROLL_SPEED, SLATE, END, SCREEN_SIZE } from './duration.mjs';
 import { DEPTH, DRIFT_IN } from './director.mjs';
 
 /** Длина клипа хайлайтов: короче — рвано, длиннее — скучно. */
@@ -296,6 +296,9 @@ export function buildFilm(manifest, storyboard) {
     fps: storyboard.fps || 30,
     format: 'wide',
     screen: { w: manifest.viewport.width, h: manifest.viewport.height },
+    // Размер окна — решение о ролике, а не о формате: он едет вместе с плёнкой,
+    // потому что сцену строит тот, кто её получил.
+    screenSize: storyboard.screenSize || SCREEN_SIZE,
     title: storyboard.title || '',
     seconds: Math.round(at * 10) / 10,
     plans, clicks, issues,

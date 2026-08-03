@@ -225,6 +225,23 @@ test('без снятой записи живой план держит назн
   assert.equal(sb.plans[0].duration.seconds, 8);
 });
 
+test('размер окна приложения — доля кадра, а не константа', () => {
+  // Окно занимало 69% ширины кадра всегда: интерфейс с мелким текстом читался
+  // с трудом, а поля по краям не несли ничего.
+  const по_умолчанию = normalizeStoryboard({ title: 'Демо', plans: [{ title: { text: 'Раз' } }] });
+  assert.equal(typeof по_умолчанию.screenSize, 'number');
+  assert.ok(по_умолчанию.screenSize > 0.5 && по_умолчанию.screenSize <= 1);
+
+  const свой = normalizeStoryboard({ title: 'Демо', screenSize: 0.92,
+                                     plans: [{ title: { text: 'Раз' } }] });
+  assert.equal(свой.screenSize, 0.92);
+
+  // За границы не пускаем: окно шире кадра рисует само себя за краем, уже половины
+  // превращает интерфейс в марку на конверте.
+  assert.equal(normalizeStoryboard({ title: 'Д', screenSize: 3, plans: [] }).screenSize, 1);
+  assert.equal(normalizeStoryboard({ title: 'Д', screenSize: 0.1, plans: [] }).screenSize, 0.5);
+});
+
 test('нормализация повторяется без последствий', () => {
   // Композиция прогоняет её у себя, не полагаясь на то, что сервер свежей версии.
   // Значит она обязана быть идемпотентной: второй проход не должен сдвинуть ни
