@@ -288,3 +288,33 @@ test('план без наложений получает пустой спис�
   const sb = board([{ title: { text: 'Лента' }, action: null }], states);
   assert.deepEqual(buildFilm(manifest(states), sb).plans[0].overlays, []);
 });
+
+test('врезка несёт файл и место, а якорь ей не нужен', () => {
+  const states = [state()];
+  const sb = normalizeStoryboard({
+    title: 'Демо', slate: false,
+    plans: [{ title: { text: 'Пауза' }, action: { kind: 'hold', seconds: 3 } }],
+    effects: [{ id: 'ins', plan: 'p01', kind: 'overlay', at: { from: 0.4, to: 4 },
+                anchor: null, params: { what: 'insert', src: 'inserts/обмен.html', place: 'side' },
+                source: 'manual' }],
+  });
+  const [o] = buildFilm(manifest(states), sb).plans[0].overlays;
+
+  assert.equal(o.what, 'insert');
+  assert.equal(o.src, 'inserts/обмен.html');
+  assert.equal(o.place, 'side');
+  assert.equal(o.rect, null);
+});
+
+test('врезка без файла не показывается и называет план', () => {
+  const states = [state()];
+  const sb = normalizeStoryboard({
+    title: 'Демо', slate: false,
+    plans: [{ title: { text: 'Пауза' }, action: null }],
+    effects: [{ id: 'ins', plan: 'p01', kind: 'overlay', at: { from: 0, to: 3 },
+                params: { what: 'insert' }, source: 'manual' }],
+  });
+  const film = buildFilm(manifest(states), sb);
+  assert.deepEqual(film.plans[0].overlays, []);
+  assert.match(film.issues[0].text, /врезки не указан файл/);
+});

@@ -51,6 +51,9 @@ export function mountScene(root, film, base) {
       </div>
       <div style="position:absolute;inset:0;pointer-events:none;
         background:radial-gradient(118% 90% at 50% 42%,transparent 54%,rgba(0,0,0,.5))"></div>
+      <!-- Врезки: поверх всего, кроме титра. Они не часть интерфейса и не едут с
+           панорамой — они объясняют то, чего на экране нет вовсе. -->
+      <div class="inserts" style="position:absolute;inset:0;pointer-events:none"></div>
       <div class="caption" style="position:absolute;left:0;right:0;bottom:${fmt.capBottom}px;
         text-align:center;
         padding:0 ${fmt.capPad}px"><div style="overflow:hidden;padding-bottom:12px"><div class="caption-text"
@@ -134,6 +137,7 @@ export function mountScene(root, film, base) {
   }
 
   return { screens, window: root.querySelector('.window'),
+           inserts: root.querySelector('.inserts'), insertNodes: new Map(),
            captionText: root.querySelector('.caption-text'), lastText: '' };
 }
 
@@ -148,10 +152,31 @@ export function mountScene(root, film, base) {
  * он едет вместе с панорамой и масштабируется вместе с наездом, как и должно быть у
  * пометки, привязанной к элементу интерфейса.
  */
-function drawOverlays(screen, desc) {
+function drawOverlays(scene, screen, desc) {
   const живые = new Set();
   for (const o of desc.overlays || []) {
     живые.add(o.id);
+
+    // Врезка живёт на уровне сцены, а не внутри окна: иначе она ехала бы с панорамой
+    // и масштабировалась наездом, как будто нарисована на самой странице.
+    if (o.what === 'insert') {
+      let слой = scene.insertNodes.get(o.id);
+      if (!слой) {
+        слой = document.createElement('div');
+        слой.style.cssText = 'position:absolute;pointer-events:none';
+        слой.innerHTML = overlayHTML(o);
+        scene.inserts.append(слой);
+        scene.insertNodes.set(o.id, слой);
+      }
+      Object.assign(слой.style, INSERT_BOX[o.box] || INSERT_BOX.cover);
+      loadInsert(слой, o.src);
+      // Время анимаций задаётся кадром, а не часами: иначе скраббер показывал бы одно,
+      // а покадровый привод снимал другое — каждый в своём темпе.
+      setInsertTime(слой, o.t);
+      слой.style.opacity = String(o.opacity);
+      continue;
+    }
+
     let node = screen.drawn.get(o.id);
     if (!node) {
       node = document.createElement('div');
@@ -177,9 +202,62 @@ function drawOverlays(screen, desc) {
   for (const [id, node] of screen.drawn) {
     if (!живые.has(id)) node.style.opacity = '0';
   }
+  for (const [id, слой] of scene.insertNodes) {
+    if (!живые.has(id)) слой.style.opacity = '0';
+  }
+}
+
+/** Где живёт врезка. Доли кадра, а не пиксели: форматов два, а место одно. */
+const INSERT_BOX = {
+  cover: { left: '6%', top: '8%', width: '88%', height: '84%' },
+  side: { left: '50%', top: '12%', width: '44%', height: '76%' },
+  corner: { left: '58%', top: '58%', width: '36%', height: '34%' },
+};
+
+/**
+ * Загрузка врезки.
+ *
+ * Скрипты вырезаются намеренно: они сломали бы детерминизм — кадр перестал бы зависеть
+ * только от своего номера, — и открыли бы в сборке дыру размером с чужой файл. Врезке
+ * они не нужны: движение задаётся анимациями CSS или SVG, а их время ставит композиция.
+ */
+const загруженные = new Map();
+
+function loadInsert(node, src) {
+  if (!src || node.dataset.src === src) return;
+  node.dataset.src = src;
+  const тело = node.querySelector('.insert-body');
+  if (!загруженные.has(src)) {
+    загруженные.set(src, fetch(src).then((r) => (r.ok ? r.text() : '')).catch(() => ''));
+  }
+  загруженные.get(src).then((html) => {
+    if (node.dataset.src !== src || !тело) return;
+    тело.innerHTML = String(html).replace(/<script[\s\S]*?<\/script>/gi, '');
+    for (const a of тело.getAnimations?.({ subtree: true }) || []) a.pause();
+    for (const svg of тело.querySelectorAll('svg')) svg.pauseAnimations?.();
+  });
+}
+
+/** Время всем анимациям врезки: и Web Animations, и SMIL внутри SVG. */
+function setInsertTime(node, t) {
+  const тело = node.querySelector('.insert-body');
+  if (!тело) return;
+  for (const a of тело.getAnimations?.({ subtree: true }) || []) {
+    a.pause();
+    try { a.currentTime = Math.max(0, t) * 1000; } catch { /* анимация уже завершилась */ }
+  }
+  for (const svg of тело.querySelectorAll('svg')) {
+    svg.pauseAnimations?.();
+    svg.setCurrentTime?.(Math.max(0, t));
+  }
 }
 
 function overlayHTML(o) {
+  if (o.what === 'insert') {
+    // Разметка приходит из файла и вставляется, когда он загрузится: до этого врезка —
+    // прозрачный слой, а не заглушка, которую увидит зритель.
+    return '<div class="insert-body" style="position:absolute;inset:0"></div>';
+  }
   if (o.what === 'blur') {
     return `<div style="position:absolute;inset:0;backdrop-filter:blur(14px);
       border-radius:10px"></div>`;
@@ -233,7 +311,7 @@ export function applyFrame(scene, desc) {
     // Окно камеры: сначала сдвиг к окну, затем масштаб — семантика zoompan.
     s.zoom.style.transform =
       `scale(${d.camera.scale}) translate(${-d.camera.x}px,${-d.camera.y}px)`;
-    drawOverlays(s, d);
+    drawOverlays(scene, s, d);
     if (d.cursor) {
       s.cursor.style.opacity = String(d.cursor.opacity);
       // Курсор целится в якорь — его координаты в шкале СТРАНИЦЫ, а рисуется он
