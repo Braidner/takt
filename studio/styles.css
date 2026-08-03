@@ -790,6 +790,14 @@ button, input, textarea, select { font: inherit; color: inherit; }
   background: var(--surface);
 }
 
+/* Приближённая шкала шире колонки, поэтому дорожки прокручиваются. Прокрутка
+   живёт здесь, а не на всём таймлайне: подписи дорожек должны стоять на месте. */
+.lanes-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
 /* Зазор между дорожками — не украшение: без него четыре канала сливаются в одну
    толстую полосу, и глаз перестаёт различать, где шаги, а где правки. */
 .lanes {
@@ -797,14 +805,42 @@ button, input, textarea, select { font: inherit; color: inherit; }
   display: flex;
   flex-direction: column;
   gap: 5px;
+  /* Единица масштаба — ширина колонки: при 1 шкала ровно по месту, дальше растёт
+     и уезжает под прокрутку. */
+  width: calc(100% * var(--zoom, 1));
+  min-width: 100%;
 }
+
+.zoom {
+  display: flex;
+  gap: 2px;
+  justify-content: flex-end;
+  height: 23px;
+  align-items: center;
+}
+
+.zoom-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.zoom-btn:hover { background: var(--surface-raised); color: var(--ink); }
+.zoom-btn:active { background: var(--line); }
+.zoom-btn:disabled { opacity: .4; cursor: default; }
+.zoom-btn:disabled:hover { background: transparent; color: var(--ink-muted); }
 
 .track-labels {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  /* Высота линейки + зазор: подписи начинаются вровень с первой дорожкой. */
-  padding-top: 23px;
 }
 
 .track-label {
@@ -821,8 +857,8 @@ button, input, textarea, select { font: inherit; color: inherit; }
   background: var(--lane);
   box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--line) 45%, transparent);
   cursor: pointer;
-  /* Клип шире дорожки на ширину своей подписи, и без обрезки он вылезал за
-     колонку — вплоть до чужой панели справа. */
+  /* Клип последнего плана шире дорожки на ширину своей подписи, и без обрезки
+     он вылезал за колонку — вплоть до чужой панели справа. */
   overflow: hidden;
 }
 

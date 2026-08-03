@@ -645,6 +645,41 @@ async function renderStages() {
  */
 let openEffect = null;
 let openCard = null;                  // 'slate' | 'end', когда правится карточка
+let zoom = 1;                         // во сколько раз шкала шире своей колонки
+
+/**
+ * Масштаб шкалы.
+ *
+ * Клип длиной в полсекунды на сорокасекундном ролике — это два пикселя: попасть
+ * в него мышью нельзя, а именно в такие клипы и целятся, когда правят склейку.
+ * Приближение растягивает дорожки внутри их колонки и включает прокрутку.
+ *
+ * Точка, вокруг которой всё растёт, — курсор: человек ставит плейхед туда, куда
+ * смотрит, и ждёт, что оно останется на месте.
+ */
+const ZOOM_MIN = 1;
+const ZOOM_MAX = 16;
+
+function setZoom(next) {
+  const было = zoom;
+  zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, next));
+  const tl = document.querySelector('.timeline');
+  if (tl) tl.style.setProperty('--zoom', String(zoom));
+  for (const b of document.querySelectorAll('.zoom-btn')) {
+    b.disabled = b.dataset.zoom === 'in' ? zoom >= ZOOM_MAX : zoom <= ZOOM_MIN;
+  }
+  if (было !== zoom) { renderRuler(); scrollToCursor(); }
+}
+
+/** Держим плейхед в поле зрения: приближение без этого уводит картинку в никуда. */
+function scrollToCursor() {
+  const scroll = document.querySelector('.lanes-scroll');
+  const lanes = document.querySelector('.lanes');
+  if (!scroll || !lanes || !DURATION) return;
+  const x = (cursor / DURATION) * lanes.clientWidth;
+  const поле = scroll.clientWidth / 2;
+  scroll.scrollLeft = Math.max(0, x - поле);
+}
 /** Врезки проекта: их рисует агент, студия только предлагает выбрать. */
 let insertsList = [];
 
@@ -995,10 +1030,17 @@ function renderRuler() {
   const ruler = document.querySelector('.ruler');
   if (!ruler) return;
   ruler.innerHTML = '';
-  for (let i = 0; i <= 4; i++) {
+  // Делений столько, сколько влезает читаемо: на приближённой шкале четыре метки
+  // на весь ролик оставляли бы человека без ориентиров ровно там, где он целится.
+  const делений = Math.min(24, Math.max(4, Math.round(4 * zoom)));
+  const шаг = DURATION / делений;
+  for (let i = 0; i <= делений; i++) {
     const span = document.createElement('span');
-    span.style.left = `${i * 25}%`;
-    span.textContent = mmss((DURATION * i) / 4);
+    const t = (DURATION * i) / делений;
+    span.style.left = `${(i * 100) / делений}%`;
+    // Мельче секунды минуты не нужны, а округление до них превращает соседние
+    // метки в одинаковые: приблизил ради точности — и остался без неё.
+    span.textContent = шаг >= 1 ? mmss(t) : `${t.toFixed(1)} с`;
     ruler.append(span);
   }
   const total = document.querySelector('.clock');
@@ -1688,6 +1730,20 @@ async function boot() {
   });
 
   el.play?.addEventListener('click', togglePlay);
+
+  document.querySelector('.zoom')?.addEventListener('click', (e) => {
+    const b = e.target.closest('.zoom-btn');
+    if (!b) return;
+    setZoom(b.dataset.zoom === 'in' ? zoom * 2 : zoom / 2);
+  });
+  // Колесо с модификатором — то, чем это делают во всех монтажках; без модификатора
+  // страница должна прокручиваться, а не приближаться под рукой.
+  document.querySelector('.lanes-scroll')?.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    setZoom(zoom * (e.deltaY < 0 ? 1.25 : 0.8));
+  }, { passive: false });
+  setZoom(1);
   el.inspector?.addEventListener('change', (e) => {
     if (e.target.classList.contains('fx-move')) syncInspectorFields();
     saveInspector();

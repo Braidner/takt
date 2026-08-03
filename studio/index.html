@@ -121,12 +121,21 @@
          дорожки разом, а его координата в процентах имеет смысл только внутри
          колонки, чья ширина совпадает с шириной дорожек. -->
     <div class="timeline">
-      <div class="track-labels" aria-hidden="true">
+      <div class="track-labels">
+        <div class="zoom">
+          <button type="button" class="zoom-btn" data-zoom="out"
+                  data-i-aria="zoomOut" aria-label="Отдалить">−</button>
+          <button type="button" class="zoom-btn" data-zoom="in"
+                  data-i-aria="zoomIn" aria-label="Приблизить">+</button>
+        </div>
         <span class="track-label" data-i="trackSteps">Планы</span>
         <span class="track-label" data-i="trackEffects">Эффекты</span>
         <span class="track-label" data-i="trackNotes">Правки</span>
         <span class="track-label" data-i="trackVoice">Голос</span>
       </div>
+      <!-- Дорожки прокручиваются, подписи стоят: приблизив шкалу, человек ищет
+           момент, а не вспоминает, какая дорожка какая. -->
+      <div class="lanes-scroll">
       <div class="lanes">
         <div class="ruler">
           <span style="left:0%">0:00</span>
@@ -140,6 +149,7 @@
         <div class="track" data-track="notes" data-i-title="trackNotesTitle" title="Замечания"></div>
         <div class="track" data-track="voice" data-i-title="trackVoiceTitle" title="Дикторские реплики"></div>
         <span class="playhead"></span>
+      </div>
       </div>
     </div>
 
