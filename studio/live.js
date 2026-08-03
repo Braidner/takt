@@ -1,5 +1,6 @@
 import { setupVoice } from './voice.js';
 import { setupNarration } from './narration.js';
+import { SLATE, END } from './compose/duration.mjs';
 
 /**
  * Связь страницы с агентом.
@@ -751,6 +752,22 @@ function renderTracks() {
   const steps = track('steps');
   if (steps) {
     steps.querySelectorAll('.step-seg').forEach((x) => x.remove());
+
+    /* Заставка и финал занимают в ролике первые и последние секунды, но планами не
+       являются и в раскадровке их нет. Без них дорожка начиналась с пустоты, и было
+       непонятно, чем занято начало ролика: человек видел на кадре заголовок, а на
+       шкале — ничего. Двигать и править их нельзя, поэтому они помечены отдельно. */
+    const карточка = (at, seconds, подпись) => {
+      const seg = document.createElement('span');
+      seg.className = 'step-seg';
+      seg.dataset.card = '1';
+      seg.style.left = `calc(${pct(at)} + 1px)`;
+      seg.style.width = `calc(${pct(seconds)} - 2px)`;
+      seg.title = подпись;
+      steps.append(seg);
+    };
+    if (storyboard?.slate) карточка(0, SLATE, window.taktText?.('cardSlate') || 'Заставка');
+
     for (const s of storyboard?.plans || []) {
       const seg = document.createElement('span');
       seg.className = 'step-seg';
@@ -759,6 +776,12 @@ function renderTracks() {
       seg.style.width = `calc(${pct(s.duration.seconds)} - 2px)`;
       seg.title = `${s.n}. ${s.title.text}`;
       steps.append(seg);
+    }
+
+    const последний = (storyboard?.plans || []).at(-1);
+    if (storyboard?.slate && последний) {
+      карточка(последний.at + последний.duration.seconds, END,
+               window.taktText?.('cardEnd') || 'Финальная плашка');
     }
   }
 
