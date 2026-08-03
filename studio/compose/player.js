@@ -117,6 +117,9 @@ try {
     addEventListener('message', (e) => {
       if (e.data?.type === 'takt:seek') seek(Math.round((e.data.t || 0) * film.fps));
     });
+    // Врезка — это кадр, а не страница: прокручивать в ней нечего, и полоса
+    // прокрутки съедала бы часть самого кадра.
+    document.documentElement.style.overflow = 'hidden';
     const fitEmbed = () => {
       const s = Math.min(innerWidth / SCENE.w, innerHeight / SCENE.h);
       const frame = document.getElementById('frame');

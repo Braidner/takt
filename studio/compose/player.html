@@ -11,6 +11,10 @@
      привод вывода снимает её 1:1, человеку она ужимается под его экран. */
   #frame { transform-origin: 0 0; }
   #controls { display: flex; gap: 12px; align-items: center; padding: 10px 16px; }
+  /* Собственный display перебивает hidden: во врезке студии этот бар оставался
+     на экране мёртвым — обработчики ему навешиваются только в отдельном окне, —
+     да ещё и добавлял высоту, из-за которой врезка начинала прокручиваться. */
+  #controls[hidden] { display: none; }
   #controls input[type=range] { flex: 1; accent-color: #4c8dff; }
   #controls button { background: #182034; color: inherit; border: 1px solid #2a3550;
                      border-radius: 8px; padding: 6px 14px; cursor: pointer; }
