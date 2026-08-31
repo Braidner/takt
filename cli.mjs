@@ -65,24 +65,52 @@ async function studioAlive() {
 
 const [, , command, ...args] = process.argv;
 
-if (!command || command === 'help' || command === '--help' || command === '-h') {
+/**
+ * Без аргументов команда показывает состояние, а не оглавление.
+ *
+ * Список команд агент читает один раз и дальше знает; чего он не знает никогда —
+ * что происходит с проектом прямо сейчас: какой открыт, докуда дошли, ждёт ли
+ * человек ответа. Раньше `takt` печатал справку и выходил с кодом 1, то есть
+ * тратил ход на то, что и так лежит в инструкции.
+ */
+if (!command) {
+  const { state } = await import('./studio/state.mjs');
+  await state();
+  process.exit(0);
+}
+
+if (command === 'help' || command === '--help' || command === '-h') {
   const width = Math.max(...Object.keys(COMMANDS).map((c) => c.length));
   console.log('Takt — студия демонстрационных роликов\n\n  takt <команда> [аргументы]\n');
   for (const [name, { help }] of Object.entries(COMMANDS)) {
     console.log(`  ${name.padEnd(width)}  ${help}`);
   }
+  console.log('\n  takt                       что сейчас с проектом');
+  console.log('  takt playbook <id>         справочник по части работы');
   console.log('\nДанные лежат в $TAKT_HOME (по умолчанию ~/takt) и переживают переустановку.');
-  process.exit(command ? 0 : 1);
+  process.exit(0);
 }
 
 const entry = COMMANDS[command];
 if (!entry) {
-  // Опечатка в команде не должна выглядеть как поломка: показываем, что рядом.
+  /* Неизвестная команда — ошибка вызова, а не работы: код 2. Агенту это разные
+     развилки. На единице он повторяет с другими данными, на двойке читает справку
+     и больше не тратит ходов на угадывание. */
   const близкие = Object.keys(COMMANDS).filter((c) => c.startsWith(command[0]));
-  console.error(`Нет команды «${command}».`
-    + (близкие.length ? ` Может быть: ${близкие.join(', ')}?` : '')
-    + '\nСписок команд: takt help');
-  process.exit(1);
+  console.log(`ok: false\nerror: unknown_command\ntext: нет команды «${command}»`
+    + (близкие.length ? `\nnear[${близкие.length}]: ${близкие.join(',')}` : '')
+    + '\nhelp[1]: "список команд: takt help"');
+  process.exit(2);
+}
+
+/* Справка по подкоманде: сама команда её не разбирает — она бы приняла --help за
+   свой флаг и полезла работать. Раньше `takt build --help` честно пытался собрать
+   ролик и жаловался, что студия не запущена. */
+if (args[0] === '--help' || args[0] === '-h') {
+  console.log(`takt ${command} — ${entry.help}`);
+  if (entry.studio) console.log('Работает через запущенную студию: takt serve');
+  console.log(`Исполнитель: ${entry.file}`);
+  process.exit(0);
 }
 
 const file = path.join(DIR, entry.file);
