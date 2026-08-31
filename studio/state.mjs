@@ -34,7 +34,11 @@ export async function state() {
   const файлы = Object.fromEntries(fs.readdirSync(dir).map((f) => {
     try { return [f, fs.statSync(path.join(dir, f)).mtimeMs]; } catch { return [f, 0]; }
   }));
-  const шаги = pipelineState({ files: файлы, approved: читать(path.join(dir, 'approved.json')) || [] });
+  /* Утверждения лежат в project.json, а не отдельным файлом: там же, где их пишет
+     студия. Читать их «где логичнее» значит показывать черновиком то, что человек
+     уже утвердил. */
+  const проект = читать(path.join(dir, 'project.json')) || {};
+  const шаги = pipelineState({ files: файлы, approved: проект.approved || [], gates: проект.gates });
 
   const raw = читать(path.join(dir, 'storyboard.json'));
   const board = raw ? normalizeStoryboard(raw, читать(path.join(dir, 'states.json'))?.states || []) : null;

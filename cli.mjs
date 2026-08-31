@@ -37,6 +37,7 @@ const COMMANDS = {
   track:    { file: 'studio/build-track.mjs', help: 'собрать дикторскую дорожку и подмешать в ролик', studio: true },
   narrate:  { file: 'studio/narrate.py',      help: 'синтезировать реплики клонированным голосом', studio: true },
   voice:    { file: 'studio/prepare-voice.mjs', help: 'подготовить добавленный голос', studio: true },
+  playbook: { file: 'studio/playbook.mjs',    help: 'справочник по части работы (список: takt playbook)' },
   target:   { file: 'studio/target.mjs',      help: 'что известно про снимаемую систему' },
   export:   { file: 'studio/export.mjs',      help: 'выгрузить ролик с раскадровкой и текстом' },
   doctor:   { file: 'studio/doctor.mjs',      help: 'что установлено и что для чего не хватает' },
