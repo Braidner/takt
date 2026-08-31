@@ -13,6 +13,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { findSkill } from './skill.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -71,7 +72,11 @@ export function readVersion({ check = false } = {}) {
     behind = Number(счёт) || 0;
   }
 
-  return describeVersion({
-    source: 'git', commit: строка[0], date: строка[1], subject: строка[2], branch, dirty, behind,
-  });
+  return {
+    ...describeVersion({
+      source: 'git', commit: строка[0], date: строка[1], subject: строка[2], branch, dirty, behind,
+    }),
+    // Как установлен скилл: от этого зависит, обновится ли он вместе с кодом.
+    skill: findSkill(ROOT).kind,
+  };
 }

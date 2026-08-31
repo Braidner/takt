@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT, studioStatus, stopStudio, ensureDeps, migrateVenvs, launchStudio }
   from './bootstrap.mjs';
+import { findSkill, syncSkill } from './lib/skill.mjs';
 
 const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' });
 
@@ -36,6 +37,17 @@ if (fs.existsSync(path.join(ROOT, '.git'))) {
     console.error('\nskills CLI не смог обновить. Вручную: npx skills update takt');
     process.exit(1);
   }
+}
+
+/* Скилл обновляется вместе с кодом только если он на него ссылается. Копия
+   отстала бы молча: ничего не падает, просто агент читает вчерашнюю инструкцию —
+   ровно та болезнь, ради которой скилл ужимался до стаба. */
+const скилл = findSkill(ROOT);
+if (скилл.needsCopy) {
+  const части = syncSkill(ROOT, скилл.dir);
+  console.log(`Скилл обновлён копированием (${скилл.dir}): ${части.join(', ')}`);
+} else if (скилл.kind === 'link') {
+  console.log(`Скилл ссылается на этот каталог — обновился вместе с кодом.`);
 }
 
 migrateVenvs();
