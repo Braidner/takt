@@ -324,28 +324,80 @@
   а не тяну <code>@toon-format/toon</code>. Если предпочитаете зависимость — скажите, поменяю.</p>
 </div>
 
-<h2><span class="num">08</span> Ход работы</h2>
-<ol class="steps" id="progress">
+<h2><span class="num">08</span> Сделано</h2>
+<p>Пять коммитов в <code>main</code>, 195 тестов зелёные. Ниже — что изменилось в ответах команд.</p>
+
+<div class="grid g2" style="margin-bottom:var(--sp-5)">
+  <div class="card">
+    <h3 style="color:var(--ink-faint)">Было</h3>
+    <pre style="margin:0;overflow-x:auto;font:12px var(--mono);color:var(--ink-muted)">{
+ "ok": true,
+ "out": "movie.mp4",
+ "fps": 25,
+ "frames": 1145,
+ "duration": 45.8,
+ "megabytes": 20.9,
+ "seconds": 39
+}</pre>
+    <p style="margin:var(--sp-3) 0 0;font-size:13px">Что дальше — агент вспоминает из справочника.</p>
+  </div>
+  <div class="card" style="border-color: color-mix(in oklch, var(--brand-teal) 35%, transparent)">
+    <h3 style="color:var(--brand-teal)">Стало</h3>
+    <pre style="margin:0;overflow-x:auto;font:12px var(--mono);color:var(--ink)">ok: true
+out: movie.mp4
+fps: 25
+frames: 1145
+duration: 45.8
+megabytes: 20.9
+seconds: 39
+issues[0]:
+help[3]: "показать человеку и ждать
+  замечаний: takt poll","короткая
+  версия для ленты: takt highlight",
+  "озвучить: takt narrate"</pre>
+    <p style="margin:var(--sp-3) 0 0;font-size:13px">Следующий шаг — готовой командой, в самом ответе.</p>
+  </div>
+</div>
+
+<ol class="steps">
   <li><span class="n">01</span><div>
-    <h3>Кодировщик TOON и общий вывод <span class="tag tag-part">в работе</span></h3>
-    <p style="margin:0">Свой модуль под наши формы вывода, с тестами. На нём же строятся
-    подсказки <code>help[]</code>.</p>
+    <h3>Кодировщик TOON и общий ответ <span class="tag tag-yes">готово</span></h3>
+    <p style="margin:0">Свой, без новой зависимости, 9 тестов. Разнородный список намеренно
+    не притворяется таблицей: заголовок соврал бы про записи, где поля нет.</p>
   </div></li>
   <li><span class="n">02</span><div>
-    <h3>Команды печатают TOON и ведут к следующему шагу <span class="tag tag-no">ждёт</span></h3>
-    <p style="margin:0">Четырнадцать файлов, где сейчас <code>JSON.stringify</code>.</p>
+    <h3>Команды в TOON и с подсказками <span class="tag tag-yes">готово</span></h3>
+    <p style="margin:0">Четырнадцать мест переведены. Ожидание событий подсказывает по виду
+    события: пришла задача — собрать раскадровку, пришла пересъёмка — <code>takt shoot --from</code>.</p>
   </div></li>
   <li><span class="n">03</span><div>
-    <h3>Состояние по умолчанию и коды возврата <span class="tag tag-no">ждёт</span></h3>
-    <p style="margin:0"><code>takt</code> показывает проект и ступень, <code>--help</code> — команды,
-    неверный вызов даёт <code>exit 2</code>.</p>
+    <h3>Состояние по умолчанию и коды возврата <span class="tag tag-yes">готово</span></h3>
+    <p style="margin:0"><code>takt</code> печатает проект, ступени, замечания и что делать
+    дальше. Неверный вызов даёт <code>exit 2</code>, <code>takt build --help</code> больше
+    не пытается собрать ролик.</p>
   </div></li>
   <li><span class="n">04</span><div>
-    <h3>Инструкция переезжает в CLI <span class="tag tag-no">ждёт</span></h3>
-    <p style="margin:0">Справочники становятся <code>takt playbook &lt;id&gt;</code>,
-    <code>SKILL.md</code> ужимается до стаба.</p>
+    <h3>Инструкция переехала в CLI <span class="tag tag-yes">готово</span></h3>
+    <p style="margin:0">Семь справочников — это <code>takt playbook &lt;id&gt;</code>.
+    <code>SKILL.md</code> ужался со 140 строк до 59 и больше не знает внутренностей,
+    а значит не может от них отстать.</p>
   </div></li>
 </ol>
+
+<h2><span class="num">09</span> Что осталось за рамками</h2>
+<div class="grid g2">
+  <div class="card">
+    <h3>Обрезка длинного (принцип 3)</h3>
+    <p style="margin:0">Раскадровка уходит агенту целиком. На восьми планах терпимо,
+    на сорока — нет. Нужен предел с пометкой о размере и флагом <code>--full</code>.</p>
+  </div>
+  <div class="card">
+    <h3>Фоновый контекст (принцип 7)</h3>
+    <p style="margin:0">Хук, показывающий состояние проекта в начале сессии, без запроса.
+    Сейчас это делает <code>takt</code> — но агент должен догадаться её позвать.</p>
+  </div>
+</div>
+<p style="margin-top:var(--sp-4)">Оба не входили в четыре шага. Скажите, если нужны — допишу.</p>
 
 </div>
 </body>

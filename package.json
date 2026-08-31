@@ -8,6 +8,7 @@
     "test": "node --test --test-timeout=30000 \"test/**/*.test.mjs\""
   },
   "dependencies": {
+    "@toon-format/toon": "^4.1.1",
     "playwright": "1.62.0"
   },
   "license": "MIT",
