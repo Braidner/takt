@@ -133,11 +133,12 @@ try {
     megabytes: Math.round(Number(meta.size) / 1024 / 1024 * 10) / 10,
     seconds: Math.round((Date.now() - t0) / 1000),
     issues: (film.issues || []).map((i) => i.text),
-  }, [
-    'показать человеку и ждать замечаний: takt poll',
-    'короткая версия для ленты: takt highlight',
-    'озвучить дикторским текстом: takt narrate',
-  ]);
+  }, highlight
+    ? ['показать человеку: takt poll',
+       vertical ? 'широкая версия: takt highlight' : 'вертикальная для ленты: takt highlight --vertical']
+    : ['показать человеку и ждать замечаний: takt poll',
+       'короткая версия для ленты: takt highlight',
+       'озвучить дикторским текстом: takt narrate']);
 } catch (e) {
   await api('/api/status', { state: 'listening', text: 'Сборка не удалась', step: null, of: null });
   fail('render_failed', e.message.split('\n').slice(0, 3).join(' '), {
