@@ -11,6 +11,12 @@ public/timeline/
 studio/takt.json
 studio/takt.preset.json
 
+# Разборы Lavish: рабочая переписка с человеком, а не исходник. Живут в дереве
+# скилла, поэтому любая незаконченная правка делала его грязным — и takt update
+# отказывался работать, хотя обновлять было нечего. Готовый разбор при нужде
+# выгружается командой lavish-axi export.
+.lavish/
+
 node_modules/
 .DS_Store
 *.log
