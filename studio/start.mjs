@@ -8,6 +8,7 @@
  * у человека уже открыта.
  */
 import { ensureDeps, migrateVenvs, launchStudio, openSite } from './bootstrap.mjs';
+import { ok, fail } from './lib/out.mjs';
 
 const noOpen = process.argv.includes('--no-open');
 
@@ -17,4 +18,5 @@ const { url, reused } = await launchStudio();
 if (!noOpen) openSite(url);
 
 console.log(reused ? `Студия уже работает: ${url}` : `Студия поднята: ${url}`);
-console.log(JSON.stringify({ ok: true, url, studio: reused ? 'reused' : 'started' }));
+ok({ ok: true, url, studio: reused ? 'reused' : 'started' },
+   ['ждать задачу от человека: takt poll']);

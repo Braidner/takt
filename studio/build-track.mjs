@@ -24,6 +24,7 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { inProject } from './project.mjs';
 import { SERVER_INFO } from './home.mjs';
+import { ok, fail } from './lib/out.mjs';
 
 const run = promisify(execFile);
 const DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -38,7 +39,11 @@ const api = (route, payload) =>
 
 const narration = await fetch(`${base}/api/narration`).then((r) => r.json());
 const movie = JSON.parse(fs.readFileSync(inProject('movie.json'), 'utf8'));
-if (!narration?.lines?.length) { console.error('Дикторский текст пуст'); process.exit(1); }
+if (!narration?.lines?.length) {
+  fail('no_narration', 'дикторский текст пуст',
+       { help: ['текст пишет человек в студии или агент — затем: takt narrate'] });
+  process.exit(1);
+}
 
 const VOICED = inProject('narration');
 const TRIM = path.join(VOICED, 'trim');
@@ -79,7 +84,10 @@ for (const [i, line] of narration.lines.entries()) {
   labels.push(`[d${idx}]`);
 }
 
-if (!labels.length) { console.error('Нет озвученных реплик'); process.exit(1); }
+if (!labels.length) {
+  fail('no_voice', 'реплики не озвучены', { help: ['синтезировать голосом: takt narrate'] });
+  process.exit(1);
+}
 
 await api('/api/status', { state: 'busy', text: 'Собираю дорожку', step: null, of: null });
 
@@ -123,4 +131,5 @@ await run('ffmpeg', ['-v', 'error', '-y', '-i', inProject('movie.mp4'), '-i', tr
 await api('/api/movie', { ...movie, url: '/project/movie-vo.mp4', voiced: true });
 await api('/api/status', { state: 'listening', text: 'Ролик озвучен', step: null, of: null });
 
-console.log(JSON.stringify({ ok: true, lines: labels.length, out: withVoice, warnings }));
+ok({ ok: true, lines: labels.length, out: withVoice, warnings },
+   ['показать человеку версию с озвучкой: takt poll']);

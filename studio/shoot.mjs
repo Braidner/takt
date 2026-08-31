@@ -35,6 +35,7 @@ import { waitUntilSettled } from './lib/settle.mjs';
 import { smoothScroll } from './lib/scroll.mjs';
 import { captureState } from './lib/state.mjs';
 import { checkStates } from './lib/inspect.mjs';
+import { ok, fail, usage } from './lib/out.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const info = JSON.parse(fs.readFileSync(SERVER_INFO, 'utf8'));
@@ -53,13 +54,15 @@ const shouldStop = () =>
     .then((d) => Boolean(d.stop)).catch(() => false);
 const storyboard = await fetch(`${base}/api/storyboard`).then((r) => r.json());
 if (!storyboard?.plans?.length) {
-  console.error('Раскадровка пуста: снимать нечего');
+  fail('empty_storyboard', 'раскадровка пуста: снимать нечего',
+       { help: ['отправить раскадровку: takt storyboard <файл>'] });
   process.exit(1);
 }
 if (storyboard.status !== 'ready') {
   // Черновик снимать нельзя намеренно: прогон стоит минут, а раскадровку ещё правят.
-  console.error('Раскадровка не утверждена — нажмите «Снимать» в студии');
-  process.exit(2);
+  fail('not_approved', 'раскадровка не утверждена — человек нажимает «Снимать» в студии',
+       { help: ['ждать, пока человек утвердит: takt poll'] });
+  process.exit(1);
 }
 
 const fromArg = process.argv.indexOf('--from');
@@ -365,15 +368,18 @@ try {
   if (stopped) {
     await setStatus({ state: 'listening', text: 'Съёмка остановлена', key: 'agentStopped',
                       step: null, of: null });
-    console.log(JSON.stringify({ ok: false, stopped: true, video: file }));
+    ok({ ok: false, stopped: true, video: file },
+   ['съёмка остановлена человеком: takt poll']);
   } else if (failed) {
     await setStatus({ state: 'listening', text: `Шаг ${failed.n} не прошёл`,
                       key: 'agentStepFailed', args: { n: failed.n }, step: null, of: null });
-    console.log(JSON.stringify({ ok: false, failed, video: file }));
+    ok({ ok: false, failed, video: file },
+   ['разведать интерфейс заново: takt probe', 'ждать замечаний человека: takt poll']);
   } else {
     await setStatus({ state: 'listening', text: 'Съёмка завершена', key: 'agentDone',
                       step: null, of: null });
-    console.log(JSON.stringify({ ok: true, plans: storyboard.plans.length,
-                                 seconds: Math.round((Date.now() - started) / 1000), video: file }));
+    ok({ ok: true, plans: storyboard.plans.length,
+         seconds: Math.round((Date.now() - started) / 1000), video: file },
+       ['собрать ролик: takt build']);
   }
 }

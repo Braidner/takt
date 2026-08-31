@@ -20,6 +20,7 @@ import { login } from './lib/stend.mjs';
 import { readConfig } from './resolve-stend.mjs';
 import { dismissDevOverlay } from './dismiss-overlay.mjs';
 import { loadPreset } from './preset.mjs';
+import { ok, fail } from './lib/out.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const cfg = readConfig();
@@ -80,4 +81,6 @@ const shot = inProject('probe.png');
 await page.screenshot({ path: shot });
 await browser.close();
 
-console.log(JSON.stringify({ url, devOverlay: hadOverlay, ...facts, screenshot: shot }, null, 1));
+ok({ url, devOverlay: hadOverlay, ...facts, screenshot: shot },
+   ['собрать раскадровку по разведанному: takt storyboard <файл.json>',
+    'справочник по раскадровке: takt playbook storyboard']);

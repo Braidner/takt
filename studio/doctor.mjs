@@ -20,6 +20,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { HOME, HOME_FROM } from './home.mjs';
 import { REGISTRY, VENV_TTS, VENV_CHATTERBOX, BIN, PY } from './registry.mjs';
+import { ok, fail } from './lib/out.mjs';
 
 const run = promisify(execFile);
 const DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -137,7 +138,9 @@ const report = {
 };
 
 if (process.argv.includes('--json')) {
-  console.log(JSON.stringify(report, null, 1));
+  ok(report, report.missing?.length
+     ? [`поставить недостающее: takt install ${report.missing[0].id ?? report.missing[0]}`]
+     : []);
 } else {
   const где = { TAKT_HOME: 'переменная TAKT_HOME', legacy: 'каталог рядом с кодом',
                 default: 'по умолчанию' }[HOME_FROM];

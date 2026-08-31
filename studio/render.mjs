@@ -18,6 +18,7 @@ import { chromium } from 'playwright';
 import { inProject } from './project.mjs';
 import { SERVER_INFO } from './home.mjs';
 import { buildSound } from './sound.mjs';
+import { ok, fail } from './lib/out.mjs';
 
 const run = promisify(execFile);
 const silent = process.argv.includes('--silent');
@@ -126,16 +127,22 @@ try {
                               captions: [], builtAt: new Date().toISOString() });
   }
   await api('/api/status', { state: 'listening', text: 'Ролик собран', step: null, of: null });
-  console.log(JSON.stringify({
+  ok({
     ok: true, out, fps: film.fps, frames: film.frames,
     duration: Number(Number(meta.duration).toFixed(1)),
     megabytes: Math.round(Number(meta.size) / 1024 / 1024 * 10) / 10,
     seconds: Math.round((Date.now() - t0) / 1000),
-  }, null, 1));
+    issues: (film.issues || []).map((i) => i.text),
+  }, [
+    'показать человеку и ждать замечаний: takt poll',
+    'короткая версия для ленты: takt highlight',
+    'озвучить дикторским текстом: takt narrate',
+  ]);
 } catch (e) {
   await api('/api/status', { state: 'listening', text: 'Сборка не удалась', step: null, of: null });
-  console.error('рендер:', e.message.split('\n').slice(0, 3).join(' '));
-  process.exitCode = 1;
+  fail('render_failed', e.message.split('\n').slice(0, 3).join(' '), {
+    help: ['посмотреть, что композиция думает о раскадровке: takt poll'],
+  });
 } finally {
   await browser.close();
 }

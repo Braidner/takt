@@ -16,20 +16,21 @@
  */
 import fs from 'node:fs';
 import { SERVER_INFO } from './home.mjs';
+import { ok, usage } from './lib/out.mjs';
 
 const info = JSON.parse(fs.readFileSync(SERVER_INFO, 'utf8'));
 const base = `http://localhost:${info.port}`;
 
 if (process.argv[2] === '--show') {
   const r = await fetch(`${base}/api/storyboard`);
-  console.log(JSON.stringify(await r.json(), null, 1));
+  ok(await r.json(), ['посмотреть план работ по замечаниям: takt poll']);
   process.exit(0);
 }
 
 const file = process.argv[2];
 if (!file) {
-  console.error('Укажите файл раскадровки: node studio/storyboard.mjs draft.json');
-  process.exit(1);
+  usage('укажите файл раскадровки', ['takt storyboard <файл.json>']);
+  process.exit(2);
 }
 
 const draft = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -63,7 +64,9 @@ const r = await fetch(`${base}/api/storyboard?token=${info.token}`, {
 const answer = await r.json();
 
 const mmss = (x) => `${Math.floor(x / 60)}:${String(Math.round(x % 60)).padStart(2, '0')}`;
-console.log(JSON.stringify(answer));
+ok(answer, answer.issues?.length
+     ? ['раскадровка принята с замечаниями — поправить и отправить снова']
+     : ['человек утверждает её в студии и нажимает «Снимать»', 'ждать этого: takt poll']);
 console.log(`${payload.status === 'ready' ? 'Утверждена' : 'Черновик'}: `
   + `${plans.length} планов, ${mmss(answer.seconds || 0)}`);
 // Замечания печатаются сразу: длинный план надо разбить надвое, и узнать об этом

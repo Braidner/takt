@@ -23,6 +23,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { VOICES, SERVER_INFO } from './home.mjs';
+import { ok, fail } from './lib/out.mjs';
 
 const run = promisify(execFile);
 const DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -90,7 +91,7 @@ await fetch(`http://localhost:${info.port}/api/voice-ready?token=${info.token}`,
   body: JSON.stringify({ id, seconds, quality }),
 });
 
-console.log(JSON.stringify({
+ok({
   ok: true, id, ref: refWav, seconds: Math.round(seconds),
   gap: Math.round(best.gap), quality, from: Math.round(best.at),
-}));
+}, ['синтезировать реплики этим голосом: takt narrate']);

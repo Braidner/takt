@@ -21,6 +21,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { TARGETS, HOME, PROJECTS } from './home.mjs';
+import { ok, fail } from './lib/out.mjs';
 
 export const slugifyTarget = (name) => String(name).trim().toLowerCase()
   .replace(/[^a-zа-яё0-9]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'target';
@@ -120,8 +121,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   // Пароль не печатаем даже здесь: вывод команды попадает в транскрипт агента, оттуда в
   // логи и в пересказы. Знать нужно лишь то, что вход настроен.
   const { creds, ...видимое } = target;
-  console.log(JSON.stringify({ ...видимое, hasPassword: Boolean(creds?.password),
-                               user: creds?.user || null }, null, 1));
+  ok({ ...видимое, hasPassword: Boolean(creds?.password), user: creds?.user || null },
+     ['разведать интерфейс: takt probe']);
   const notes = readNotes(target.slug);
   if (notes) console.log('\n' + notes.trim());
 }

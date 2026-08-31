@@ -21,17 +21,31 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SERVER_INFO } from './home.mjs';
+import { ok } from './lib/out.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const infoPath = SERVER_INFO;
 
 if (!fs.existsSync(infoPath)) {
-  console.error('Сервер не запущен. Запустить: node studio/server.mjs');
+  console.log('ok: false\nerror: no_studio\ntext: студия не запущена\nhelp[1]: "поднять студию: takt serve"');
   process.exit(1);
 }
 const { port, token } = JSON.parse(fs.readFileSync(infoPath, 'utf8'));
 const base = `http://localhost:${port}`;
 const args = process.argv.slice(2);
+
+/** Что делать с событием — прямо в ответе, готовой командой. */
+const ПОДСКАЗКИ = {
+  task: ['собрать раскадровку и отправить: takt storyboard <файл.json>'],
+  shoot: ['снять по утверждённой раскадровке: takt shoot'],
+  cut: ['собрать ролик: takt build'],
+  short: ['короткая версия: takt highlight'],
+  regen: ['пересобрать раскадровку по замечаниям: takt storyboard <файл.json>'],
+  retake: ['переснять с указанного плана: takt shoot --from <n>'],
+  notes: ['посмотреть план работ: takt poll --plan'],
+  narrate: ['синтезировать реплики: takt narrate', 'подмешать в ролик: takt track'],
+  timeout: ['ждать дальше: takt poll'],
+};
 
 const post = async (route, payload) => {
   const r = await fetch(`${base}${route}?token=${token}`, {
@@ -55,7 +69,7 @@ if (args[0] === '--reply') {
       .flatMap((x) => String(x).split(/[\s,]+/))
       .filter(Boolean));
   }
-  console.log(JSON.stringify(await post('/api/poll', { id, verdict, notesApplied })));
+  ok(await post('/api/poll', { id, verdict, notesApplied }));
   process.exit(0);
 }
 
@@ -64,7 +78,7 @@ if (args[0] === '--status') {
   const text = args[2] || (stateName === 'listening' ? 'Слушает' : '');
   const step = args.includes('--step') ? Number(args[args.indexOf('--step') + 1]) : null;
   const of = args.includes('--of') ? Number(args[args.indexOf('--of') + 1]) : null;
-  console.log(JSON.stringify(await post('/api/status', { state: stateName, text, step, of })));
+  ok(await post('/api/status', { state: stateName, text, step, of }));
   process.exit(0);
 }
 
@@ -74,4 +88,6 @@ await post('/api/status', { state: 'listening', text: 'Слушает', step: nu
 
 const r = await fetch(`${base}/api/poll?token=${token}`);
 const event = await r.json();
-console.log(JSON.stringify(event));
+/* Подсказка зависит от того, что пришло: событие называет работу, и агенту не
+   надо помнить, какой командой она делается. */
+ok(event, ПОДСКАЗКИ[event.type] || []);

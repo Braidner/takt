@@ -18,6 +18,7 @@ import { readConfig, resolveStend, saveConfig } from './resolve-stend.mjs';
 import { dismissDevOverlay } from './dismiss-overlay.mjs';
 import { loadPreset } from './preset.mjs';
 import { SERVER_INFO } from './home.mjs';
+import { ok, fail } from './lib/out.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const info = JSON.parse(fs.readFileSync(SERVER_INFO, 'utf8'));
@@ -45,7 +46,7 @@ let target = arg
 if (!target) {
   await report({ state: 'unknown', text: 'Адрес стенда не задан', key: 'stendNoAddress',
                  url: null, from: null, fromKey: null });
-  console.log(JSON.stringify({ ok: false, reason: 'no_address' }));
+  fail('no_address', 'адрес системы не задан', { help: ['указать цель: takt target'] });
   process.exit(2);
 }
 if (arg) saveConfig({ stend: target.url });
@@ -112,5 +113,7 @@ try {
   await browser.close();
 }
 
-console.log(JSON.stringify(result));
+ok(result, result.ok
+     ? ['разведать интерфейс: takt probe']
+     : ['проверить адрес и вход: takt target']);
 process.exit(result.ok ? 0 : 1);

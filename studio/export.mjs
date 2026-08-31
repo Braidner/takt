@@ -15,10 +15,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { currentProject, inProject } from './project.mjs';
+import { ok, fail } from './lib/out.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const id = currentProject();
-if (!id) { console.error('Проект не выбран'); process.exit(1); }
+if (!id) { fail('no_project', 'проект не выбран', { help: ['список проектов в студии: takt serve'] }); process.exit(1); }
 
 const read = (name) => {
   try { return JSON.parse(fs.readFileSync(inProject(name), 'utf8')); } catch { return null; }
@@ -93,8 +94,8 @@ if (fs.existsSync(board)) {
 }
 
 const size = copied.reduce((sum, f) => sum + fs.statSync(path.join(dest, f)).size, 0);
-console.log(JSON.stringify({
+ok({
   ok: true, dest, files: copied,
   duration: movie?.duration ? mmss(movie.duration) : null,
   megabytes: Math.round(size / 1024 / 1024 * 10) / 10,
-}, null, 1));
+});
