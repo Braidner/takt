@@ -1414,14 +1414,29 @@ function togglePlay() {
 /** Размер окна в кадре — числом рядом с кнопками: «плюс» без числа ничего не говорит. */
 let version = null;
 
-/** «1 коммитов» — брак, который видно каждому, поэтому склонение живёт здесь. */
-function коммитов(n) {
-  const с = n % 100, е = n % 10;
-  if (с >= 11 && с <= 14) return `${n} коммитов`;
-  if (е === 1) return `${n} коммит`;
-  if (е >= 2 && е <= 4) return `${n} коммита`;
-  return `${n} коммитов`;
+/**
+ * Проверка обновлений живёт здесь, а не на сервере.
+ *
+ * Спрашиваем у GitHub последний коммит ветки и сравниваем с тем, что установлено.
+ * Так это работает одинаково у рабочего клона и у копии, поставленной skills CLI,
+ * и не заставляет сервер держать в своём цикле таймауты чужой сети.
+ *
+ * Раз в пятнадцать минут: студия открыта часами, а обновления выходят реже — чаще
+ * значило бы дёргать чужой сервис без нужды и упереться в его ограничения.
+ */
+const ЧАСТОТА_ПРОВЕРКИ = 15 * 60 * 1000;
+
+async function проверитьОбновление() {
+  if (!version?.repo || !version?.sha) return null;
+  const ветка = version.branch || 'main';
+  const r = await fetch(`https://api.github.com/repos/${version.repo}/commits/${ветка}`,
+                        { headers: { Accept: 'application/vnd.github+json' } })
+    .then((x) => (x.ok ? x.json() : null)).catch(() => null);
+  // Сеть промолчала — «не видно», а не «обновлений нет»: прежнее состояние остаётся.
+  if (!r?.sha) return null;
+  return { available: r.sha !== version.sha, sha: r.sha, subject: r.commit?.message?.split('\n')[0] || '' };
 }
+
 
 /**
  * Версия в шапке.
@@ -1430,20 +1445,21 @@ function коммитов(n) {
  * может идти неделями, а код за это время уезжает. Обновление подсвечивается
  * отдельно, потому что это единственное, что человеку тут нужно сделать.
  */
-async function renderVersion({ check = false, данные = null } = {}) {
+async function renderVersion({ check = false, данные = null, обновление = null } = {}) {
   if (!el.version) return;
-  version = данные
-    || await fetch(`/api/version${check ? '?check=1' : ''}`).then((r) => r.json()).catch(() => null);
+  version = данные || await fetch('/api/version').then((r) => r.json()).catch(() => null);
+  if (check && version) обновление = await проверитьОбновление() || version.update;
   const узел = el.version.querySelector('.version-num');
   if (!version) { tr(узел, 'versionUnknown'); return; }
   узел.textContent = version.commit || version.version || '—';
+  version.update = обновление || version.update || null;
   // Состояние кнопки — класс: это состояние представления, а не данные о версии.
   el.version.classList.toggle('has-update', Boolean(version.update?.available));
   el.version.classList.toggle('is-dirty', Boolean(version.dirty));
   // Подсказка несёт то, чего не видно в кнопке: чей это коммит и что мешает обновиться.
   el.version.title = [
     version.subject || '',
-    version.update?.available ? `Есть обновление: ${коммитов(version.update.commits)}` : '',
+    version.update?.available ? `Есть обновление: ${version.update.subject || 'новый коммит'}` : '',
     version.update?.blocked ? 'Обновиться нельзя: в каталоге кода локальные правки' : '',
     version.dirty && !version.update?.available ? 'В каталоге кода локальные правки' : '',
   ].filter(Boolean).join(' · ');
@@ -1456,9 +1472,8 @@ async function offerUpdate() {
       || 'В каталоге кода локальные правки — обновление их затрёт. Сначала разберитесь с ними.');
     return;
   }
-  const сколько = version?.update?.commits ?? 0;
-  if (!confirm(window.taktText?.('versionConfirm', { n: сколько })
-      || `Обновить Takt на ${сколько} коммитов? Студия перезапустится.`)) return;
+  if (!confirm(window.taktText?.('versionConfirm')
+      || 'Обновить Takt? Студия перезапустится.')) return;
   const r = await post('/api/update', {});
   if (r?.ok) tr(el.version.querySelector('.version-num'), 'versionUpdating');
 }
@@ -1930,6 +1945,8 @@ async function boot() {
   /* Версия приходит потоком вместе с остальным состоянием: сервер проверяет
      обновления по кругу, и значок появляется сам. Щелчок — не «проверить», а
      «проверить прямо сейчас, не дожидаясь круга», и он же ставит обновление. */
+  renderVersion({ check: true });
+  setInterval(() => renderVersion({ check: true }), ЧАСТОТА_ПРОВЕРКИ);
   el.version?.addEventListener('click', async () => {
     if (version?.update?.available) return offerUpdate();
     el.version.disabled = true;

@@ -1,9 +1,18 @@
 /**
- * takt update — обновить код скилла и перезапустить студию.
+ * takt update — обновить Takt и перезапустить студию.
  *
- * Способ обновления определяется способом установки: git-клон тянется через git,
- * копия от skills CLI — через npx skills update. Данные ($TAKT_HOME) не трогаются
- * вовсе: ролики, голоса и venv живут вне каталога кода.
+ * Обновление делегируется skills CLI и только ему. Своя реализация поверх git
+ * выглядела дешёвой, но врала о своей области: `git pull` работает лишь там, где
+ * Takt стоит рабочим клоном, ломается о любой незакоммиченный файл — в том числе
+ * о рабочую переписку, к коду отношения не имеющую, — и ничего не знает про то,
+ * как скилл разложен по каталогам агентов. Всё это знает skills CLI, потому что
+ * он же и ставил.
+ *
+ * У рабочего клона обновлять нечего: там источник — локальный каталог, и человек
+ * обновляется своим git сам. Команда это говорит прямо, вместо того чтобы делать
+ * вид, будто сходила куда-то.
+ *
+ * Данные ($TAKT_HOME) не трогаются вовсе: ролики, голоса и venv живут вне кода.
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -11,43 +20,28 @@ import path from 'node:path';
 import { ROOT, studioStatus, stopStudio, ensureDeps, migrateVenvs, launchStudio }
   from './bootstrap.mjs';
 import { findSkill, syncSkill } from './lib/skill.mjs';
-
-const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' });
+import { readVersion } from './lib/version.mjs';
 
 const wasAlive = (await studioStatus()) === 'alive';
+const версия = readVersion();
 
 if (fs.existsSync(path.join(ROOT, '.git'))) {
-  // Правки поверх обновления молча не переживают ни merge, ни reset — останавливаемся.
-  const dirty = git(['status', '--porcelain']).stdout.trim();
-  if (dirty) {
-    console.error('В каталоге скилла локальные правки — обновлять поверх них не буду:\n');
-    console.error(git(['status', '--short']).stdout);
-    process.exit(1);
-  }
-  const before = git(['rev-parse', 'HEAD']).stdout.trim();
-  const pull = spawnSync('git', ['pull', '--ff-only'], { cwd: ROOT, stdio: 'inherit' });
-  if (pull.status !== 0) process.exit(pull.status ?? 1);
-  const after = git(['rev-parse', 'HEAD']).stdout.trim();
-  console.log(before === after
-    ? 'Уже последняя версия.'
-    : git(['log', '--oneline', `${before}..${after}`]).stdout.trim());
+  console.log('Takt стоит рабочим клоном — обновлять его нечем, кроме вашего git.');
+  console.log(`Сейчас: ${версия.commit} · ${версия.subject || ''}`);
+  console.log('Обновиться: git pull в каталоге кода. Дальше takt update перезапустит студию.');
 } else {
-  const up = spawnSync('npx', ['skills', 'update', 'takt', '-y'], { stdio: 'inherit' });
+  const up = spawnSync('npx', ['-y', 'skills', 'update', 'takt', '-y'], { stdio: 'inherit' });
   if (up.status !== 0) {
     console.error('\nskills CLI не смог обновить. Вручную: npx skills update takt');
     process.exit(1);
   }
-}
-
-/* Скилл обновляется вместе с кодом только если он на него ссылается. Копия
-   отстала бы молча: ничего не падает, просто агент читает вчерашнюю инструкцию —
-   ровно та болезнь, ради которой скилл ужимался до стаба. */
-const скилл = findSkill(ROOT);
-if (скилл.needsCopy) {
-  const части = syncSkill(ROOT, скилл.dir);
-  console.log(`Скилл обновлён копированием (${скилл.dir}): ${части.join(', ')}`);
-} else if (скилл.kind === 'link') {
-  console.log(`Скилл ссылается на этот каталог — обновился вместе с кодом.`);
+  /* Скилл, поставленный копией, живёт отдельно от кода: skills обновит свою копию,
+     но если каталог кода и каталог скилла разные, второй останется вчерашним. */
+  const скилл = findSkill(ROOT);
+  if (скилл.needsCopy) {
+    const части = syncSkill(ROOT, скилл.dir);
+    console.log(`Скилл обновлён копированием (${скилл.dir}): ${части.join(', ')}`);
+  }
 }
 
 migrateVenvs();

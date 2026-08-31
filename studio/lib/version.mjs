@@ -1,102 +1,78 @@
 /**
- * Какая версия работает и есть ли новее.
+ * Какая версия работает.
  *
- * Человек смотрит ролики в студии неделями, а код за это время уезжает. Пока
- * версии не было видно, вопрос «у меня свежий Takt?» решался чтением git log в
- * другом окне — то есть не решался. Теперь номер коммита стоит в шапке, и там же
- * видно, что вышло обновление.
+ * Только чтение с диска: ни git fetch, ни походов в сеть. Проверку обновлений
+ * ведёт страница студии — она спрашивает GitHub напрямую и сравнивает коммит.
+ * Так это работает одинаково и у рабочего клона, и у копии, поставленной skills
+ * CLI, и не заставляет сервер ждать сеть.
  *
- * Разбор git-вывода — чистая функция, отделённая от самого git: на ней и держатся
- * тесты, а сетевая часть остаётся тонкой.
+ * Коммит читается из git, если Takt стоит клоном; у копии его взять неоткуда,
+ * поэтому там остаётся отметка, которую пишет обновление, и версия из package.json.
  */
-import { spawnSync, execFile } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findSkill } from './skill.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const ОТМЕТКА = path.join(ROOT, '.takt-version.json');
+
+/** Owner/repo источника — из package.json, чтобы адрес не был зашит в коде. */
+export function repoSlug(pkg) {
+  const url = pkg?.repository?.url || pkg?.repository || '';
+  const m = String(url).match(/github\.com[/:]([^/]+)\/([^/.]+)/);
+  return m ? `${m[1]}/${m[2]}` : null;
+}
 
 /** Разбор сырых данных в то, что показывают человеку и агенту. */
 export function describeVersion({
   source = 'git', commit = null, date = null, branch = null, subject = null,
-  dirty = '', behind = 0, version = null,
+  dirty = '', version = null, repo = null, skill = null,
 } = {}) {
-  // Не git — значит копия от skills CLI: коммита у неё нет, а про обновление
-  // честный ответ «неизвестно»: узнать это можно только запуском самого skills.
-  if (source !== 'git') {
-    return { source, version, commit: null, branch: null, date: null, subject: null,
-             dirty: false, update: { available: null, commits: 0, blocked: false } };
-  }
-  const грязно = Boolean(String(dirty).trim());
   return {
-    source: 'git',
+    source,
     version,
+    repo,
+    skill,
+    // Полный sha нужен странице для сравнения с GitHub, короткий — человеку.
+    sha: commit || null,
     commit: commit ? String(commit).slice(0, 7) : null,
     branch, date, subject,
-    dirty: грязно,
-    update: {
-      available: behind > 0,
-      commits: behind,
-      // Обновление поверх локальных правок не пройдёт: takt update на грязном
-      // дереве останавливается. Человек должен знать это до нажатия кнопки.
-      blocked: behind > 0 && грязно,
-    },
+    dirty: Boolean(String(dirty).trim()),
   };
 }
 
 const git = (...args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' });
 
-/**
- * Поход в сеть за обновлениями — отдельно и асинхронно.
- *
- * `git fetch` длится столько, сколько отвечает сеть, а внутри сервера синхронный
- * вызов остановил бы всё: студия перестала бы отвечать на клики ровно тогда,
- * когда origin недоступен и fetch ждёт таймаута.
- *
- * Молчание сети — не «обновлений нет», а «не видно»: при отказе возвращаем null,
- * и интерфейс оставляет прежнее значение вместо того, чтобы обещать свежесть.
- */
-export async function fetchBehind() {
-  if (!fs.existsSync(path.join(ROOT, '.git'))) return null;
-  const run = (args) => new Promise((resolve) => {
-    execFile('git', args, { cwd: ROOT, timeout: 20000 }, (err, stdout) => resolve(err ? null : stdout));
-  });
-  if ((await run(['fetch', '--quiet', '--no-tags'])) === null) return null;
-  const счёт = await run(['rev-list', '--count', 'HEAD..@{upstream}']);
-  return счёт === null ? null : (Number(счёт.trim()) || 0);
-}
+const пакет = () => {
+  try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')); }
+  catch { return {}; }
+};
 
-/**
- * Текущая версия. `check` включает поход в сеть за обновлениями — без него
- * функция дешёвая и её можно звать на каждый запрос страницы.
- */
-export function readVersion({ check = false } = {}) {
+export function readVersion() {
+  const pkg = пакет();
+  const общее = { version: pkg.version || null, repo: repoSlug(pkg), skill: findSkill(ROOT).kind };
+
   if (!fs.existsSync(path.join(ROOT, '.git'))) {
-    let version = null;
-    try { version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version; }
-    catch { /* нет и нет: версия — не то, ради чего стоит падать */ }
-    return describeVersion({ source: 'skills', version });
+    // Копия: коммит знает только отметка, которую оставило обновление.
+    let отметка = {};
+    try { отметка = JSON.parse(fs.readFileSync(ОТМЕТКА, 'utf8')); } catch { /* её ещё не было */ }
+    return describeVersion({ source: 'skills', commit: отметка.sha || null,
+                             date: отметка.at || null, ...общее });
   }
 
   const строка = git('log', '-1', '--format=%H%n%cI%n%s').stdout.trim().split('\n');
-  const branch = git('rev-parse', '--abbrev-ref', 'HEAD').stdout.trim();
-  const dirty = git('status', '--porcelain').stdout;
+  return describeVersion({
+    source: 'git', commit: строка[0], date: строка[1], subject: строка[2],
+    branch: git('rev-parse', '--abbrev-ref', 'HEAD').stdout.trim(),
+    dirty: git('status', '--porcelain').stdout,
+    ...общее,
+  });
+}
 
-  let behind = 0;
-  if (check) {
-    // Сеть может не ответить, и это не повод ломать страницу: тогда обновлений
-    // просто «не видно», а не «их нет».
-    git('fetch', '--quiet', '--no-tags');
-    const счёт = git('rev-list', '--count', `HEAD..@{upstream}`).stdout.trim();
-    behind = Number(счёт) || 0;
-  }
-
-  return {
-    ...describeVersion({
-      source: 'git', commit: строка[0], date: строка[1], subject: строка[2], branch, dirty, behind,
-    }),
-    // Как установлен скилл: от этого зависит, обновится ли он вместе с кодом.
-    skill: findSkill(ROOT).kind,
-  };
+/** Отметку пишет обновление: у копии это единственный след того, что установлено. */
+export function stampVersion(sha) {
+  if (!sha) return;
+  fs.writeFileSync(ОТМЕТКА, JSON.stringify({ sha, at: new Date().toISOString() }, null, 2));
 }
