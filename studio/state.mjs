@@ -14,6 +14,7 @@ import { HOME, SERVER_INFO } from './home.mjs';
 import { pipelineState } from './compose/pipeline.mjs';
 import { normalizeStoryboard } from './compose/storyboard.mjs';
 import { ok } from './lib/out.mjs';
+import { readVersion } from './lib/version.mjs';
 
 const PROJECTS = path.join(HOME, 'projects');
 const читать = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
@@ -45,11 +46,14 @@ export async function state() {
   const notes = (читать(path.join(dir, 'notes.json')) || []).filter((n) => n.status === 'open');
 
   const студия = fs.existsSync(SERVER_INFO) ? читать(SERVER_INFO) : null;
+  // Версия без похода в сеть: состояние спрашивают часто, origin меняется редко.
+  const версия = readVersion();
 
   /* Подсказка — та, что отвечает на «а что теперь». Порядок важен: открытое
      замечание срочнее устаревшей ступени, а неутверждённая раскадровка — срочнее
      того и другого, потому что без неё съёмка всё равно не пойдёт. */
   const help = [];
+  if (версия.update?.available) help.push('вышло обновление: takt update');
   if (!студия) help.push('поднять студию: takt serve');
   if (notes.length) help.push('разобрать замечания: takt poll --plan');
   else if (board && board.status !== 'ready') help.push('человек утверждает раскадровку в студии; ждать: takt poll');
@@ -58,6 +62,7 @@ export async function state() {
   else help.push('ждать задачу от человека: takt poll');
 
   ok({
+    version: версия.commit || версия.version || 'неизвестна',
     project: id,
     projects: проектов.length,
     studio: студия ? `http://localhost:${студия.port}` : null,

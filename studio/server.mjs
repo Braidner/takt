@@ -25,11 +25,13 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { planFor } from './classify-notes.mjs';
 import { fromScenario, normalizeStoryboard, checkStoryboard } from './compose/storyboard.mjs';
 import { directStoryboard } from './compose/director.mjs';
 import { STAGES, pipelineState } from './compose/pipeline.mjs';
+import { readVersion } from './lib/version.mjs';
 import { HOME, PROJECTS, VOICES, SERVER_INFO, ensureHome } from './home.mjs';
 import { listTargets, readTarget, writeTarget, readNotes as readTargetNotes,
          appendNote, slugifyTarget } from './target.mjs';
@@ -742,6 +744,31 @@ const server = http.createServer(async (req, res) => {
    * Времена берутся с файлов, а не из записей о работе: файл могли переписать мимо
    * студии, и тогда запись врёт, а время — нет.
    */
+  /* Версия и обновление.
+     Проверка обновлений ходит в сеть, поэтому она по запросу (`?check=1`), а не на
+     каждый заход: страница открывается часто, а origin меняется редко. */
+  if (p === '/api/version' && req.method === 'GET') {
+    const check = url.searchParams.get('check') === '1';
+    return send(res, 200, readVersion({ check }));
+  }
+
+  /* Обновление запускается отдельным процессом и переживает смерть этого:
+     `takt update` останавливает студию и поднимает заново, то есть убивает
+     сервер, который его позвал. Ответ поэтому уходит сразу, а страница ждёт
+     переподключения — оно у неё и так есть. */
+  if (p === '/api/update' && req.method === 'POST') {
+    if (!authed) return send(res, 401, { error: 'unauthorized' });
+    const версия = readVersion();
+    if (версия.dirty) {
+      return send(res, 409, { error: 'dirty', text: 'в каталоге кода локальные правки' });
+    }
+    const child = spawn(process.execPath, [path.join(DIR, '..', 'cli.mjs'), 'update'], {
+      cwd: path.join(DIR, '..'), detached: true, stdio: 'ignore',
+    });
+    child.unref();
+    return send(res, 200, { ok: true, started: true });
+  }
+
   if (p === '/api/pipeline' && req.method === 'GET') {
     const files = {};
     for (const s of STAGES) {

@@ -197,6 +197,37 @@ button, input, textarea, select { font: inherit; color: inherit; }
 
 .project-new { padding: var(--sp-1) var(--sp-2); line-height: 1; }
 
+/* Версия — служебная деталь: заметна, когда её ищут, и не спорит с проектом
+   за внимание. Обновление, наоборот, должно броситься в глаза, поэтому у него
+   свой цвет и точка. */
+.version {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 26px;
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-faint);
+  font: var(--t-xs)/1 var(--mono);
+  cursor: pointer;
+  transition: color var(--fast) var(--ease), border-color var(--fast) var(--ease);
+}
+.version:hover { color: var(--ink-muted); border-color: var(--line-strong); }
+.version:disabled { cursor: default; opacity: .7; }
+
+.version[data-update="true"] {
+  color: var(--brand-teal);
+  border-color: color-mix(in oklch, var(--brand-teal) 45%, transparent);
+}
+.version[data-update="true"]::after {
+  content: "";
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--brand-teal);
+}
+.version[data-dirty="true"] { color: var(--warn); border-color: color-mix(in oklch, var(--warn) 40%, transparent); }
+
 .head-spacer { flex: 1; }
 
 /* Состояние агента — элемент первого класса: писать в поле, когда на том конце

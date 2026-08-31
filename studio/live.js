@@ -41,6 +41,7 @@ const el = {
   cuts: document.querySelector('.cuts'),
   sources: document.querySelector('.sources'),
   inspector: document.querySelector('.inspector'),
+  version: document.querySelector('.version'),
   composeFrame: document.querySelector('.compose-frame'),
   short: document.querySelector('.short-run'),
   play: document.querySelector('.play'),
@@ -1411,6 +1412,46 @@ function togglePlay() {
  * на один вопрос.
  */
 /** Размер окна в кадре — числом рядом с кнопками: «плюс» без числа ничего не говорит. */
+let version = null;
+
+/**
+ * Версия в шапке.
+ *
+ * Номер коммита — это ответ на «а что у меня работает»: тема разговора с агентом
+ * может идти неделями, а код за это время уезжает. Обновление подсвечивается
+ * отдельно, потому что это единственное, что человеку тут нужно сделать.
+ */
+async function renderVersion({ check = false } = {}) {
+  if (!el.version) return;
+  version = await fetch(`/api/version${check ? '?check=1' : ''}`).then((r) => r.json()).catch(() => null);
+  const узел = el.version.querySelector('.version-num');
+  if (!version) { tr(узел, 'versionUnknown'); return; }
+  узел.textContent = version.commit || version.version || '—';
+  el.version.dataset.update = String(Boolean(version.update?.available));
+  el.version.dataset.dirty = String(Boolean(version.dirty));
+  // Подсказка несёт то, чего не видно в кнопке: чей это коммит и что мешает обновиться.
+  el.version.title = [
+    version.subject || '',
+    version.update?.available ? `Есть обновление: ${version.update.commits} коммитов` : '',
+    version.update?.blocked ? 'Обновиться нельзя: в каталоге кода локальные правки' : '',
+    version.dirty && !version.update?.available ? 'В каталоге кода локальные правки' : '',
+  ].filter(Boolean).join(' · ');
+}
+
+/** Обновление меняет код на диске, поэтому спрашиваем прямо, а не делаем молча. */
+async function offerUpdate() {
+  if (version?.update?.blocked) {
+    alert(window.taktText?.('versionBlocked')
+      || 'В каталоге кода локальные правки — обновление их затрёт. Сначала разберитесь с ними.');
+    return;
+  }
+  const сколько = version?.update?.commits ?? 0;
+  if (!confirm(window.taktText?.('versionConfirm', { n: сколько })
+      || `Обновить Takt на ${сколько} коммитов? Студия перезапустится.`)) return;
+  const r = await post('/api/update', {});
+  if (r?.ok) tr(el.version.querySelector('.version-num'), 'versionUpdating');
+}
+
 function renderScreenSize() {
   const узел = document.querySelector('.screen-size-value');
   if (!узел || !storyboard) return;
@@ -1872,6 +1913,17 @@ async function boot() {
   el.planApply?.addEventListener('click', async () => {
     el.planApply.disabled = true;
     await post('/api/event', { type: 'apply' });
+  });
+
+  /* Версия: показывается сразу, обновления проверяются по щелчку — проверка ходит
+     в сеть, и делать это на каждый заход значило бы дёргать origin без спроса. */
+  renderVersion();
+  el.version?.addEventListener('click', async () => {
+    el.version.disabled = true;
+    tr(el.version.querySelector('.version-num'), 'versionChecking');
+    await renderVersion({ check: true });
+    el.version.disabled = false;
+    if (version?.update?.available) offerUpdate();
   });
 
   el.play?.addEventListener('click', togglePlay);
