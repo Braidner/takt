@@ -1421,9 +1421,10 @@ let version = null;
  * может идти неделями, а код за это время уезжает. Обновление подсвечивается
  * отдельно, потому что это единственное, что человеку тут нужно сделать.
  */
-async function renderVersion({ check = false } = {}) {
+async function renderVersion({ check = false, данные = null } = {}) {
   if (!el.version) return;
-  version = await fetch(`/api/version${check ? '?check=1' : ''}`).then((r) => r.json()).catch(() => null);
+  version = данные
+    || await fetch(`/api/version${check ? '?check=1' : ''}`).then((r) => r.json()).catch(() => null);
   const узел = el.version.querySelector('.version-num');
   if (!version) { tr(узел, 'versionUnknown'); return; }
   узел.textContent = version.commit || version.version || '—';
@@ -1767,6 +1768,7 @@ function connect() {
     if (msg.type === 'status') { setAgent(msg.status, msg.agent); renderInFlight(msg.inFlight); }
     if (msg.type === 'stend') setStend(msg.stend);
     if (msg.type === 'project') renderProjects(msg.current, msg.projects);
+    if (msg.type === 'version') renderVersion({ данные: msg.version });
     if (msg.type === 'storyboard') { renderBoard(msg.storyboard); reloadCompose(); }
     if (msg.type === 'pipeline') renderStages();
     if (msg.type === 'movie') renderMovie(msg.movie);
@@ -1915,10 +1917,11 @@ async function boot() {
     await post('/api/event', { type: 'apply' });
   });
 
-  /* Версия: показывается сразу, обновления проверяются по щелчку — проверка ходит
-     в сеть, и делать это на каждый заход значило бы дёргать origin без спроса. */
-  renderVersion();
+  /* Версия приходит потоком вместе с остальным состоянием: сервер проверяет
+     обновления по кругу, и значок появляется сам. Щелчок — не «проверить», а
+     «проверить прямо сейчас, не дожидаясь круга», и он же ставит обновление. */
   el.version?.addEventListener('click', async () => {
+    if (version?.update?.available) return offerUpdate();
     el.version.disabled = true;
     tr(el.version.querySelector('.version-num'), 'versionChecking');
     await renderVersion({ check: true });

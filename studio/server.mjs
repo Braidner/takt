@@ -31,7 +31,7 @@ import { planFor } from './classify-notes.mjs';
 import { fromScenario, normalizeStoryboard, checkStoryboard } from './compose/storyboard.mjs';
 import { directStoryboard } from './compose/director.mjs';
 import { STAGES, pipelineState } from './compose/pipeline.mjs';
-import { readVersion } from './lib/version.mjs';
+import { readVersion, fetchBehind } from './lib/version.mjs';
 import { HOME, PROJECTS, VOICES, SERVER_INFO, ensureHome } from './home.mjs';
 import { listTargets, readTarget, writeTarget, readNotes as readTargetNotes,
          appendNote, slugifyTarget } from './target.mjs';
@@ -271,6 +271,40 @@ const broadcast = (msg) => {
   }
 };
 
+/**
+ * Версия и обновления — фоном.
+ *
+ * Человек не должен нажимать «проверить», чтобы узнать, что вышло обновление:
+ * студия открыта часами, и значок обязан появиться сам. Поэтому проверку ведёт
+ * сервер по кругу, а страницы узнают о ней тем же потоком, что и всё остальное.
+ *
+ * Отдельный кеш нужен, потому что `git fetch` идёт по сети: держать его результат
+ * в памяти дешевле, чем ходить в origin на каждый запрос страницы, и честнее, чем
+ * блокировать ответ ожиданием сети.
+ */
+const ЧАСТОТА_ПРОВЕРКИ = 15 * 60 * 1000;
+let versionCache = readVersion();
+
+const версия = () => versionCache;
+
+async function проверитьВерсию() {
+  const behind = await fetchBehind();
+  // Сеть промолчала — оставляем прежнее: «не видно» не равно «обновлений нет».
+  const свежая = behind === null
+    ? { ...readVersion(), update: versionCache.update, skill: versionCache.skill }
+    : { ...readVersion(), update: { ...readVersion().update, available: behind > 0, commits: behind,
+                                    blocked: behind > 0 && readVersion().dirty } };
+  const изменилось = JSON.stringify(свежая) !== JSON.stringify(versionCache);
+  versionCache = свежая;
+  if (изменилось) broadcast({ type: 'version', version: versionCache });
+  return versionCache;
+}
+
+/* Первая проверка — сразу после старта, дальше по кругу. `unref` важен: иначе
+   таймер держал бы процесс живым и `takt update` не смог бы остановить студию. */
+проверитьВерсию();
+setInterval(проверитьВерсию, ЧАСТОТА_ПРОВЕРКИ).unref();
+
 /** Агент считается на связи, пока держит опрос или недавно отвечал. */
 const agentAlive = () => state.polls.length > 0 || Date.now() - state.agentSeenAt < 90_000;
 
@@ -391,6 +425,7 @@ const server = http.createServer(async (req, res) => {
     res.write(`data: ${JSON.stringify({ type: 'status', status: state.status, agent: agentAlive(), inFlight: inFlight() })}\n\n`);
     res.write(`data: ${JSON.stringify({ type: 'stend', stend: state.stend })}\n\n`);
     res.write(`data: ${JSON.stringify({ type: 'project', current: currentId, projects: listProjects() })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'version', version: версия() })}\n\n`);
     const sb = readBoard();
     if (sb) res.write(`data: ${JSON.stringify({ type: 'storyboard', storyboard: sb })}\n\n`);
     const mv = readMovie();
@@ -744,12 +779,12 @@ const server = http.createServer(async (req, res) => {
    * Времена берутся с файлов, а не из записей о работе: файл могли переписать мимо
    * студии, и тогда запись врёт, а время — нет.
    */
-  /* Версия и обновление.
-     Проверка обновлений ходит в сеть, поэтому она по запросу (`?check=1`), а не на
-     каждый заход: страница открывается часто, а origin меняется редко. */
+  /* Версия и обновление. Отдаётся то, что уже известно: проверку ведёт фоновый
+     цикл, а `?check=1` просит сделать её прямо сейчас — не заставляя человека
+     ждать очередного круга. */
   if (p === '/api/version' && req.method === 'GET') {
-    const check = url.searchParams.get('check') === '1';
-    return send(res, 200, readVersion({ check }));
+    if (url.searchParams.get('check') === '1') await проверитьВерсию();
+    return send(res, 200, версия());
   }
 
   /* Обновление запускается отдельным процессом и переживает смерть этого:
@@ -758,8 +793,8 @@ const server = http.createServer(async (req, res) => {
      переподключения — оно у неё и так есть. */
   if (p === '/api/update' && req.method === 'POST') {
     if (!authed) return send(res, 401, { error: 'unauthorized' });
-    const версия = readVersion();
-    if (версия.dirty) {
+    const текущая = версия();
+    if (текущая.dirty) {
       return send(res, 409, { error: 'dirty', text: 'в каталоге кода локальные правки' });
     }
     const child = spawn(process.execPath, [path.join(DIR, '..', 'cli.mjs'), 'update'], {

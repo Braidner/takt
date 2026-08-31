@@ -9,7 +9,7 @@
  * Разбор git-вывода — чистая функция, отделённая от самого git: на ней и держатся
  * тесты, а сетевая часть остаётся тонкой.
  */
-import { spawnSync } from 'node:child_process';
+import { spawnSync, execFile } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -46,6 +46,26 @@ export function describeVersion({
 }
 
 const git = (...args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' });
+
+/**
+ * Поход в сеть за обновлениями — отдельно и асинхронно.
+ *
+ * `git fetch` длится столько, сколько отвечает сеть, а внутри сервера синхронный
+ * вызов остановил бы всё: студия перестала бы отвечать на клики ровно тогда,
+ * когда origin недоступен и fetch ждёт таймаута.
+ *
+ * Молчание сети — не «обновлений нет», а «не видно»: при отказе возвращаем null,
+ * и интерфейс оставляет прежнее значение вместо того, чтобы обещать свежесть.
+ */
+export async function fetchBehind() {
+  if (!fs.existsSync(path.join(ROOT, '.git'))) return null;
+  const run = (args) => new Promise((resolve) => {
+    execFile('git', args, { cwd: ROOT, timeout: 20000 }, (err, stdout) => resolve(err ? null : stdout));
+  });
+  if ((await run(['fetch', '--quiet', '--no-tags'])) === null) return null;
+  const счёт = await run(['rev-list', '--count', 'HEAD..@{upstream}']);
+  return счёт === null ? null : (Number(счёт.trim()) || 0);
+}
 
 /**
  * Текущая версия. `check` включает поход в сеть за обновлениями — без него
