@@ -1414,6 +1414,15 @@ function togglePlay() {
 /** Размер окна в кадре — числом рядом с кнопками: «плюс» без числа ничего не говорит. */
 let version = null;
 
+/** «1 коммитов» — брак, который видно каждому, поэтому склонение живёт здесь. */
+function коммитов(n) {
+  const с = n % 100, е = n % 10;
+  if (с >= 11 && с <= 14) return `${n} коммитов`;
+  if (е === 1) return `${n} коммит`;
+  if (е >= 2 && е <= 4) return `${n} коммита`;
+  return `${n} коммитов`;
+}
+
 /**
  * Версия в шапке.
  *
@@ -1428,12 +1437,13 @@ async function renderVersion({ check = false, данные = null } = {}) {
   const узел = el.version.querySelector('.version-num');
   if (!version) { tr(узел, 'versionUnknown'); return; }
   узел.textContent = version.commit || version.version || '—';
-  el.version.dataset.update = String(Boolean(version.update?.available));
-  el.version.dataset.dirty = String(Boolean(version.dirty));
+  // Состояние кнопки — класс: это состояние представления, а не данные о версии.
+  el.version.classList.toggle('has-update', Boolean(version.update?.available));
+  el.version.classList.toggle('is-dirty', Boolean(version.dirty));
   // Подсказка несёт то, чего не видно в кнопке: чей это коммит и что мешает обновиться.
   el.version.title = [
     version.subject || '',
-    version.update?.available ? `Есть обновление: ${version.update.commits} коммитов` : '',
+    version.update?.available ? `Есть обновление: ${коммитов(version.update.commits)}` : '',
     version.update?.blocked ? 'Обновиться нельзя: в каталоге кода локальные правки' : '',
     version.dirty && !version.update?.available ? 'В каталоге кода локальные правки' : '',
   ].filter(Boolean).join(' · ');

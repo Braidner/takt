@@ -217,16 +217,16 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .version:hover { color: var(--ink-muted); border-color: var(--line-strong); }
 .version:disabled { cursor: default; opacity: .7; }
 
-.version[data-update="true"] {
+.version.has-update {
   color: var(--brand-teal);
   border-color: color-mix(in oklch, var(--brand-teal) 45%, transparent);
 }
-.version[data-update="true"]::after {
+.version.has-update::after {
   content: "";
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--brand-teal);
 }
-.version[data-dirty="true"] { color: var(--warn); border-color: color-mix(in oklch, var(--warn) 40%, transparent); }
+.version.is-dirty { color: var(--warn); border-color: color-mix(in oklch, var(--warn) 40%, transparent); }
 
 .head-spacer { flex: 1; }
 
