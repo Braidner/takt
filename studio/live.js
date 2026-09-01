@@ -54,7 +54,6 @@ const el = {
   planApply: document.querySelector('.plan-apply'),
   planRegen: document.querySelector('.plan-regen'),
   stages: document.querySelector('.stages'),
-  stagesNow: document.querySelector('.stages-now'),
   inflight: document.querySelector('.script-actions .inflight'),
   inflightNotes: document.querySelector('.inflight-notes'),
   projectSelect: document.querySelector('.project-select'),
@@ -124,8 +123,11 @@ function trPh(node, key, args = null) {
   return node;
 }
 
-function setAgent(status, alive) {
+function setAgent(status, alive, doing = null) {
   if (!el.agent) return;
+  /* «Остановить» — кнопка для идущей работы, а не украшение панели. Пока она висела
+     всегда, панель предлагала пять действий, из которых уместно было одно. */
+  if (el.stop) el.stop.hidden = !doing && status?.state !== 'busy';
   const state = !alive ? 'offline' : (status?.state === 'busy' ? 'busy' : 'listening');
   el.agent.dataset.state = state;
 
@@ -175,6 +177,12 @@ function setLink(state) {
  * Считает сервер — одно место на студию и на ответ `takt`. Здесь только показ:
  * метка «ваш ход» или «агент», и следующий шаг словами.
  */
+const ДЕЙСТВИЯ = {
+  shoot: { key: 'actShoot', event: 'shoot' },
+  cut: { key: 'actCut', event: 'cut' },
+  apply: { key: 'actApply', event: 'apply' },
+};
+
 function renderNow(next) {
   if (!el.now) return;
   if (!next?.key) { el.now.hidden = true; return; }
@@ -182,6 +190,17 @@ function renderNow(next) {
   el.now.dataset.who = next.who;
   tr(el.now.querySelector('.now-who'), next.who === 'agent' ? 'nowAgent' : 'nowYou');
   tr(el.now.querySelector('.now-what'), next.key, { count: next.count ?? 0 });
+
+  /* Кнопка того самого действия — рядом с объяснением. Раньше человек читал
+     «пересоберите ролик» в одном месте, а кнопку искал в панели из семи штук
+     этажом ниже; отсюда и ощущение, что непонятно, как что-то отправить. */
+  const act = el.now.querySelector('.now-act');
+  const дело = next.who === 'human' && ДЕЙСТВИЯ[next.act];
+  act.hidden = !дело;
+  if (дело) {
+    tr(act, дело.key);
+    act.dataset.event = дело.event;
+  }
 }
 
 /** Откуда взялся адрес стенда — ключ на каждый источник: подстановка внутрь подстановки
@@ -643,13 +662,15 @@ function renderBoard(next) {
   tr(badge, storyboard.status === 'ready' ? 'statusReady' : 'statusDraft');
 
   if (el.shoot) {
+    /* Кнопка утверждения: пока раскадровка черновик — «Снимать», после — надпись
+       о том, что по ней снято. Отсутствие агента её не блокирует: событие подождёт
+       в очереди, а блокировка выглядела как поломка. */
     el.shoot.hidden = false;
     const ready = storyboard.status === 'ready';
     tr(el.shoot, ready ? 'shootDone' : 'shootRun');
-    // Съёмку выполняет агент: без него кнопка обещала бы то, чего не произойдёт.
-    el.shoot.disabled = ready || el.agent?.dataset.state === 'offline';
-    if (el.shoot.disabled && !ready) trTitle(el.shoot, 'shootOffline');
-    else { trTitle(el.shoot, null); el.shoot.title = ''; }
+    el.shoot.disabled = ready;
+    trTitle(el.shoot, null);
+    el.shoot.title = '';
   }
 }
 
@@ -712,19 +733,6 @@ async function renderStages() {
    * Полоса из шести рисок показывает путь, но сама по себе не отвечает на главный
    * вопрос «что происходит»; ответ и есть эта строка.
    */
-  const пройденные = данные.stages.filter((s) => s.state !== 'missing');
-  const текущая = пройденные[пройденные.length - 1] || данные.stages[0];
-  if (el.stagesNow) {
-    el.stagesNow.hidden = false;
-    el.stagesNow.dataset.state = текущая.stale ? 'stale' : текущая.state;
-    const имя = window.taktText(STAGE_KEYS[текущая.id]) || текущая.id;
-    el.stagesNow.innerHTML = '<b></b><span></span>';
-    el.stagesNow.firstElementChild.textContent = имя;
-    tr(el.stagesNow.lastElementChild,
-       текущая.stale ? 'stageNowStale'
-       : текущая.state === 'ready' ? 'stageNowReady'
-       : текущая.state === 'draft' ? 'stageNowDraft' : 'stageNowMissing');
-  }
 }
 
 /**
@@ -1829,7 +1837,7 @@ function connect() {
   stream.onmessage = (m) => {
     const msg = JSON.parse(m.data);
     if (msg.type === 'status') {
-      setAgent(msg.status, msg.agent);
+      setAgent(msg.status, msg.agent, msg.doing);
       renderInFlight(msg.inFlight);
       renderNow(msg.next);
     }
@@ -1875,7 +1883,7 @@ async function boot() {
   narrationPanel = setupNarration({ post, getPlans: () => storyboard?.plans || [] });
   narrationData = hello.narration;
   narrationPanel.render(hello.narration);
-  setAgent(hello.status, hello.agent);
+  setAgent(hello.status, hello.agent, hello.doing);
   renderInFlight(hello.inFlight);
   renderNow(hello.next);
   setStend(hello.stend);
@@ -2002,6 +2010,16 @@ async function boot() {
     await renderVersion({ check: true });
     el.version.disabled = false;
     if (version?.update?.available) offerUpdate();
+  });
+
+  /* Одно действие — одно событие агенту. Ждать его не нужно: студия положит
+     событие в очередь, а строка хода сменится, как только агент возьмёт работу. */
+  el.now?.querySelector('.now-act')?.addEventListener('click', async (e) => {
+    const тип = e.currentTarget.dataset.event;
+    if (!тип) return;
+    e.currentTarget.disabled = true;
+    await post('/api/event', { type: тип });
+    setTimeout(() => { e.currentTarget.disabled = false; }, 1500);
   });
 
   el.play?.addEventListener('click', togglePlay);

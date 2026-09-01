@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fromScenario, normalizeStoryboard, checkStoryboard, nextPlanId }
+import { fromScenario, normalizeStoryboard, checkStoryboard, nextPlanId, draftPayload }
   from '../studio/compose/storyboard.mjs';
 import { SLATE, END } from '../studio/compose/duration.mjs';
 import { directStoryboard } from '../studio/compose/director.mjs';
@@ -242,6 +242,44 @@ test('размер окна приложения — доля кадра, а н�
   assert.equal(normalizeStoryboard({ title: 'Д', screenSize: 0.1, plans: [] }).screenSize, 0.5);
 });
 
+test('снятый план не забывает, что он снят', () => {
+  /* Состояние плана хранилось в раскадровке и сбрасывалось при каждой её перезаписи:
+     агент присылал поправленную версию — и тринадцать снятых планов разом
+     превращались в «ещё не снято». Человек видел пустую дорожку и не понимал,
+     снимать ему заново или нет.
+
+     Факт съёмки живёт в манифесте состояний, поэтому оттуда он и берётся. */
+  const состояния = [{ id: 'p01', body: 'states/p01-body.jpg' }];
+  const sb = normalizeStoryboard({
+    title: 'Демо', slate: false, end: false,
+    plans: [
+      { id: 'p01', title: { text: 'Снят' } },
+      { id: 'p02', title: { text: 'Не снят' } },
+    ],
+  }, состояния);
+  assert.equal(sb.plans[0].state, 'done');
+  assert.equal(sb.plans[1].state, 'pending');
+});
+
+test('вставке снимать нечего — она готова сразу', () => {
+  const sb = normalizeStoryboard({
+    title: 'Демо', slate: false, end: false,
+    plans: [{ id: 'p01', mode: 'insert', insert: { src: 'i.html' }, title: { text: '' } }],
+  }, []);
+  assert.equal(sb.plans[0].state, 'done');
+});
+
+test('неудача съёмки переживает перезапись раскадровки', () => {
+  // Снятого состояния нет, зато есть причина — её затирать нельзя: это единственное,
+  // что объясняет человеку, почему план пуст.
+  const sb = normalizeStoryboard({
+    title: 'Демо', slate: false, end: false,
+    plans: [{ id: 'p01', title: { text: 'Сломался' }, state: 'failed', error: 'не нашёл кнопку' }],
+  }, []);
+  assert.equal(sb.plans[0].state, 'failed');
+  assert.equal(sb.plans[0].error, 'не нашёл кнопку');
+});
+
 test('нормализация повторяется без последствий', () => {
   // Композиция прогоняет её у себя, не полагаясь на то, что сервер свежей версии.
   // Значит она обязана быть идемпотентной: второй проход не должен сдвинуть ни
@@ -394,4 +432,39 @@ test('проверки: здоровая раскадровка молчит', (
 test('новый идентификатор не сталкивается с существующими', () => {
   assert.equal(nextPlanId([{ id: 'p01' }, { id: 'p09' }]), 'p10');
   assert.equal(nextPlanId([]), 'p01');
+});
+
+/**
+ * Что из присланного файла доезжает до студии.
+ *
+ * Обложка и финал описаны в справочнике как записи раскадровки — значит, агент пишет их
+ * в файл и ждёт, что они применятся. Пока сборка полезной нагрузки их выбрасывала,
+ * подзаголовок обложки молча оставался прежним, и понять это можно было только по кадру
+ * готового ролика.
+ */
+test('обложка и финал доезжают из файла до студии', () => {
+  const p = draftPayload({
+    title: 'Ролик', plans: [],
+    slate: { on: true, text: null, subtitle: 'Навыки и инструменты', seconds: 3 },
+    end: { on: true, url: 'factor-esb.ru', seconds: 2 },
+  }, { ready: false });
+  assert.equal(p.slate.subtitle, 'Навыки и инструменты');
+  assert.equal(p.slate.seconds, 3);
+  assert.equal(p.end.url, 'factor-esb.ru');
+});
+
+test('без карточек в файле полезная нагрузка их не выдумывает', () => {
+  const p = draftPayload({ title: 'Ролик', plans: [] }, { ready: false });
+  assert.equal(p.slate, undefined);
+  assert.equal(p.end, undefined);
+});
+
+test('титр строкой превращается в объект, ручная длительность переносится', () => {
+  const p = draftPayload({ title: 'Ролик', plans: [
+    { title: 'Экран', screen: { route: '' }, action: { kind: 'hold', seconds: 4 },
+      duration: { seconds: 9, source: 'manual' } },
+  ] }, { ready: true });
+  assert.deepEqual(p.plans[0].title, { text: 'Экран' });
+  assert.equal(p.plans[0].duration.source, 'manual');
+  assert.equal(p.status, 'ready');
 });

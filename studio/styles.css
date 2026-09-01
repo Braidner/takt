@@ -254,15 +254,26 @@ button, input, textarea, select { font: inherit; color: inherit; }
    Стоит под полосой ступеней, потому что отвечает на её вопрос «и что теперь». */
 .now {
   display: flex;
-  align-items: baseline;
-  gap: var(--sp-2);
+  align-items: center;
+  gap: var(--sp-3);
   margin: 0;
-  padding: 0 var(--sp-3) var(--sp-3);
-  border-bottom: 1px solid var(--line);
-  font-size: var(--t-sm);
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--line);
+  font-size: var(--t-base);
   color: var(--ink);
 }
 .now[hidden] { display: none; }
+/* Действие живёт в той же строке, что и объяснение: человек читает «пересоберите
+   ролик» и нажимает кнопку рядом, а не ищет её среди семи в панели ниже. */
+.now-act {
+  flex: none;
+  margin-left: auto;
+  padding: 3px var(--sp-3);
+  font-size: var(--t-xs);
+  border-radius: var(--r-sm);
+}
+.now-act[hidden] { display: none; }
+
 .now-who {
   flex: none;
   font-size: var(--t-xs);

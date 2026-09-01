@@ -16,7 +16,8 @@ import { chromium } from 'playwright';
 import { login, stendUrl } from './lib/stend.mjs';
 import { readConfig, resolveStend, saveConfig } from './resolve-stend.mjs';
 import { dismissDevOverlay } from './dismiss-overlay.mjs';
-import { loadPreset } from './preset.mjs';
+import { presetForTarget } from './preset.mjs';
+import { currentTarget } from './project.mjs';
 import { SERVER_INFO } from './home.mjs';
 import { ok, fail } from './lib/out.mjs';
 
@@ -54,12 +55,15 @@ if (arg) saveConfig({ stend: target.url });
 await report({ state: 'checking', text: 'Проверяю доступ', key: 'stendChecking', ...where() });
 
 const creds = readConfig().creds || {};
+// Пресет описывает систему по умолчанию, цель — систему этого ролика: признак
+// готовности и язык берём с поправкой на неё, иначе живой стенд считается мёртвым.
+const preset = presetForTarget(currentTarget());
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1440, height: 810 } });
 await page.addInitScript((p) => {
   if (p.language) window.localStorage.setItem(p.language.key, p.language.value);
   if (p.theme) window.localStorage.setItem(p.theme.key, p.theme.value);
-}, loadPreset());
+}, preset);
 
 let result;
 try {
@@ -87,7 +91,7 @@ try {
     const root = document.querySelector(ready);
     // Страница ошибки — это body с одним <pre>: считаем интерфейсом только живое дерево.
     return Boolean(root && root.children.length > 0 && document.querySelectorAll('div').length > 5);
-  }, loadPreset().ready);
+  }, preset.ready);
 
   if (status >= 400) {
     const text = `Стенд отвечает ошибкой ${status}`;

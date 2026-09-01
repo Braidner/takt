@@ -65,10 +65,6 @@
     <!-- Ступени конвейера: что уже есть, что утверждено, что устарело после правки.
          Состояние выводится из файлов проекта, хранится только утверждение. -->
     <ol class="stages" hidden></ol>
-    <p class="stages-now" hidden></p>
-    <!-- Ход работы: одна строка, которая говорит, чей сейчас ход и что делать.
-         Полоса ступеней показывает состояние файлов, а человеку нужен следующий шаг. -->
-    <p class="now" hidden><span class="now-who"></span><span class="now-what"></span></p>
     <ul class="steps" hidden></ul>
 
     <div class="script-empty">
@@ -103,6 +99,12 @@
         <p class="caption" hidden></p>
       </div>
     </div>
+
+    <!-- Ход работы: одна строка над плеером — чей сейчас ход, что делать и кнопка,
+         которая это делает. Стоит здесь, а не в панели раскадровки: человек смотрит
+         ролик, и решение он принимает глядя на него. -->
+    <p class="now" hidden><span class="now-who"></span><span class="now-what"></span>
+      <button class="now-act primary" type="button" hidden></button></p>
 
     <div class="transport">
       <button class="play" type="button" data-i-aria="play" aria-label="Воспроизвести">

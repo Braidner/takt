@@ -14,12 +14,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { inProject } from './project.mjs';
+import { inProject, currentTarget } from './project.mjs';
 import { chromium } from 'playwright';
 import { login } from './lib/stend.mjs';
 import { readConfig } from './resolve-stend.mjs';
 import { dismissDevOverlay } from './dismiss-overlay.mjs';
-import { loadPreset } from './preset.mjs';
+import { presetForTarget } from './preset.mjs';
 import { ok, fail } from './lib/out.mjs';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -37,7 +37,7 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 810 } });
 await page.addInitScript((p) => {
   if (p.language) window.localStorage.setItem(p.language.key, p.language.value);
   if (p.theme) window.localStorage.setItem(p.theme.key, p.theme.value);
-}, loadPreset());
+}, presetForTarget(currentTarget()));
 await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
 await page.waitForTimeout(4000);
 await login(page, cfg.creds || {});

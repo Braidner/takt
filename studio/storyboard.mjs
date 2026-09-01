@@ -17,6 +17,7 @@
 import fs from 'node:fs';
 import { SERVER_INFO } from './home.mjs';
 import { ok, usage } from './lib/out.mjs';
+import { draftPayload } from './compose/storyboard.mjs';
 
 const info = JSON.parse(fs.readFileSync(SERVER_INFO, 'utf8'));
 const base = `http://localhost:${info.port}`;
@@ -34,27 +35,7 @@ if (!file) {
 }
 
 const draft = JSON.parse(fs.readFileSync(file, 'utf8'));
-const plans = (draft.plans || []).map((p) => ({
-  id: p.id || null,
-  intent: p.intent || null,
-  // Титр приходит строкой или объектом: агенту проще написать строку, а формат
-  // хранит стиль рядом с текстом.
-  title: typeof p.title === 'string' ? { text: p.title } : (p.title || { text: '' }),
-  mode: p.mode === 'live' ? 'live' : 'static',
-  screen: { route: p.screen?.route ?? null, waitFor: p.screen?.waitFor || null },
-  action: p.action || null,
-  // Ручную длительность пропускаем только помеченной: иначе «выведено» и «назначено»
-  // не отличить, и первый же пересчёт молча затрёт решение человека.
-  duration: p.duration?.source === 'manual' ? p.duration : undefined,
-}));
-
-const payload = {
-  title: draft.title || 'Демонстрационный ролик',
-  task: draft.task || null,
-  status: process.argv.includes('--ready') ? 'ready' : 'draft',
-  plans,
-  effects: (draft.effects || []).filter((e) => e.source === 'manual'),
-};
+const payload = draftPayload(draft, { ready: process.argv.includes('--ready') });
 
 const r = await fetch(`${base}/api/storyboard?token=${info.token}`, {
   method: 'POST',
@@ -68,7 +49,7 @@ ok(answer, answer.issues?.length
      ? ['раскадровка принята с замечаниями — поправить и отправить снова']
      : ['человек утверждает её в студии и нажимает «Снимать»', 'ждать этого: takt poll']);
 console.log(`${payload.status === 'ready' ? 'Утверждена' : 'Черновик'}: `
-  + `${plans.length} планов, ${mmss(answer.seconds || 0)}`);
+  + `${payload.plans.length} планов, ${mmss(answer.seconds || 0)}`);
 // Замечания печатаются сразу: длинный план надо разбить надвое, и узнать об этом
 // лучше здесь, а не после прогона съёмки.
 for (const i of answer.issues || []) console.error(`  · ${i.text}`);

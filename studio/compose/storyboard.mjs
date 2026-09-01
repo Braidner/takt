@@ -121,9 +121,15 @@ const карточка = (v, было, по_умолчанию) => {
   };
 };
 
-export function normalizeStoryboard(sb, states = []) {
-  // Снятое приходит сюда затем, чтобы живой план знал свою настоящую длину:
-  // время ролика считается в одном месте, и факт съёмки — часть этого счёта.
+export function normalizeStoryboard(sb, states) {
+  /* Снятое приходит сюда затем, чтобы живой план знал свою настоящую длину и чтобы
+     не забывалось, что он вообще снят: время ролика и факт съёмки считаются в одном
+     месте.
+
+     Разница между «манифест пуст» и «манифеста не давали» существенна. Пустой
+     значит «ничего не снято» — так и покажем. Не давали значит «не знаем», и тогда
+     записанное в раскадровке остаётся единственным, что о плане известно. */
+  const знаемСнятое = Array.isArray(states);
   const снято = new Map((states || []).map((s) => [s.id, s]));
   const seen = [];
   // Обложка идёт первой и занимает своё время: планы начинаются после неё. Иначе
@@ -156,7 +162,14 @@ export function normalizeStoryboard(sb, states = []) {
       mode: p.mode === 'live' ? 'live' : p.mode === 'insert' ? 'insert' : 'static',
       screen: { route: p.screen?.route ?? null, waitFor: p.screen?.waitFor || null },
       action: p.action || null,
-      state: p.state || 'pending',
+      /* Снят план или нет — факт манифеста, а не запись в раскадровке. Пока он
+         хранился здесь, любая перезаписанная раскадровка сбрасывала его в
+         «ещё не снято»: агент присылал поправленную версию, и снятый материал
+         переставал считаться снятым. Неудача — другое дело: снятого состояния
+         нет, а причина есть, и затирать её нечем. */
+      state: p.state === 'failed' || p.state === 'running' || !знаемСнятое
+        ? (p.state || 'pending')
+        : (p.mode === 'insert' || снято.has(p.id) ? 'done' : 'pending'),
       error: p.error || null,
       fix: p.fix || null,
       took: p.took ?? null,
@@ -241,4 +254,38 @@ export function checkStoryboard(sb) {
     }
   }
   return issues;
+}
+
+/**
+ * Полезная нагрузка из присланного агентом файла.
+ *
+ * Живёт рядом с нормализацией, а не в скрипте команды: скрипт исполняется целиком при
+ * импорте, и проверить его сборку иначе нечем. Именно здесь потерялись обложка и финал —
+ * справочник называет их записями раскадровки, а нагрузка их не несла, и подзаголовок
+ * молча оставался прежним до самого готового ролика.
+ */
+export function draftPayload(draft, { ready } = {}) {
+  const plans = (draft.plans || []).map((p) => ({
+    id: p.id || null,
+    intent: p.intent || null,
+    // Титр приходит строкой или объектом: агенту проще написать строку, а формат
+    // хранит стиль рядом с текстом.
+    title: typeof p.title === 'string' ? { text: p.title } : (p.title || { text: '' }),
+    mode: p.mode === 'live' ? 'live' : 'static',
+    screen: { route: p.screen?.route ?? null, waitFor: p.screen?.waitFor || null },
+    action: p.action || null,
+    // Ручную длительность пропускаем только помеченной: иначе «выведено» и «назначено»
+    // не отличить, и первый же пересчёт молча затрёт решение человека.
+    duration: p.duration?.source === 'manual' ? p.duration : undefined,
+  }));
+
+  return {
+    title: draft.title || 'Демонстрационный ролик',
+    task: draft.task || null,
+    status: ready ? 'ready' : 'draft',
+    plans,
+    effects: (draft.effects || []).filter((e) => e.source === 'manual'),
+    ...(draft.slate !== undefined ? { slate: draft.slate } : {}),
+    ...(draft.end !== undefined ? { end: draft.end } : {}),
+  };
 }

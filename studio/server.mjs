@@ -319,10 +319,10 @@ function nextStep() {
 
   const sb = readBoard();
   if (!sb?.plans?.length) return { who: 'human', key: 'now_task' };
-  if (sb.status !== 'ready') return { who: 'human', key: 'now_approve' };
+  if (sb.status !== 'ready') return { who: 'human', key: 'now_approve', act: 'shoot' };
 
   const открытые = readNotes().filter((n) => n.status === 'open').length;
-  if (открытые) return { who: 'human', key: 'now_notes', count: открытые };
+  if (открытые) return { who: 'human', key: 'now_notes', count: открытые, act: 'apply' };
 
   const files = {};
   for (const s of STAGES) {
@@ -332,10 +332,13 @@ function nextStep() {
   const шаги = pipelineState({ files, approved: project.approved || [], gates: project.gates });
   const ступень = (id) => шаги.find((s) => s.id === id) || {};
 
-  if (ступень('states').state === 'missing') return { who: 'human', key: 'now_shoot' };
-  if (ступень('movie').state === 'missing') return { who: 'human', key: 'now_build' };
-  if (ступень('states').stale) return { who: 'human', key: 'now_reshoot' };
-  if (ступень('movie').stale) return { who: 'human', key: 'now_rebuild' };
+  /* Про пересъёмку судим по существу, а не по времени файлов. Раскадровка новее
+     снятого почти всегда: агент переписывает её на каждую правку титра. Гнать за это
+     на десятиминутную пересъёмку — врать: снимать надо только то, чего не снято. */
+  const неснятых = sb.plans.filter((p) => p.mode !== 'insert' && p.state !== 'done').length;
+  if (неснятых) return { who: 'human', key: 'now_shoot', count: неснятых, act: 'shoot' };
+  if (ступень('movie').state === 'missing') return { who: 'human', key: 'now_build', act: 'cut' };
+  if (ступень('movie').stale) return { who: 'human', key: 'now_rebuild', act: 'cut' };
   return { who: 'human', key: 'now_watch' };
 }
 
