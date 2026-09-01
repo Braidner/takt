@@ -263,6 +263,36 @@ button, input, textarea, select { font: inherit; color: inherit; }
   color: var(--ink);
 }
 .now[hidden] { display: none; }
+/* Прогресс долгой работы — там же, где сказано, что она идёт. Это единственный
+   ответ на вопрос «оно вообще движется?», который человек задаёт на третьей минуте
+   съёмки. */
+.now-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-left: auto;
+  font: var(--t-xs)/1 var(--mono);
+  color: var(--ink-muted);
+}
+.now-progress[hidden] { display: none; }
+.now-bar {
+  display: block;
+  width: 120px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+.now-bar::after {
+  content: "";
+  display: block;
+  height: 100%;
+  width: var(--доля, 0%);
+  border-radius: 2px;
+  background: var(--brand-flow);
+  transition: width var(--slow, 260ms) var(--ease);
+}
+
 /* Действие живёт в той же строке, что и объяснение: человек читает «пересоберите
    ролик» и нажимает кнопку рядом, а не ищет её среди семи в панели ниже. */
 .now-act {

@@ -189,7 +189,7 @@ const ДЕЙСТВИЯ = {
   apply: { key: 'actApply', event: 'apply' },
 };
 
-function renderNow(next) {
+function renderNow(next, status = null) {
   if (!el.now) return;
   /* Пустой проект уже объясняет себя крупной формой с полем ввода — повторять ту же
      фразу строкой выше значит говорить дважды одно и то же. */
@@ -199,6 +199,16 @@ function renderNow(next) {
   el.now.dataset.who = next.who;
   tr(el.now.querySelector('.now-who'), next.who === 'agent' ? 'nowAgent' : 'nowYou');
   tr(el.now.querySelector('.now-what'), next.key, { count: next.count ?? 0 });
+
+  /* Сколько уже сделано — рядом со словами о том, что идёт работа. На третьей минуте
+     съёмки это единственный ответ на вопрос «оно вообще движется?». */
+  const прогресс = el.now.querySelector('.now-progress');
+  const счёт = next.who === 'agent' && status?.step && status?.of;
+  прогресс.hidden = !счёт;
+  if (счёт) {
+    прогресс.style.setProperty('--доля', `${Math.round((status.step / status.of) * 100)}%`);
+    прогресс.querySelector('.now-count').textContent = `${status.step} / ${status.of}`;
+  }
 
   /* Кнопка того самого действия — рядом с объяснением. Раньше человек читал
      «пересоберите ролик» в одном месте, а кнопку искал в панели из семи штук
@@ -1911,7 +1921,7 @@ function connect() {
     if (msg.type === 'status') {
       setAgent(msg.status, msg.agent, msg.doing);
       renderInFlight(msg.inFlight);
-      renderNow(msg.next);
+      renderNow(msg.next, msg.status);
     }
     if (msg.type === 'stend') setStend(msg.stend);
     if (msg.type === 'project') renderProjects(msg.current, msg.projects);
@@ -1957,7 +1967,7 @@ async function boot() {
   narrationPanel.render(hello.narration);
   setAgent(hello.status, hello.agent, hello.doing);
   renderInFlight(hello.inFlight);
-  renderNow(hello.next);
+  renderNow(hello.next, hello.status);
   setStend(hello.stend);
   renderProjects(hello.project, hello.projects);
   setupDragAndDrop(el.steps);
