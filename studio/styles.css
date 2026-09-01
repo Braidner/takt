@@ -549,11 +549,16 @@ button, input, textarea, select { font: inherit; color: inherit; }
    съёмка не стартует. Метка в шапке панели объясняет, почему кнопка съёмки не активна. */
 .script-status {
   font-size: var(--t-xs);
-  padding: 1px var(--sp-2);
+  padding: 2px var(--sp-3);
   border-radius: 999px;
   border: 1px solid var(--line-strong);
+  background: transparent;
   color: var(--ink-muted);
+  cursor: pointer;
+  transition: border-color var(--fast) var(--ease), color var(--fast) var(--ease);
 }
+.script-status:hover { border-color: var(--ink-muted); color: var(--ink); }
+.script-status:active { background: color-mix(in oklch, var(--ink) 8%, transparent); }
 .script-status[data-state="ready"] { border-color: var(--ok); color: var(--ink); }
 
 .script-actions {
@@ -1626,8 +1631,8 @@ button, input, textarea, select { font: inherit; color: inherit; }
 
 .stage-btn {
   width: 100%;
-  /* Риска тонкая, но зона клика — во всю высоту полосы: попадать в четыре пикселя
-     мышью невозможно. */
+  /* Полоса показывает путь и не нажимается: решение человека во всём конвейере
+     одно — утверждена ли раскадровка, и живёт оно на бейдже рядом с её заголовком. */
   min-height: 22px;
   display: flex;
   flex-direction: column;
@@ -1637,7 +1642,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
   border: none;
   border-radius: 2px;
   background: none;
-  cursor: pointer;
 }
 
 /* Ступень называет себя сама. Раньше имя жило только в подсказке, и полоса читалась
@@ -1655,7 +1659,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
 }
 .stage-step[data-state="ready"] .stage-name { color: var(--ink-muted); }
 .stage-step[data-stale="true"] .stage-name { color: var(--warn); }
-.stage-btn:hover .stage-name { color: var(--ink); }
 .stage-btn:disabled { cursor: default; }
 .stage-btn:active:not(:disabled)::before { filter: brightness(1.25); }
 .stage-btn::before {

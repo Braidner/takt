@@ -240,7 +240,16 @@ const writeBoard = (sb) => {
    * только внутри раскадровки значило бы потерять её при первой же пересборке,
    * а показывать ступень «ещё нет» там, где задача давно поставлена, — врать.
    */
-  if (next.task) fs.writeFileSync(inProject('prompt.txt'), `${next.task}\n`);
+  /* Пишем только изменившуюся задачу. Перезапись «тем же самым» обновляла время
+     файла, и раскадровка, сохранённая секунду назад, немедленно становилась
+     «устаревшей относительно задачи»: полоса ступеней желтела на ровном месте
+     после любой правки титра. */
+  if (next.task) {
+    const файл = inProject('prompt.txt');
+    const было = fs.existsSync(файл) ? fs.readFileSync(файл, 'utf8') : null;
+    const стало = `${next.task}\n`;
+    if (было !== стало) fs.writeFileSync(файл, стало);
+  }
   return next;
 };
 
@@ -313,6 +322,37 @@ const agentAlive = () => state.polls.length > 0
  * замечания важнее устаревшего ролика, потому что ролик всё равно пересоберётся
  * после них.
  */
+/**
+ * Ступени с поправкой на существо дела.
+ *
+ * Время файла — грубая мера. Раскадровку переписывают на каждую правку титра, и
+ * формально после этого «съёмка устарела», хотя сняты все планы до единого, а
+ * ролик собран из этой самой раскадровки. Жёлтая полоса в такой ситуации не
+ * предупреждает, а приучает не верить.
+ *
+ * Поэтому съёмка считается устаревшей, когда есть планы без снятого состояния, а
+ * ролик — когда он старше того, из чего собран.
+ */
+function ступени() {
+  const files = {};
+  for (const s of STAGES) {
+    try { files[s.file] = fs.statSync(inProject(s.file)).mtimeMs; } catch { /* нет и нет */ }
+  }
+  const project = readProject(currentId) || {};
+  const базовые = pipelineState({ files, approved: project.approved || [], gates: project.gates });
+
+  const sb = readBoard();
+  const неснятых = (sb?.plans || []).filter((x) => x.mode !== 'insert' && x.state !== 'done').length;
+  const позже = Math.max(files['storyboard.json'] || 0, files['states.json'] || 0);
+
+  return { files, gates: project.gates !== false, stages: базовые.map((s) => {
+    if (s.state === 'missing') return s;
+    if (s.id === 'states') return { ...s, stale: неснятых > 0 };
+    if (s.id === 'movie') return { ...s, stale: (files['movie.mp4'] || 0) < позже };
+    return s;
+  }) };
+}
+
 function nextStep() {
   const занят = agentDoing();
   if (занят) return { who: 'agent', key: `doing_${занят.type}`, type: занят.type };
@@ -324,12 +364,8 @@ function nextStep() {
   const открытые = readNotes().filter((n) => n.status === 'open').length;
   if (открытые) return { who: 'human', key: 'now_notes', count: открытые, act: 'apply' };
 
-  const files = {};
-  for (const s of STAGES) {
-    try { files[s.file] = fs.statSync(inProject(s.file)).mtimeMs; } catch { /* нет и нет */ }
-  }
-  const project = readProject(currentId) || {};
-  const шаги = pipelineState({ files, approved: project.approved || [], gates: project.gates });
+  // Тот же расчёт, что видит полоса ступеней: одно понимание состояния на всех.
+  const { files, stages: шаги } = ступени();
   const ступень = (id) => шаги.find((s) => s.id === id) || {};
 
   /* Про пересъёмку судим по существу, а не по времени файлов. Раскадровка новее
@@ -875,15 +911,8 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (p === '/api/pipeline' && req.method === 'GET') {
-    const files = {};
-    for (const s of STAGES) {
-      try { files[s.file] = fs.statSync(inProject(s.file)).mtimeMs; } catch { /* нет и нет */ }
-    }
-    const project = readProject(currentId) || {};
-    return send(res, 200, {
-      stages: pipelineState({ files, approved: project.approved || [], gates: project.gates }),
-      gates: project.gates !== false,
-    });
+    const { stages, gates } = ступени();
+    return send(res, 200, { stages, gates });
   }
 
   /**

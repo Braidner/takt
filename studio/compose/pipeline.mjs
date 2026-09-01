@@ -39,6 +39,12 @@ const index = (id) => STAGES.findIndex((s) => s.id === id);
  * целиком: на проекте, где гейты не нужны, каждый существующий артефакт считается
  * готовым. Файлы при этом не выдумываются — пустой проект остаётся пустым.
  */
+/* Запас против одновременных записей: раскадровка и задача сохраняются одним
+   действием, и разница в доли секунды между ними — не признак того, что задачу
+   поменяли после раскадровки. Секунда достаточно мала, чтобы настоящая правка
+   всегда была заметна. */
+const ЗАПАС = 1000;
+
 export function pipelineState({ files = {}, approved = [], gates = true } = {}) {
   const at = (id) => files[STAGES[index(id)].file];
 
@@ -58,7 +64,7 @@ export function pipelineState({ files = {}, approved = [], gates = true } = {}) 
     return {
       id: stage.id,
       state: gates === false || approved.includes(stage.id) ? 'ready' : 'draft',
-      stale: sourceTime !== undefined && time < sourceTime,
+      stale: sourceTime !== undefined && time + ЗАПАС < sourceTime,
       at: time,
     };
   }).map((s, i, all) => ({

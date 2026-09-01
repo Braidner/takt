@@ -2,10 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { STAGES, pipelineState, staleFrom } from '../studio/compose/pipeline.mjs';
 
-/** Файлы проекта: имя → время правки в секундах. Порядок возрастания = порядок работы. */
+/* Файлы проекта: имя → время правки в миллисекундах. Порядок возрастания = порядок
+   работы, а шаг в минуту — чтобы разница читалась как настоящая правка, а не как
+   одновременная запись: одновременным записям полагается запас, иначе полоса
+   ступеней желтеет после каждого сохранения. */
+const МИНУТА = 60_000;
 const files = (over = {}) => ({
-  'prompt.txt': 100, 'recon.json': 200, 'story.md': 300,
-  'storyboard.json': 400, 'states.json': 500, 'movie.mp4': 600, ...over,
+  'prompt.txt': МИНУТА, 'recon.json': 2 * МИНУТА, 'story.md': 3 * МИНУТА,
+  'storyboard.json': 4 * МИНУТА, 'states.json': 5 * МИНУТА, 'movie.mp4': 6 * МИНУТА, ...over,
 });
 
 const state = (sb, id) => sb.find((s) => s.id === id);
@@ -41,7 +45,7 @@ test('утверждение отсутствующей ступени ниче�
 
 test('ступень старше своего источника — устарела', () => {
   // Раскадровку переписали после того, как по ней сняли: состояния уже не про неё.
-  const sb = pipelineState({ files: files({ 'storyboard.json': 550 }), approved: [] });
+  const sb = pipelineState({ files: files({ 'storyboard.json': 5.5 * МИНУТА }), approved: [] });
   assert.equal(state(sb, 'states').stale, true);
   assert.equal(state(sb, 'movie').stale, true, 'устаревание идёт вниз по цепочке');
   assert.equal(state(sb, 'story').stale, false, 'вверх по цепочке ничего не трогается');
@@ -49,7 +53,7 @@ test('ступень старше своего источника — устар
 
 test('устаревшая ступень остаётся на месте, а не исчезает', () => {
   // Молча стирать чужую работу нельзя: человек мог править её руками час назад.
-  const sb = pipelineState({ files: files({ 'storyboard.json': 550 }), approved: ['states'] });
+  const sb = pipelineState({ files: files({ 'storyboard.json': 5.5 * МИНУТА }), approved: ['states'] });
   assert.equal(state(sb, 'states').state, 'ready');
   assert.equal(state(sb, 'states').stale, true);
 });
@@ -79,4 +83,24 @@ test('перегенерация помечает всё, что ниже, и н
 
 test('неизвестная ступень не роняет расчёт', () => {
   assert.deepEqual(staleFrom('его-нет'), []);
+});
+
+test('одновременная запись не делает ступень устаревшей', () => {
+  /* Раскадровка и задача сохраняются одним действием, и задача иногда ложится на
+     диск на доли секунды позже. Без запаса полоса ступеней желтела после каждой
+     правки титра: раскадровка «устаревала» относительно задачи, которую вместе
+     с ней и записали. */
+  const шаги = pipelineState({
+    files: { 'prompt.txt': 1000, 'storyboard.json': 900 },
+    approved: ['storyboard'],
+  });
+  assert.equal(шаги.find((s) => s.id === 'storyboard').stale, false);
+});
+
+test('настоящая правка задачи устаревание всё же показывает', () => {
+  const шаги = pipelineState({
+    files: { 'prompt.txt': 60_000, 'storyboard.json': 1000 },
+    approved: ['storyboard'],
+  });
+  assert.equal(шаги.find((s) => s.id === 'storyboard').stale, true);
 });

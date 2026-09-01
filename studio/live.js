@@ -692,12 +692,24 @@ function renderBoard(next) {
   // понимать, почему, не заглядывая в документацию.
   let badge = el.scriptHead.querySelector('.script-status');
   if (!badge) {
-    badge = document.createElement('span');
+    /* Утверждение — единственное решение человека во всём конвейере: по нему
+       стартует съёмка. Поэтому оно живёт здесь, рядом со словом «утверждена», а не
+       кликом по безымянной риске в полосе ступеней. */
+    badge = document.createElement('button');
+    badge.type = 'button';
     badge.className = 'script-status';
+    badge.addEventListener('click', async () => {
+      const было = storyboard.status === 'ready';
+      if (было && !confirm(window.taktText?.('statusUnapprove')
+          || 'Снять утверждение? Съёмка по этой раскадровке не стартует, пока не утвердите снова.')) return;
+      await post('/api/approve', { stage: 'storyboard', approved: !было });
+      renderStages();
+    });
     el.scriptHead.querySelector('span').after(badge);
   }
   badge.dataset.state = storyboard.status;
   tr(badge, storyboard.status === 'ready' ? 'statusReady' : 'statusDraft');
+  trTitle(badge, storyboard.status === 'ready' ? 'statusReadyTitle' : 'statusDraftTitle');
 
   if (el.shoot) {
     /* Кнопка утверждения: пока раскадровка черновик — «Снимать», после — надпись
@@ -741,11 +753,15 @@ async function renderStages() {
     li.dataset.state = s.state;
     if (s.stale) li.dataset.stale = 'true';
 
-    const b = document.createElement('button');
-    b.type = 'button';
+    /* Ступень показывает путь, а не переключает состояние.
+       Раньше каждая была кнопкой «утвердить / снять утверждение», но решение
+       человека есть ровно одно — утверждена ли раскадровка: по нему стартует
+       съёмка. Остальные пять меняли только цвет полосы, поэтому клики то
+       «работали», то нет, и понять правило было неоткуда. Утверждение переехало
+       туда, где ему место: на бейдж рядом с заголовком раскадровки. */
+    const b = document.createElement('span');
     b.className = 'stage-btn';
     const имя = window.taktText(STAGE_KEYS[s.id]) || s.id;
-    b.setAttribute('aria-label', имя);
     // Ступень называет себя: пока имя жило только в подсказке, полоса читалась как
     // ряд разноцветных чёрточек, и понять, какая из них съёмка, можно было лишь
     // наведя мышь на каждую.
@@ -758,11 +774,6 @@ async function renderStages() {
     trTitle(b, s.stale ? 'stageStale'
       : s.state === 'ready' ? 'stageReady'
       : s.state === 'draft' ? 'stageDraft' : 'stageMissing', { stage: имя });
-    b.disabled = s.state === 'missing';
-    b.addEventListener('click', async () => {
-      await post('/api/approve', { stage: s.id, approved: s.state !== 'ready' });
-      renderStages();
-    });
 
     li.append(b);
     el.stages.append(li);
