@@ -191,7 +191,10 @@ const ДЕЙСТВИЯ = {
 
 function renderNow(next) {
   if (!el.now) return;
-  if (!next?.key) { el.now.hidden = true; return; }
+  /* Пустой проект уже объясняет себя крупной формой с полем ввода — повторять ту же
+     фразу строкой выше значит говорить дважды одно и то же. */
+  const пустойЭкран = el.scriptEmpty && !el.scriptEmpty.hidden;
+  if (!next?.key || (пустойЭкран && next.key === 'now_task')) { el.now.hidden = true; return; }
   el.now.hidden = false;
   el.now.dataset.who = next.who;
   tr(el.now.querySelector('.now-who'), next.who === 'agent' ? 'nowAgent' : 'nowYou');
@@ -348,7 +351,25 @@ function renderBoard(next) {
   if (el.steps) el.steps.hidden = !has;
   if (el.scriptActions) el.scriptActions.hidden = !has;
   if (!has) {
+    /* Пустой проект должен выглядеть пустым, а не сломанным. Раньше здесь просто
+       выходили, и от прошлого проекта оставались: плашка «идёт съёмка» без съёмки,
+       битая картинка в кадре и шкала на 4:47 из вёрстки — первое, что видел человек
+       в новом ролике, выглядело поломкой. */
     if (el.scriptCount) el.scriptCount.textContent = '';
+    const badge = document.querySelector('.live-badge');
+    if (badge) badge.hidden = true;
+    if (el.frame) {
+      el.frame.dataset.live = 'false';
+      el.frame.querySelector('img')?.remove();
+    }
+    if (el.composeFrame) el.composeFrame.hidden = true;
+    DURATION = 0;
+    cursor = 0;
+    подсвеченныйПлан = null;
+    if (el.steps) el.steps.innerHTML = '';
+    renderRuler();
+    renderTracks();
+    renderScriptCount();
     return;
   }
 
@@ -1195,6 +1216,9 @@ function renderRuler() {
   const ruler = document.querySelector('.ruler');
   if (!ruler) return;
   ruler.innerHTML = '';
+  // Пустому ролику нечего размечать: деления «0.0 с … 8.0 с» на пустой шкале
+  // выглядят обещанием несуществующего.
+  if (!DURATION) return;
   // Делений столько, сколько влезает читаемо: на приближённой шкале четыре метки
   // на весь ролик оставляли бы человека без ориентиров ровно там, где он целится.
   const делений = Math.min(24, Math.max(4, Math.round(4 * zoom)));
@@ -1209,7 +1233,7 @@ function renderRuler() {
     ruler.append(span);
   }
   const total = document.querySelector('.clock');
-  if (total) total.innerHTML = `<b>${mmss(cursor)}</b> / ${mmss(DURATION)}`;
+  if (total) total.innerHTML = `<b>${mmss(cursor || 0)}</b> / ${mmss(DURATION || 0)}`;
 }
 
 const EVENT_TITLES = {
@@ -1315,6 +1339,9 @@ function renderMovie(next) {
   const снято = Boolean(movie?.url);
   if (el.cut) el.cut.hidden = !снято;
   if (el.short) el.short.hidden = !снято;
+  // Переснять можно лишь снятое: в новом проекте эта кнопка обещает работу,
+  // которой ещё нет.
+  if (el.retake) el.retake.hidden = !снято;
   renderCuts(movie?.cuts || []);
   if (!movie?.url || !el.frame) return;
 
