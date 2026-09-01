@@ -335,6 +335,14 @@ function nextStep() {
   /* Про пересъёмку судим по существу, а не по времени файлов. Раскадровка новее
      снятого почти всегда: агент переписывает её на каждую правку титра. Гнать за это
      на десятиминутную пересъёмку — врать: снимать надо только то, чего не снято. */
+  /* Упавший план — не то же самое, что неснятый: у него есть причина, и она важнее
+     счётчика. Молчать о ней значит отправить человека искать, почему из тринадцати
+     планов снялись двенадцать. */
+  const упал = sb.plans.find((p) => p.state === 'failed');
+  if (упал) {
+    return { who: 'human', key: 'now_failed', act: 'shoot',
+             plan: упал.title?.text || упал.id, why: упал.error || null };
+  }
   const неснятых = sb.plans.filter((p) => p.mode !== 'insert' && p.state !== 'done').length;
   if (неснятых) return { who: 'human', key: 'now_shoot', count: неснятых, act: 'shoot' };
   if (ступень('movie').state === 'missing') return { who: 'human', key: 'now_build', act: 'cut' };

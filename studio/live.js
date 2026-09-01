@@ -198,7 +198,8 @@ function renderNow(next, status = null) {
   el.now.hidden = false;
   el.now.dataset.who = next.who;
   tr(el.now.querySelector('.now-who'), next.who === 'agent' ? 'nowAgent' : 'nowYou');
-  tr(el.now.querySelector('.now-what'), next.key, { count: next.count ?? 0 });
+  tr(el.now.querySelector('.now-what'), next.key,
+     { count: next.count ?? 0, plan: next.plan || '', why: next.why || '—' });
 
   /* Сколько уже сделано — рядом со словами о том, что идёт работа. На третьей минуте
      съёмки это единственный ответ на вопрос «оно вообще движется?». */
