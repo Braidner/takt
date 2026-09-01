@@ -485,8 +485,13 @@ const server = http.createServer(async (req, res) => {
     if (nr) res.write(`data: ${JSON.stringify({ type: 'narration', narration: nr })}\n\n`);
     if (state.lastFrame) res.write(`data: ${JSON.stringify({ type: 'frame', frame: state.lastFrame })}\n\n`);
     state.sse.add(res);
+    /* Пульс — событием, а не комментарием. Комментарий держит соединение открытым,
+       но странице невидим, и она не может отличить живую связь от мёртвого сокета:
+       поток «висит», данные не идут, а на экране всё как обычно. Теперь тишина
+       дольше пульса — сама по себе сигнал. */
     const beat = setInterval(() => {
-      try { res.write(': keepalive\n\n'); } catch { clearInterval(beat); }
+      try { res.write(`data: ${JSON.stringify({ type: 'beat' })}\n\n`); }
+      catch { clearInterval(beat); }
     }, HEARTBEAT_MS);
     req.on('close', () => { clearInterval(beat); state.sse.delete(res); });
     return;
