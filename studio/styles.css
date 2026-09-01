@@ -228,6 +228,54 @@ button, input, textarea, select { font: inherit; color: inherit; }
 }
 .version.is-dirty { color: var(--warn); border-color: color-mix(in oklch, var(--warn) 40%, transparent); }
 
+/* Связь: метка молчит, пока всё хорошо, и появляется, когда потеряна. Жёлтый —
+   потому что это не поломка, а перерыв: страница сама переподключается. */
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  height: 26px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-sm);
+  background: color-mix(in oklch, var(--warn) 16%, transparent);
+  color: var(--warn);
+  font-size: var(--t-xs);
+}
+.link[hidden] { display: none; }
+.link-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: currentColor;
+  animation: пульс 1.4s ease-in-out infinite;
+}
+@keyframes пульс { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .link-dot { animation: none; } }
+
+/* Ход работы: чей ход — приглушённой меткой, что делать — обычным текстом.
+   Стоит под полосой ступеней, потому что отвечает на её вопрос «и что теперь». */
+.now {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0 var(--sp-3) var(--sp-3);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--t-sm);
+  color: var(--ink);
+}
+.now[hidden] { display: none; }
+.now-who {
+  flex: none;
+  font-size: var(--t-xs);
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-sm);
+  background: color-mix(in oklch, var(--brand-teal) 20%, transparent);
+  color: var(--brand-teal);
+}
+.now[data-who="agent"] .now-who {
+  background: color-mix(in oklch, var(--brand-blue) 26%, transparent);
+  color: var(--brand-sky);
+}
+
 .head-spacer { flex: 1; }
 
 /* Состояние агента — элемент первого класса: писать в поле, когда на том конце

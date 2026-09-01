@@ -31,6 +31,15 @@
     </button>
 
     <!-- Состояние агента: текст плюс форма точки, не только цвет. -->
+    <!-- Связь страницы со студией — не то же самое, что присутствие агента.
+         Пока их показывал один индикатор, обрыв потока читался как «агент пропал»,
+         и по нему же блокировались кнопки. Метка появляется только когда связь
+         действительно потеряна. -->
+    <div class="link" data-state="ok" role="status" aria-live="polite" hidden>
+      <span class="link-dot" aria-hidden="true"></span>
+      <span class="link-text" data-i="linkLost">Связь со студией потеряна</span>
+    </div>
+
     <div class="agent" data-state="busy" role="status" aria-live="polite">
       <span class="agent-dot" aria-hidden="true"></span>
       <!-- Счётчик «2 из 5» — отдельный узел внутри общей обёртки: числа приходят из
@@ -57,6 +66,9 @@
          Состояние выводится из файлов проекта, хранится только утверждение. -->
     <ol class="stages" hidden></ol>
     <p class="stages-now" hidden></p>
+    <!-- Ход работы: одна строка, которая говорит, чей сейчас ход и что делать.
+         Полоса ступеней показывает состояние файлов, а человеку нужен следующий шаг. -->
+    <p class="now" hidden><span class="now-who"></span><span class="now-what"></span></p>
     <ul class="steps" hidden></ul>
 
     <div class="script-empty">

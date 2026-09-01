@@ -274,10 +274,76 @@ const broadcast = (msg) => {
 /* Версия читается с диска и потому дёшева. Проверку обновлений ведёт страница:
    она спрашивает GitHub напрямую и сравнивает коммит. Серверу здесь делать нечего —
    ходить в сеть за него значило бы держать таймауты чужой сети в своём цикле. */
-const версия = () => readVersion();
+/* Версия читается git-ом, а это три процесса и тридцать миллисекунд синхронно.
+   В горячем пути (каждое подключение потока, каждый /api/version) столько платить
+   не за что: коммит меняется реже, чем открывают страницу. */
+let versionCache = { at: 0, value: null };
+const ВЕРСИЯ_ЖИВЁТ = 10_000;
+const версия = () => {
+  if (Date.now() - versionCache.at > ВЕРСИЯ_ЖИВЁТ) {
+    versionCache = { at: Date.now(), value: readVersion() };
+  }
+  return versionCache.value;
+};
 
-/** Агент считается на связи, пока держит опрос или недавно отвечал. */
-const agentAlive = () => state.polls.length > 0 || Date.now() - state.agentSeenAt < 90_000;
+/**
+ * На связи ли агент.
+ *
+ * Три признака, и третий добавлен по жалобе: агент, взявший событие в работу, живее
+ * всех — он именно сейчас снимает или собирает. Пока признака не было, длинная
+ * работа без промежуточных статусов через полторы минуты показывалась как «агент
+ * не подключён», и человек видел обрыв там, где шла съёмка.
+ *
+ * Дальше это било по делу, а не только по индикатору: страница блокировала по нему
+ * кнопки, и замечания «не отправлялись», хотя очередь событий работала.
+ */
+const agentAlive = () => state.polls.length > 0
+  || state.leased.size > 0
+  || Date.now() - state.agentSeenAt < 90_000;
+
+/**
+ * Что происходит сейчас и чей ход.
+ *
+ * Одно место на всех: строку читает и человек в студии, и агент в ответе `takt`.
+ * Пока её не было, ход работы приходилось выводить из полосы ступеней — а она
+ * говорит про файлы («ролик устарел»), а не про то, что делать дальше. Человек
+ * видел состояние артефактов и не понимал, ждут его или работают за него.
+ *
+ * Порядок проверок — порядок срочности: занятый агент важнее несделанного, а
+ * замечания важнее устаревшего ролика, потому что ролик всё равно пересоберётся
+ * после них.
+ */
+function nextStep() {
+  const занят = agentDoing();
+  if (занят) return { who: 'agent', key: `doing_${занят.type}`, type: занят.type };
+
+  const sb = readBoard();
+  if (!sb?.plans?.length) return { who: 'human', key: 'now_task' };
+  if (sb.status !== 'ready') return { who: 'human', key: 'now_approve' };
+
+  const открытые = readNotes().filter((n) => n.status === 'open').length;
+  if (открытые) return { who: 'human', key: 'now_notes', count: открытые };
+
+  const files = {};
+  for (const s of STAGES) {
+    try { files[s.file] = fs.statSync(inProject(s.file)).mtimeMs; } catch { /* нет и нет */ }
+  }
+  const project = readProject(currentId) || {};
+  const шаги = pipelineState({ files, approved: project.approved || [], gates: project.gates });
+  const ступень = (id) => шаги.find((s) => s.id === id) || {};
+
+  if (ступень('states').state === 'missing') return { who: 'human', key: 'now_shoot' };
+  if (ступень('movie').state === 'missing') return { who: 'human', key: 'now_build' };
+  if (ступень('states').stale) return { who: 'human', key: 'now_reshoot' };
+  if (ступень('movie').stale) return { who: 'human', key: 'now_rebuild' };
+  return { who: 'human', key: 'now_watch' };
+}
+
+/** Чем агент занят прямо сейчас — для строки «что происходит» в студии. */
+const agentDoing = () => {
+  const [первое] = [...state.leased.values()];
+  return первое ? { type: первое.event.type, since: первое.until - LEASE_MS } : null;
+};
 
 /** Что сейчас ждёт агента или уже у него в работе — для показа в интерфейсе. */
 const inFlight = () => [
@@ -286,11 +352,17 @@ const inFlight = () => [
     id: event.id, type: event.type, text: event.text || null, state: 'working' })),
 ];
 
+/** Рассылка «что сейчас»: статус агента, его занятость и чей ход. */
+const pushNow = () => broadcast({
+  type: 'status', status: state.status, agent: agentAlive(),
+  doing: agentDoing(), next: nextStep(), inFlight: inFlight(),
+});
+
 function pushStatus(patch) {
   // Ключ словаря сбрасывается вместе с текстом: подпись шага сценария переводу не
   // подлежит, и оставшийся от прошлого состояния ключ подменил бы её своей фразой.
   Object.assign(state.status, { key: null, args: null }, patch);
-  broadcast({ type: 'status', status: state.status, agent: agentAlive(), inFlight: inFlight() });
+  pushNow();
 }
 
 function enqueue(event) {
@@ -382,7 +454,8 @@ const server = http.createServer(async (req, res) => {
   // локальному запросу — сервер и так слушает только петлевой интерфейс.
   if (p === '/api/hello') {
     return send(res, 200, { token: state.token, project: currentId, projects: listProjects(),
-                            status: state.status, agent: agentAlive(),
+                            status: state.status, agent: agentAlive(), doing: agentDoing(),
+                            next: nextStep(),
                             stend: state.stend, notes: readNotes(), storyboard: readBoard(),
                             movie: readMovie(), voices: readVoices(),
                             narration: readNarration(), inFlight: inFlight() });
@@ -393,7 +466,7 @@ const server = http.createServer(async (req, res) => {
     if (!authed) return send(res, 401, { error: 'unauthorized' });
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache',
                          Connection: 'keep-alive' });
-    res.write(`data: ${JSON.stringify({ type: 'status', status: state.status, agent: agentAlive(), inFlight: inFlight() })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'status', status: state.status, agent: agentAlive(), doing: agentDoing(), next: nextStep(), inFlight: inFlight() })}\n\n`);
     res.write(`data: ${JSON.stringify({ type: 'stend', stend: state.stend })}\n\n`);
     res.write(`data: ${JSON.stringify({ type: 'project', current: currentId, projects: listProjects() })}\n\n`);
     res.write(`data: ${JSON.stringify({ type: 'version', version: версия() })}\n\n`);
@@ -431,13 +504,14 @@ const server = http.createServer(async (req, res) => {
       writeNotes(notes);
       logEvent({ type: 'note', ...note });
       broadcast({ type: 'notes', notes });
+      pushNow();
       return send(res, 200, { ok: true, note });
     }
 
     if (msg.type === 'stop') state.stopRequested = true;
     if (msg.type === 'apply') msg.plan = planFor(readNotes());
     const e = enqueue(msg);
-    broadcast({ type: 'status', status: state.status, agent: agentAlive(), inFlight: inFlight() });
+    pushNow();
     return send(res, 200, { ok: true, id: e.id });
   }
 
@@ -470,6 +544,7 @@ const server = http.createServer(async (req, res) => {
     const storyboard = writeBoard(msg);
     logEvent({ type: 'storyboard', title: storyboard.title, plans: storyboard.plans.length });
     broadcast({ type: 'storyboard', storyboard });
+    pushNow();
     return send(res, 200, { ok: true, seconds: storyboard.seconds,
                             issues: checkStoryboard(storyboard) });
   }
@@ -578,7 +653,7 @@ const server = http.createServer(async (req, res) => {
     broadcast({ type: 'voices', voices: readVoices() });
     // Подготовка (расшифровка эталона) — работа агента: она долгая и требует моделей.
     enqueue({ type: 'voice_prepare', id, name: meta.name });
-    broadcast({ type: 'status', status: state.status, agent: agentAlive(), inFlight: inFlight() });
+    pushNow();
     return send(res, 200, { ok: true, id });
   }
 
@@ -620,6 +695,7 @@ const server = http.createServer(async (req, res) => {
       broadcast({ type: 'project', current: currentId, projects: listProjects() });
       broadcast({ type: 'storyboard', storyboard: readBoard() });
       broadcast({ type: 'notes', notes: readNotes() });
+      pushNow();
       broadcast({ type: 'movie', movie: readMovie() });
       broadcast({ type: 'narration', narration: readNarration() });
       return send(res, 200, { ok: true, current: currentId });
@@ -938,7 +1014,7 @@ const server = http.createServer(async (req, res) => {
 
     if (msg?.check) {
       enqueue({ type: 'check_stend', url: адрес });
-      broadcast({ type: 'status', status: state.status, agent: agentAlive(), inFlight: inFlight() });
+      pushNow();
     }
     const сохранённые = slug ? readTarget(slug)?.creds : readTaktConfig().creds;
     return send(res, 200, { ok: true, stend: адрес, target: slug || null,
@@ -963,7 +1039,7 @@ const server = http.createServer(async (req, res) => {
     if (!authed) return send(res, 401, { error: 'unauthorized' });
     state.agentSeenAt = Date.now();
     reclaimExpired();
-    broadcast({ type: 'status', status: state.status, agent: true, inFlight: inFlight() });
+    pushNow();
 
     const ready = state.queue.shift();
     if (ready) { lease(ready); return send(res, 200, ready); }
@@ -975,7 +1051,7 @@ const server = http.createServer(async (req, res) => {
         const i = state.polls.indexOf(poll);
         if (i !== -1) state.polls.splice(i, 1);
         send(res, 200, { type: 'timeout' });
-        broadcast({ type: 'status', status: state.status, agent: agentAlive() });
+        pushNow();
       }, wait),
     };
     state.polls.push(poll);
@@ -1000,7 +1076,7 @@ const server = http.createServer(async (req, res) => {
       broadcast({ type: 'notes', notes });
     }
     logEvent({ type: 'reply', ...msg });
-    broadcast({ type: 'status', status: state.status, agent: agentAlive(), inFlight: inFlight() });
+    pushNow();
     return send(res, 200, { ok: true });
   }
 
@@ -1049,5 +1125,5 @@ server.listen(PORT, '127.0.0.1', () => {
 // замечания в пустоту и узнаёт об этом через десять минут.
 setInterval(() => {
   reclaimExpired();
-  broadcast({ type: 'status', status: state.status, agent: agentAlive(), inFlight: inFlight() });
+  pushNow();
 }, 15_000);

@@ -42,6 +42,8 @@ const el = {
   sources: document.querySelector('.sources'),
   inspector: document.querySelector('.inspector'),
   version: document.querySelector('.version'),
+  link: document.querySelector('.link'),
+  now: document.querySelector('.now'),
   composeFrame: document.querySelector('.compose-frame'),
   short: document.querySelector('.short-run'),
   play: document.querySelector('.play'),
@@ -142,8 +144,44 @@ function setAgent(status, alive) {
     el.agentProgress.hidden = !counted;
     if (counted) tr(el.agentProgress, 'agentProgress', { step: status.step, of: status.of });
   }
-  // Отправлять некуда, пока никто не слушает: кнопка блокируется, а не молча глотает клик.
-  if (el.send) el.send.disabled = !alive;
+  /* Кнопку больше не блокируем. Событие не пропадает: студия кладёт его в очередь
+     и отдаёт агенту, как только тот подключится, — а блокировка выглядела как
+     «замечание не отправляется», хотя очередь работала. Подпись говорит правду:
+     уйдёт сейчас или подождёт. */
+  if (el.send) {
+    el.send.disabled = false;
+    trTitle(el.send, alive ? 'sendNow' : 'sendQueued');
+  }
+}
+
+/**
+ * Связь страницы со студией.
+ *
+ * Отдельно от агента намеренно: это разные вещи, и смешивать их — врать дважды.
+ * Оборвался поток — агент от этого никуда не делся, он снимает или ждёт; просто
+ * мы об этом временно не слышим. Поэтому метка говорит про связь, а состояние
+ * агента остаётся последним известным, пока не придёт новое.
+ */
+function setLink(state) {
+  if (!el.link) return;
+  el.link.hidden = state === 'ok';
+  el.link.dataset.state = state;
+  tr(el.link.querySelector('.link-text'), state === 'lost' ? 'linkLost' : 'linkBack');
+}
+
+/**
+ * Ход работы: чей сейчас ход и что делать.
+ *
+ * Считает сервер — одно место на студию и на ответ `takt`. Здесь только показ:
+ * метка «ваш ход» или «агент», и следующий шаг словами.
+ */
+function renderNow(next) {
+  if (!el.now) return;
+  if (!next?.key) { el.now.hidden = true; return; }
+  el.now.hidden = false;
+  el.now.dataset.who = next.who;
+  tr(el.now.querySelector('.now-who'), next.who === 'agent' ? 'nowAgent' : 'nowYou');
+  tr(el.now.querySelector('.now-what'), next.key, { count: next.count ?? 0 });
 }
 
 /** Откуда взялся адрес стенда — ключ на каждый источник: подстановка внутрь подстановки
@@ -1790,7 +1828,11 @@ function connect() {
   stream = new EventSource(`/api/stream?token=${token}`);
   stream.onmessage = (m) => {
     const msg = JSON.parse(m.data);
-    if (msg.type === 'status') { setAgent(msg.status, msg.agent); renderInFlight(msg.inFlight); }
+    if (msg.type === 'status') {
+      setAgent(msg.status, msg.agent);
+      renderInFlight(msg.inFlight);
+      renderNow(msg.next);
+    }
     if (msg.type === 'stend') setStend(msg.stend);
     if (msg.type === 'project') renderProjects(msg.current, msg.projects);
     if (msg.type === 'version') renderVersion({ данные: msg.version });
@@ -1808,14 +1850,19 @@ function connect() {
       // при открытии страницы, и рамка иначе горит на давно законченном прогоне.
     }
   };
-  // Обрыв SSE означает, что связи нет прямо сейчас: показываем это немедленно,
-  // а не оставляем висеть последнее известное состояние.
+  stream.onopen = () => { задержкаСвязи = 1000; setLink('ok'); };
+  /* Обрыв — про связь, а не про агента: он там же, где был. Пауза растёт от секунды
+     до десяти, потому что первая попытка чаще всего успешна (перезапуск студии), а
+     долгий обрыв не должен превращаться в стук в дверь каждую секунду. */
   stream.onerror = () => {
-    setAgent(null, false);
+    setLink('lost');
     stream.close();
-    setTimeout(connect, 3000);
+    setTimeout(connect, задержкаСвязи);
+    задержкаСвязи = Math.min(задержкаСвязи * 2, 10000);
   };
 }
+
+let задержкаСвязи = 1000;
 
 let voicePanel = null;
 let narrationPanel = null;
@@ -1830,6 +1877,7 @@ async function boot() {
   narrationPanel.render(hello.narration);
   setAgent(hello.status, hello.agent);
   renderInFlight(hello.inFlight);
+  renderNow(hello.next);
   setStend(hello.stend);
   renderProjects(hello.project, hello.projects);
   setupDragAndDrop(el.steps);
