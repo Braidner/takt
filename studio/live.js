@@ -703,10 +703,13 @@ function renderBoard(next) {
     /* Кнопка утверждения: пока раскадровка черновик — «Снимать», после — надпись
        о том, что по ней снято. Отсутствие агента её не блокирует: событие подождёт
        в очереди, а блокировка выглядела как поломка. */
-    el.shoot.hidden = false;
+    /* Кнопка живёт, пока ей есть что делать. Утверждённая раскадровка оставляла на
+       экране отключённую кнопку «Снято по этой раскадровке» — мёртвый элемент,
+       который читается как поломка. Что снято, и так говорит строка хода. */
     const ready = storyboard.status === 'ready';
-    tr(el.shoot, ready ? 'shootDone' : 'shootRun');
-    el.shoot.disabled = ready;
+    el.shoot.hidden = ready;
+    tr(el.shoot, 'shootRun');
+    el.shoot.disabled = false;
     trTitle(el.shoot, null);
     el.shoot.title = '';
   }
