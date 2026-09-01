@@ -1054,6 +1054,7 @@ function renderTracks() {
       if (s.mode === 'insert') seg.dataset.insert = 'true';
       seg.style.left = `calc(${pct(s.at)} + 1px)`;
       seg.style.width = `calc(${pct(s.duration.seconds)} - 2px)`;
+      seg.dataset.plan = s.id;
       seg.title = `${s.n}. ${s.title.text}`;
       steps.append(seg);
     }
@@ -1552,6 +1553,43 @@ function renderScriptCount() {
   el.scriptCount.textContent = `${storyboard.plans.length} · ${mmss(DURATION)}`;
 }
 
+/**
+ * Какой план сейчас в кадре — в списке и на дорожке.
+ *
+ * Без этого человек смотрит ролик на 0:38 и не знает, что это за план: приходится
+ * считать по времени глазами. Подсветка меняется только при смене плана — при
+ * воспроизведении эта функция зовётся двадцать пять раз в секунду, и трогать DOM
+ * на каждый кадр значило бы платить за то, чего никто не увидит.
+ */
+let подсвеченныйПлан = null;
+
+function подсветитьТекущийПлан() {
+  const планы = storyboard?.plans || [];
+  if (!планы.length) return;
+  const текущий = [...планы].reverse().find((p) => cursor >= p.at) || планы[0];
+  if (текущий.id === подсвеченныйПлан) return;
+  подсвеченныйПлан = текущий.id;
+
+  for (const row of document.querySelectorAll('.step-row')) {
+    const свой = row.dataset.plan === текущий.id;
+    const кнопка = row.querySelector('.step');
+    if (!кнопка) continue;
+    if (свой) кнопка.setAttribute('aria-current', 'true');
+    else кнопка.removeAttribute('aria-current');
+    // Список длиннее экрана: сам подводим к тому плану, который сейчас смотрят.
+    if (свой) {
+      const список = row.parentElement;
+      const выше = row.offsetTop < список.scrollTop;
+      const ниже = row.offsetTop + row.offsetHeight > список.scrollTop + список.clientHeight;
+      if (выше || ниже) список.scrollTo({ top: row.offsetTop - 12, behavior: 'smooth' });
+    }
+  }
+  for (const seg of document.querySelectorAll('.step-seg')) {
+    if (seg.dataset.plan === текущий.id) seg.setAttribute('aria-current', 'true');
+    else seg.removeAttribute('aria-current');
+  }
+}
+
 /** Титр текущего момента: последний, чьё время уже наступило. */
 function renderCaption(t) {
   if (!el.caption) return;
@@ -1574,6 +1612,7 @@ function syncCursor(t) {
   tr(el.pin, 'pin', { t: mmss(cursor) });
   trPh(el.composer, 'composerPh', { t: mmss(cursor) });
   renderCaption(cursor);
+  подсветитьТекущийПлан();
   // Плейхед и кадр композиции — одна позиция, а не две синхронизируемые.
   if (source === 'compose' && compose.ready && el.composeFrame?.contentWindow) {
     el.composeFrame.contentWindow.postMessage({ type: 'takt:seek', t: cursor }, '*');

@@ -1082,6 +1082,16 @@ button, input, textarea, select { font: inherit; color: inherit; }
   box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--brand-cyan) 40%, transparent);
 }
 
+/* План, который сейчас в кадре: подсвечен и в списке, и на дорожке — одна вещь
+   показана в двух местах, и человек связывает их без усилий. */
+.step[aria-current="true"] {
+  background: color-mix(in oklch, var(--brand-blue) 16%, transparent);
+  box-shadow: inset 2px 0 0 var(--brand-sky);
+}
+.step-seg[aria-current="true"] {
+  box-shadow: inset 0 0 0 2px var(--brand-sky);
+}
+
 .step-seg[data-state="done"] {
   background: color-mix(in oklch, var(--brand-teal) 24%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--brand-teal) 45%, transparent);
