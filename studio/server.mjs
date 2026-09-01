@@ -345,8 +345,13 @@ function nextStep() {
   }
   const неснятых = sb.plans.filter((p) => p.mode !== 'insert' && p.state !== 'done').length;
   if (неснятых) return { who: 'human', key: 'now_shoot', count: неснятых, act: 'shoot' };
-  if (ступень('movie').state === 'missing') return { who: 'human', key: 'now_build', act: 'cut' };
-  if (ступень('movie').stale) return { who: 'human', key: 'now_rebuild', act: 'cut' };
+  /* Про пересборку тоже судим по существу. Флаг `stale` наследуется по цепочке:
+     стоит тронуть раскадровку — и «устаревшими» становятся и снятое, и ролик, даже
+     если ролик собран минуту назад. Сравниваем время напрямую: ролик старше того,
+     из чего собран, — пересобрать; иначе смотреть. */
+  if (!files['movie.mp4']) return { who: 'human', key: 'now_build', act: 'cut' };
+  const позже = Math.max(files['storyboard.json'] || 0, files['states.json'] || 0);
+  if (files['movie.mp4'] < позже) return { who: 'human', key: 'now_rebuild', act: 'cut' };
   return { who: 'human', key: 'now_watch' };
 }
 
