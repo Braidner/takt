@@ -53,7 +53,6 @@ const el = {
   planCost: document.querySelector('.plan-cost'),
   planApply: document.querySelector('.plan-apply'),
   planRegen: document.querySelector('.plan-regen'),
-  stages: document.querySelector('.stages'),
   inflight: document.querySelector('.script-actions .inflight'),
   inflightNotes: document.querySelector('.inflight-notes'),
   projectSelect: document.querySelector('.project-select'),
@@ -703,7 +702,6 @@ function renderBoard(next) {
       if (было && !confirm(window.taktText?.('statusUnapprove')
           || 'Снять утверждение? Съёмка по этой раскадровке не стартует, пока не утвердите снова.')) return;
       await post('/api/approve', { stage: 'storyboard', approved: !было });
-      renderStages();
     });
     el.scriptHead.querySelector('span').after(badge);
   }
@@ -725,66 +723,6 @@ function renderBoard(next) {
     trTitle(el.shoot, null);
     el.shoot.title = '';
   }
-}
-
-/**
- * Ступени конвейера.
- *
- * Показывают весь путь разом: где мы сейчас и что ниже устарело после правки. Состояние
- * приходит с сервера, где выводится из файлов проекта, — здесь только рисунок и клик.
- * Клик утверждает ступень или снимает утверждение: это единственное решение, которое
- * из файлов не выводится.
- */
-const STAGE_KEYS = {
-  prompt: 'stagePrompt', recon: 'stageRecon', story: 'stageStory',
-  storyboard: 'stageStoryboard', states: 'stageStates', movie: 'stageMovie',
-};
-
-async function renderStages() {
-  if (!el.stages) return;
-  const данные = await fetch('/api/pipeline').then((r) => r.json()).catch(() => null);
-  if (!данные?.stages) { el.stages.hidden = true; return; }
-  el.stages.hidden = false;
-  el.stages.innerHTML = '';
-
-  for (const s of данные.stages) {
-    const li = document.createElement('li');
-    li.className = 'stage-step';
-    li.dataset.state = s.state;
-    if (s.stale) li.dataset.stale = 'true';
-
-    /* Ступень показывает путь, а не переключает состояние.
-       Раньше каждая была кнопкой «утвердить / снять утверждение», но решение
-       человека есть ровно одно — утверждена ли раскадровка: по нему стартует
-       съёмка. Остальные пять меняли только цвет полосы, поэтому клики то
-       «работали», то нет, и понять правило было неоткуда. Утверждение переехало
-       туда, где ему место: на бейдж рядом с заголовком раскадровки. */
-    const b = document.createElement('span');
-    b.className = 'stage-btn';
-    const имя = window.taktText(STAGE_KEYS[s.id]) || s.id;
-    // Ступень называет себя: пока имя жило только в подсказке, полоса читалась как
-    // ряд разноцветных чёрточек, и понять, какая из них съёмка, можно было лишь
-    // наведя мышь на каждую.
-    const подпись = document.createElement('span');
-    подпись.className = 'stage-name';
-    подпись.textContent = имя;
-    b.append(подпись);
-    // Цвет несёт смысл, поэтому дублируется словами: без подсказки «жёлтая полоска»
-    // не читается никак.
-    trTitle(b, s.stale ? 'stageStale'
-      : s.state === 'ready' ? 'stageReady'
-      : s.state === 'draft' ? 'stageDraft' : 'stageMissing', { stage: имя });
-
-    li.append(b);
-    el.stages.append(li);
-  }
-
-  /**
-   * Где человек сейчас — последняя ступень, которая уже существует.
-   *
-   * Полоса из шести рисок показывает путь, но сама по себе не отвечает на главный
-   * вопрос «что происходит»; ответ и есть эта строка.
-   */
 }
 
 /**
@@ -1968,7 +1906,6 @@ function connect() {
     if (msg.type === 'project') renderProjects(msg.current, msg.projects);
     if (msg.type === 'version') renderVersion({ данные: msg.version });
     if (msg.type === 'storyboard') { renderBoard(msg.storyboard); reloadCompose(); }
-    if (msg.type === 'pipeline') renderStages();
     if (msg.type === 'movie') renderMovie(msg.movie);
     if (msg.type === 'voices') voicePanel?.render(msg.voices);
     if (msg.type === 'narration') { narrationData = msg.narration; narrationPanel?.render(msg.narration); renderTracks(); }
@@ -2013,7 +1950,6 @@ async function boot() {
   renderProjects(hello.project, hello.projects);
   setupDragAndDrop(el.steps);
   setupCompose();
-  renderStages();
   await loadInserts();
   renderBoard(hello.storyboard);
   renderMovie(hello.movie);
