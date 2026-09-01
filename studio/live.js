@@ -1699,13 +1699,15 @@ async function renderPlan() {
   else tr(el.planCost, 'planCostUnknown');
   // Пересъёмка — единственное, что стоит десятки минут: об этом говорим прямо в кнопке.
   tr(el.planApply, plan.needsShooting ? 'planApplyShoot' : 'planApply');
-  el.planApply.disabled = el.agent?.dataset.state === 'offline';
+  // Событие не пропадёт: студия держит очередь и отдаст его агенту, когда тот
+  // подключится. Блокировка выглядела как «кнопка не работает».
+  el.planApply.disabled = false;
   // Перегенерация предлагается только когда есть что перечитывать: замечание с
   // адресом. Без него режиссёру нечего учитывать, и кнопка обещала бы работу,
   // которая ничего не изменит.
   if (el.planRegen) {
     el.planRegen.hidden = !plan.items.some((i) => i.kind === 'direct');
-    el.planRegen.disabled = el.agent?.dataset.state === 'offline';
+    el.planRegen.disabled = false;
   }
 }
 
