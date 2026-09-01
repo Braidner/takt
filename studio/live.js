@@ -128,13 +128,19 @@ function setAgent(status, alive, doing = null) {
   /* «Остановить» — кнопка для идущей работы, а не украшение панели. Пока она висела
      всегда, панель предлагала пять действий, из которых уместно было одно. */
   if (el.stop) el.stop.hidden = !doing && status?.state !== 'busy';
-  const state = !alive ? 'offline' : (status?.state === 'busy' ? 'busy' : 'listening');
+  /* Взятое в работу событие — само по себе признак занятости: агент может не успеть
+     прислать статус, а показывать «слушает» тому, кто прямо сейчас собирает ролик,
+     значит врать. */
+  const state = !alive ? 'offline' : (doing || status?.state === 'busy' ? 'busy' : 'listening');
   el.agent.dataset.state = state;
 
   // Что показывает агент, знает только агент: часть его состояний — наши фразы (приходят
   // ключом), часть — подписи шагов сценария, которые написал человек и переводить нельзя.
   if (el.agentText) {
     if (!alive) tr(el.agentText, 'agentOffline');
+    // Что именно он делает, знает событие в работе: свой статус агент присылает,
+    // когда дойдут руки, а занятие видно сразу.
+    else if (doing && !status?.key && !status?.text) tr(el.agentText, `doing_${doing.type}`);
     else if (status?.key) tr(el.agentText, status.key, status.args);
     else if (status?.text) { tr(el.agentText, null); el.agentText.textContent = status.text; }
     else tr(el.agentText, 'agentListening');
